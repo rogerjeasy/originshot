@@ -1,0 +1,245 @@
+@import "tailwindcss";
+
+/* Dark mode driven by a `.dark` class on <html> */
+@custom-variant dark (&:is(.dark *));
+
+/* ── ListSnap design tokens — "Studio" (see docs/DESIGN_SYSTEM.md) ──────── */
+:root {
+  --radius: 0.625rem;
+
+  /* Light · "Seamless" */
+  --background: #f4f5f7;
+  --foreground: #0e1116;
+  --card: #ffffff;
+  --card-foreground: #0e1116;
+  --popover: #ffffff;
+  --popover-foreground: #0e1116;
+  --primary: #14161b;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0f3;
+  --secondary-foreground: #14161b;
+  --accent: #2f54eb; /* electric cobalt — the SIGNAL */
+  --accent-foreground: #ffffff;
+  --muted: #edeff2;
+  --muted-foreground: #5b6470;
+  --border: #e2e5ea;
+  --input: #e2e5ea;
+  --ring: #2f54eb;
+  --verified: #0e9f6e; /* emerald — provenance / authentic */
+  --success: #0e9f6e;
+  --warning: #b45309;
+  --danger: #dc2626;
+  --info: #2f54eb;
+}
+
+.dark {
+  /* Dark · "Darkroom" */
+  --background: #0b0d10;
+  --foreground: #e7eaee;
+  --card: #12151a;
+  --card-foreground: #e7eaee;
+  --popover: #12151a;
+  --popover-foreground: #e7eaee;
+  --primary: #f2f4f7;
+  --primary-foreground: #0b0d10;
+  --secondary: #1a1f26;
+  --secondary-foreground: #e7eaee;
+  --accent: #5b7bff;
+  --accent-foreground: #0b0d10;
+  --muted: #161a20;
+  --muted-foreground: #9aa3af;
+  --border: #232a33;
+  --input: #232a33;
+  --ring: #5b7bff;
+  --verified: #2bd4a0;
+  --success: #2bd4a0;
+  --warning: #d98324;
+  --danger: #f26464;
+  --info: #5b7bff;
+}
+
+/* Map tokens → Tailwind theme so utilities (bg-*, text-*, border-*, ring-*) exist */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-verified: var(--verified);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+}
+
+@layer utilities {
+  /* Signature motif: the subtle studio "seamless sweep" backdrop */
+  .studio-sweep {
+    background-image: radial-gradient(
+        120% 80% at 50% -10%,
+        color-mix(in srgb, var(--color-foreground) 4%, var(--color-background)),
+        var(--color-background) 60%
+      );
+  }
+  /* Framed gallery tile: hairline + subtle inner ring so media reads as "framed" */
+  .frame {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-foreground) 6%, transparent);
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Subtle hover lift for interactive cards/tiles — gallery, not pillowy. */
+  .lift {
+    transition:
+      transform 0.18s ease-out,
+      box-shadow 0.18s ease-out;
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -12px color-mix(in srgb, var(--color-foreground) 22%, transparent);
+  }
+  /* "Developing" shimmer for image-shaped loading placeholders. */
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-foreground) 6%, transparent),
+      transparent
+    );
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  /* ── Marketing backdrops — restrained, "studio" not "loud gradient" ─────── */
+
+  /* Fine seamless-paper grid that fades out toward the edges (developer-studio feel). */
+  .bg-grid {
+    background-image:
+      linear-gradient(
+        to right,
+        color-mix(in srgb, var(--color-foreground) 5%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--color-foreground) 5%, transparent) 1px,
+        transparent 1px
+      );
+    background-size: 56px 56px;
+    -webkit-mask-image: radial-gradient(110% 90% at 50% 0%, #000 35%, transparent 80%);
+    mask-image: radial-gradient(110% 90% at 50% 0%, #000 35%, transparent 80%);
+  }
+
+  /* Soft cobalt "signal" glow — the one place color blooms, kept barely-there. */
+  .glow-cobalt {
+    background: radial-gradient(
+      55% 60% at 50% -5%,
+      color-mix(in srgb, var(--color-accent) 16%, transparent),
+      transparent 70%
+    );
+  }
+  /* Per-tile studio backdrop highlight (used inside framed showcase plates). */
+  .plate-sweep {
+    background-image: radial-gradient(
+      70% 60% at 50% 15%,
+      color-mix(in srgb, var(--color-foreground) 4%, transparent),
+      transparent 70%
+    );
+  }
+
+  /* Emerald trust glow for provenance moments. */
+  .glow-verified {
+    background: radial-gradient(
+      50% 60% at 50% 0%,
+      color-mix(in srgb, var(--color-verified) 14%, transparent),
+      transparent 70%
+    );
+  }
+
+  /* Deeper framed media well for hero showcases (hairline + soft inner shade). */
+  .frame-deep {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--color-foreground) 8%, transparent),
+      0 24px 60px -28px color-mix(in srgb, var(--color-foreground) 35%, transparent);
+  }
+
+  /* Gentle vertical float for hero accents (paused under reduced motion below). */
+  .float {
+    animation: float 6s ease-in-out infinite;
+  }
+  .float-slow {
+    animation: float 9s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+}
+
+/* Respect reduced motion globally */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
