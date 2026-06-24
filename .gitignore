@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+backend/.devdata/
+
+# Env / secrets — never commit
+.env
+.env.*
+!.env.example
+!*/.env.example
+!*/.env.local.example
+*firebase-admin*.json
+*service-account*.json
+
+# Node / Next
+node_modules/
+.next/
+out/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
