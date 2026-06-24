@@ -1,0 +1,22 @@
+# Build context = repo root (listsnap/). Build: docker build -f infra/Dockerfile.backend .
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Copy source first so the editable install can see the packages.
+COPY backend/ ./
+
+# Core + production integrations. Add Genblaze with the provider extras you use:
+#   pip install "genblaze[gmicloud,video]"
+RUN pip install --upgrade pip && pip install ".[firebase,worker,analytics]"
+
+# Run as a non-root user (SECURITY.md §14).
+RUN useradd -m appuser
+USER appuser
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

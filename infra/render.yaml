@@ -1,0 +1,72 @@
+# Render Blueprint — web API + background worker + Redis (Key Value).
+# Secrets (sync: false) are set in the Render dashboard; the Firebase service account is
+# mounted as a Secret File. See ../docs/SECURITY.md §14.
+services:
+  - type: web
+    name: listsnap-api
+    runtime: docker
+    dockerfilePath: ./infra/Dockerfile.backend
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /healthz
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: AUTH_DEV_BYPASS
+        value: "false"
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: listsnap-redis
+          property: connectionString
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/firebase-admin.json
+      - key: B2_KEY_ID
+        sync: false
+      - key: B2_APP_KEY
+        sync: false
+      - key: B2_BUCKET
+        sync: false
+      - key: B2_REGION
+        sync: false
+      - key: GMI_API_KEY
+        sync: false
+
+  - type: worker
+    name: listsnap-worker
+    runtime: docker
+    dockerfilePath: ./infra/Dockerfile.backend
+    dockerContext: .
+    dockerCommand: arq app.worker.WorkerSettings
+    plan: starter
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: listsnap-redis
+          property: connectionString
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/firebase-admin.json
+      - key: B2_KEY_ID
+        sync: false
+      - key: B2_APP_KEY
+        sync: false
+      - key: B2_BUCKET
+        sync: false
+      - key: GMI_API_KEY
+        sync: false
+
+  - type: redis
+    name: listsnap-redis
+    plan: starter
+    ipAllowList: []

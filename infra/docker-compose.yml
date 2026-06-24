@@ -1,0 +1,37 @@
+# Local dev: API + worker + Redis. Run from the infra/ directory:  docker compose up --build
+# (For the lightest local loop you don't even need this — see backend/README.md dev mode.)
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.backend
+    env_file:
+      - ../backend/.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.backend
+    command: ["arq", "app.worker.WorkerSettings"]
+    env_file:
+      - ../backend/.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+# Optional: add the Firebase Firestore emulator for local Firestore.
+#  firestore-emulator:
+#    image: google/cloud-sdk:slim
+#    command: gcloud emulators firestore start --host-port=0.0.0.0:8080
+#    ports: ["8080:8080"]

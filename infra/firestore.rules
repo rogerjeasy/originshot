@@ -1,0 +1,24 @@
+rules_version = '2';
+
+// Owner-only, deny by default. Clients may READ their own data (powers real-time job
+// listeners) but ALL writes go through the backend (Admin SDK), which validates input,
+// enforces quotas, and sets owner_uid from the verified token. See ../docs/SECURITY.md §4.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /sellers/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+
+      match /{document=**} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false;
+      }
+    }
+
+    // Everything else is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
