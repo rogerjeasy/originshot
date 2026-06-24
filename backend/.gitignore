@@ -1,0 +1,23 @@
+# Env / secrets — NEVER commit
+.env
+.env.*
+!.env.example
+*service-account*.json
+*firebase-admin*.json
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.devdata/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
