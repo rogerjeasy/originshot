@@ -23,7 +23,8 @@ listsnap/
 ├── docs/         PROJECT_DESCRIPTION · BUILD_PLAN · SECURITY · DESIGN_SYSTEM
 ├── backend/      FastAPI app + listsnap_pipelines (Genblaze) + tests
 ├── frontend/     Next.js (App Router) + Tailwind v4 + shadcn/ui
-└── infra/        Dockerfile.backend · docker-compose.yml · render.yaml · firestore.rules
+├── infra/        Dockerfile.backend · docker-compose.yml · firestore.rules
+└── render.yaml   Render Blueprint (backend) · frontend/vercel.json (Vercel)
 ```
 
 ## Quickstart

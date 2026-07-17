@@ -1,0 +1,54 @@
+# Render Blueprint — single FastAPI web service (lean, free tier).
+# Generation runs inline via FastAPI BackgroundTasks (JOB_QUEUE=inline), so no separate
+# worker or Redis is needed. Secrets (sync: false) are set in the Render dashboard; the
+# Firebase service-account JSON is mounted as a Secret File at
+# /etc/secrets/firebase-admin.json. See docs/SECURITY.md §14.
+#
+# NOTE: `plan: free` spins the service down after ~15 min idle (first request then cold-starts
+# ~50s, and a long generation job can be killed mid-run if it sleeps). Bump to `plan: starter`
+# for an always-on, demo-reliable service.
+services:
+  - type: web
+    name: listsnap-api
+    runtime: docker
+    dockerfilePath: ./infra/Dockerfile.backend
+    dockerContext: .
+    plan: free
+    healthCheckPath: /healthz
+    # Only redeploy when backend/infra actually change — a frontend-only push is ignored.
+    buildFilter:
+      paths:
+        - backend/**
+        - infra/**
+        - render.yaml
+      ignoredPaths:
+        - frontend/**
+        - docs/**
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: AUTH_DEV_BYPASS
+        value: "false"
+      - key: JOB_QUEUE
+        value: inline
+      # Firebase service account is uploaded as a Render Secret File (see steps).
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/firebase-admin.json
+      # Non-secret; the S3 endpoint is derived as s3.<region>.backblazeb2.com.
+      - key: B2_REGION
+        value: eu-central-003
+      # ── Set these in the dashboard (Environment) ──
+      - key: PUBLIC_BASE_URL        # e.g. https://listsnap-api.onrender.com
+        sync: false
+      - key: ALLOWED_ORIGINS        # your Vercel URL, e.g. https://listsnap.vercel.app
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: B2_KEY_ID
+        sync: false
+      - key: B2_APP_KEY
+        sync: false
+      - key: B2_BUCKET
+        sync: false
+      - key: GMI_API_KEY
+        sync: false
