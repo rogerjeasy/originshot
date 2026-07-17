@@ -24,9 +24,31 @@ def _video_ids():
     return set(build_video_registry().known())
 
 
-def test_image_model_ids_exist_in_gmi_registry():
+def _allows(spec, kwarg: str) -> bool:
+    """True if a ModelSpec permits `kwarg`.
+
+    A `param_allowlist` of None means the SDK doesn't restrict params for that model
+    (permissive) — which is exactly the case for `gemini-3-pro-image-preview` and is *why*
+    passing `image`/`aspect_ratio` succeeds against the live request-queue API.
+    """
+    allow = getattr(spec, "param_allowlist", None)
+    return allow is None or kwarg in allow
+
+
+def test_image_model_resolves_in_gmi_sdk():
+    """Our image model must resolve to a usable ModelSpec via the GMI SDK.
+
+    NOTE: `gemini-3-pro-image-preview` is RUNTIME-VERIFIED (it accepts a reference `image` +
+    prompt on the live request-queue API) but is *not* in the SDK's static catalog
+    (`build_image_registry().known()` lists only the seededit/reve models, which 404 for our
+    account — see registry.py). So we assert `.get()` returns a spec, not catalog membership.
+    """
+    from genblaze_gmicloud.models import build_image_registry
+
+    spec = build_image_registry().get(registry.IMAGE_EDIT_MODEL)
+    assert spec is not None, registry.IMAGE_EDIT_MODEL
+    # Any declared fallbacks, if we add them later, MUST be in the static catalog.
     ids = _image_ids()
-    assert registry.IMAGE_EDIT_MODEL in ids, registry.IMAGE_EDIT_MODEL
     for m in registry.IMAGE_EDIT_FALLBACKS:
         assert m in ids, m
 
@@ -45,10 +67,10 @@ def test_reference_image_kwarg_is_allowlisted():
 
     img = build_image_registry().get(registry.IMAGE_EDIT_MODEL)
     vid = build_video_registry().get(registry.VIDEO_MODEL)
-    assert registry.REFERENCE_IMAGE_KWARG in img.param_allowlist
-    assert registry.REFERENCE_IMAGE_KWARG in vid.param_allowlist
-    assert "aspect_ratio" in img.param_allowlist
-    assert "duration" in vid.param_allowlist
+    assert _allows(img, registry.REFERENCE_IMAGE_KWARG)
+    assert _allows(vid, registry.REFERENCE_IMAGE_KWARG)
+    assert _allows(img, "aspect_ratio")
+    assert _allows(vid, "duration")
 
 
 async def test_manifest_embed_extract_verify_roundtrip(tmp_path):

@@ -10,9 +10,10 @@ WORKDIR /app
 # Copy source first so the editable install can see the packages.
 COPY backend/ ./
 
-# Core + production integrations. Add Genblaze with the provider extras you use:
-#   pip install "genblaze[gmicloud,video]"
-RUN pip install --upgrade pip && pip install ".[firebase,worker,analytics]"
+# Core + production integrations. The `genblaze` extra pulls in the Genblaze SDK with the
+# provider packages we use (genblaze[gmicloud,video,parquet]). WITHOUT it, genblaze_available()
+# is False and the API falls back to mock generation — so it MUST be installed in production.
+RUN pip install --upgrade pip && pip install ".[firebase,worker,analytics,genblaze]"
 
 # Run as a non-root user (SECURITY.md §14).
 RUN useradd -m appuser

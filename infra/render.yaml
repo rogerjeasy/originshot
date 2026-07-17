@@ -9,6 +9,14 @@ services:
     dockerContext: .
     plan: starter
     healthCheckPath: /healthz
+    # Only redeploy when backend/infra actually change — a frontend-only push is ignored.
+    buildFilter:
+      paths:
+        - backend/**
+        - infra/**
+      ignoredPaths:
+        - frontend/**
+        - docs/**
     envVars:
       - key: APP_ENV
         value: production
@@ -45,6 +53,13 @@ services:
     dockerContext: .
     dockerCommand: arq app.worker.WorkerSettings
     plan: starter
+    buildFilter:
+      paths:
+        - backend/**
+        - infra/**
+      ignoredPaths:
+        - frontend/**
+        - docs/**
     envVars:
       - key: APP_ENV
         value: production

@@ -4,14 +4,22 @@ Secrets live ONLY in the environment — never in the repo. See ../docs/SECURITY
 """
 from __future__ import annotations
 
+import os
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Single repo-root env file (listsnap/.env), shared with the frontend. Resolved relative to
+# this module so it loads no matter where uvicorn is launched from. Missing in production
+# (Render injects real env vars, which always take precedence over an env file) — pydantic
+# tolerates the absent file. config.py is at listsnap/backend/app/ ⇒ parents[2] == listsnap/.
+_ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False
+        env_file=str(_ROOT_ENV), env_file_encoding="utf-8", extra="ignore", case_sensitive=False
     )
 
     # App
@@ -75,7 +83,10 @@ class Settings(BaseSettings):
 
     @property
     def b2_endpoint(self) -> str:
-        return self.b2_endpoint_url or f"https://s3.{self.b2_region}.backblazeb2.com"
+        # boto3 requires a scheme; tolerate a bare host in B2_ENDPOINT_URL (e.g.
+        # "s3.eu-central-003.backblazeb2.com") by defaulting it to https://.
+        raw = self.b2_endpoint_url or f"s3.{self.b2_region}.backblazeb2.com"
+        return raw if "://" in raw else f"https://{raw}"
 
     @property
     def firebase_configured(self) -> bool:
@@ -90,6 +101,41 @@ class Settings(BaseSettings):
         return self.max_upload_mb * 1024 * 1024
 
 
+# Keys that downstream libraries read straight from `os.environ` rather than from our
+# Settings object: the Genblaze GMICloud providers (`GMI_API_KEY`), the Genblaze B2 sink
+# (`listsnap_pipelines/storage.py` → `B2_*`), and the Firebase Admin SDK
+# (`GOOGLE_APPLICATION_CREDENTIALS`). `pydantic-settings` reads the `.env` FILE into this
+# object but does NOT populate `os.environ`, so we mirror these across explicitly. Without
+# this, flipping on real keys makes `make_sink()` KeyError and the providers auth-fail.
+_ENV_MIRROR = {
+    "GMI_API_KEY": "gmi_api_key",
+    "OPENAI_API_KEY": "openai_api_key",
+    "GEMINI_API_KEY": "gemini_api_key",
+    "LUMA_API_KEY": "luma_api_key",
+    "ELEVENLABS_API_KEY": "elevenlabs_api_key",
+    "B2_KEY_ID": "b2_key_id",
+    "B2_APP_KEY": "b2_app_key",
+    "B2_BUCKET": "b2_bucket",
+    "B2_REGION": "b2_region",
+    "B2_ENDPOINT_URL": "b2_endpoint_url",
+    "GOOGLE_APPLICATION_CREDENTIALS": "google_application_credentials",
+    "FIREBASE_PROJECT_ID": "firebase_project_id",
+}
+
+
+def _mirror_to_environ(settings: Settings) -> None:
+    """Publish `.env`-loaded secrets into `os.environ` for libraries that read it directly.
+
+    `setdefault` so a real process env var (e.g. on Render) always wins over the `.env` file.
+    """
+    for env_key, attr in _ENV_MIRROR.items():
+        val = getattr(settings, attr, None)
+        if val:
+            os.environ.setdefault(env_key, str(val))
+
+
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    _mirror_to_environ(settings)
+    return settings

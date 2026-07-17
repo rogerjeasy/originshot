@@ -28,12 +28,17 @@ listsnap/
 
 ## Quickstart
 
+**One env file for both apps.** Copy the root template once; the backend (pydantic) and the
+frontend (`frontend/next.config.mjs`) both read this single `listsnap/.env`:
+```bash
+cp .env.example .env                               # then fill in your keys
+```
+
 **Backend** (runs fully locally — no Firebase/B2/Redis needed in dev):
 ```bash
 cd backend
 poetry env use 3.12                                # Python 3.11–3.13 (not 3.14+)
 poetry install
-cp .env.example .env
 poetry run uvicorn app.main:app --reload           # http://localhost:8000/docs
 ```
 
@@ -41,7 +46,6 @@ poetry run uvicorn app.main:app --reload           # http://localhost:8000/docs
 ```bash
 cd frontend
 npm install
-cp .env.local.example .env.local                   # optional in dev
 npm run dev                                         # http://localhost:3000
 ```
 

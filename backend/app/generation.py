@@ -185,6 +185,12 @@ def _map(sku, result, style: Style, parent: str, storage) -> dict:
     #     `width`, `height`, `duration` — and has no storage `key`.
     #   * Manifest exposes `canonical_hash`, `manifest_uri`, `verify()`.
     step = result.run.steps[0]
+    # In genblaze-core 0.3.2 a failed step (provider error, moderation block, or all
+    # fallbacks exhausted) is *returned* with empty `assets` rather than raised. Surface the
+    # provider's real reason instead of a downstream IndexError. (0.4.0 will raise instead.)
+    if not step.assets:
+        reason = getattr(step, "error", None) or getattr(step, "status", None) or "no asset produced"
+        raise RuntimeError(str(reason))
     asset = step.assets[0]
     run_id = getattr(getattr(result, "run", None), "run_id", None)
     manifest = getattr(result, "manifest", None)

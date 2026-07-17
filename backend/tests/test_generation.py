@@ -22,7 +22,7 @@ class FakeStep:
     def __init__(self, asset: FakeAsset):
         self.assets = [asset]
         self.provider = "gmicloud"
-        self.model = "seededit-3-0-i2i-250628"
+        self.model = "gemini-3-pro-image-preview"
         self.cost_usd = 0.04
 
 
@@ -134,7 +134,7 @@ async def test_real_generation_maps_all_styles(fake_sdk):
 
     studio_asset = next(a for a in assets if a["style"] == "studio")
     assert studio_asset["provider"] == "gmicloud"           # from Step, not Asset
-    assert studio_asset["model"] == "seededit-3-0-i2i-250628"
+    assert studio_asset["model"] == "gemini-3-pro-image-preview"
     assert studio_asset["mime_type"] == "image/png"         # Asset.media_type
     assert studio_asset["cost_usd"] == 0.04                 # from Step.cost_usd
     assert studio_asset["manifest_verified"] is True
