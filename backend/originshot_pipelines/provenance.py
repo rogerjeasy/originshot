@@ -1,6 +1,6 @@
 """Provenance helpers: embed/verify Genblaze manifests + disclosure text.
 
-✅ WEEK-1 VERIFIED (genblaze-core 0.3.2):
+✅ VERIFIED (genblaze-core 0.3.2; re-verified on 0.3.6 — see the note at the end):
   * Embedding is **explicit, not automatic** — `ObjectStorageSink` has no `embed_policy`.
     The canonical path is `PipelineResult.save(path, embed=True, policy=EmbedPolicy(...))`,
     which uses `SmartEmbedder` (falls back to a sidecar for formats that can't carry one).
@@ -14,12 +14,20 @@
     `manifest.verify()` checks the manifest's internal canonical hash, so it stays valid
     after embedding (PNG iTXt / MP4 box additions don't touch the canonical payload).
   * Content-binding: PNG (iTXt) and MP4 (uuid box) embeds are clean appends, so stripping
-    the manifest recovers the exact committed bytes. The SDK's JPEG/WebP handlers, however,
-    **re-encode through Pillow** — the original bytes are lost, so a strip-and-rehash check
-    is impossible against an SDK-embedded JPEG/WebP. To give those formats real
-    content-binding, `embed_manifest` injects the manifest **byte-preservingly** (JPEG APP1
-    XMP segment / WebP RIFF `XMP ` chunk) in `full` mode, leaving the original bytes intact
-    so `canonical_content_hash` can strip them back out.
+    the manifest recovers the exact committed bytes. JPEG and WebP were not: both SDK
+    handlers re-encoded through Pillow, destroying the committed bytes and making a
+    strip-and-rehash check impossible. So `embed_manifest` injects the manifest
+    **byte-preservingly** (JPEG APP1 XMP segment / WebP RIFF `XMP ` chunk) in `full` mode,
+    leaving the original bytes intact for `canonical_content_hash` to strip back out.
+
+🔁 RE-VERIFIED against genblaze-core 0.3.6 (2026-07-19), SDK `result.save(embed=True)`,
+   strip-and-rehash against the pre-embed bytes:
+      PNG  → recovers original ✓      JPEG → recovers original ✓ (fixed upstream)
+      WEBP → recovers original ✗, and the decoded pixels change (still re-encodes)
+   So the JPEG half of our workaround is now redundant and the **WebP half is still
+   load-bearing**. Both paths are kept: one code path for both formats is simpler than a
+   format-conditional one, it costs nothing, and it keeps content-binding independent of
+   which formats the SDK happens to preserve in a given release.
 """
 from __future__ import annotations
 
