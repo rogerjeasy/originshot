@@ -9,7 +9,7 @@ import pytest
 pytest.importorskip("genblaze")
 pytest.importorskip("genblaze_gmicloud")
 
-from listsnap_pipelines import registry  # noqa: E402
+from originshot_pipelines import registry  # noqa: E402
 
 
 def _image_ids():
@@ -79,7 +79,7 @@ async def test_manifest_embed_extract_verify_roundtrip(tmp_path):
     from genblaze import MockProvider
     from PIL import Image
 
-    from listsnap_pipelines import provenance
+    from originshot_pipelines import provenance
 
     png = tmp_path / "shot.png"
     Image.new("RGB", (48, 48), (180, 60, 60)).save(png, format="PNG")
@@ -102,7 +102,7 @@ async def test_studio_builder_runs_with_mock_provider():
     """The real studio builder + Pipeline API produce a verifiable manifest."""
     from genblaze import MockProvider
 
-    from listsnap_pipelines import studio
+    from originshot_pipelines import studio
 
     pipe = studio.build_studio_pipeline(
         "https://example.com/source.png", "a blue ceramic mug", provider=MockProvider()
