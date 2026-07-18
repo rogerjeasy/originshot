@@ -6,6 +6,7 @@ import { Check, Loader2, Palette } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useApiData } from "@/lib/use-api";
 import type { BrandKit } from "@/lib/types";
+import { CreditsCard } from "@/components/credits-card";
 import { FadeIn } from "@/components/motion/fade-in";
 import { PageHeader } from "@/components/page-header";
 import { Alert } from "@/components/ui/alert";
@@ -133,8 +134,10 @@ export default function SettingsPage() {
           </Card>
         </FadeIn>
 
-        {/* Live preview — sticky beside the form on lg, stacks below on mobile. */}
-        <FadeIn delay={0.08} className="lg:sticky lg:top-20">
+        {/* Credits + live preview — sticky beside the form on lg, stacks below on mobile. */}
+        <FadeIn delay={0.08} className="space-y-6 lg:sticky lg:top-20">
+          <CreditsCard />
+
           <Card className="studio-sweep">
             <CardHeader>
               <CardTitle className="text-sm font-medium text-muted-foreground">

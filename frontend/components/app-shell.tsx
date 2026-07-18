@@ -3,11 +3,21 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, LayoutGrid, Loader2, LogOut, Settings, ShieldCheck } from "lucide-react";
+import {
+  BarChart3,
+  Gauge,
+  LayoutGrid,
+  Loader2,
+  LogOut,
+  Settings,
+  ShieldCheck,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useSession } from "@/lib/use-session";
 import { BrandMark } from "./brand-mark";
 import { useAuth } from "./auth-provider";
+import { CreditsPill } from "./credits-pill";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/button";
 
@@ -18,10 +28,16 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+// Rendered only for admins. The nav entry is a convenience, not a control: every
+// /api/admin route is guarded server-side, so hiding it protects nothing on its own.
+const ADMIN_NAV = { href: "/admin", label: "Admin", icon: Gauge };
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading, signOut } = useAuth();
+  const { isAdmin } = useSession();
   const pathname = usePathname();
   const router = useRouter();
+  const nav = isAdmin ? [...NAV, ADMIN_NAV] : NAV;
 
   // Auth is always enforced — no dev bypass. Redirect to /signin when there's no session.
   useEffect(() => {
@@ -44,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <BrandMark wordmarkClassName="hidden lg:inline" />
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-2 lg:p-3">
-          {NAV.map(({ href, label, icon: Icon }) => {
+          {nav.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
               <Link
@@ -72,6 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {user.email}
           </span>
           <div className="flex items-center gap-2">
+            <CreditsPill />
             <ThemeToggle />
             <Button variant="ghost" size="sm" onClick={() => void signOut()}>
               <LogOut /> Sign out
@@ -86,10 +103,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Bottom nav (mobile) */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t bg-card md:hidden"
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-20 grid border-t bg-card md:hidden",
+          isAdmin ? "grid-cols-5" : "grid-cols-4",
+        )}
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        {NAV.map(({ href, label, icon: Icon }) => {
+        {nav.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (
             <Link
