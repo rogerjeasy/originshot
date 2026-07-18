@@ -1,21 +1,27 @@
 """Small shared helpers for assembling API responses."""
 from __future__ import annotations
 
-from .storage import get_storage
+from .storage import get_storage, key_from_url
+
+
+def presigned_url_for(asset: dict) -> str | None:
+    """Short-lived presigned URL for an asset's media.
+
+    Prefers a real object key (presigned against our bucket). Assets written before the
+    sink key was recorded only have the sink's unsigned URL, so recover the key from it —
+    the bucket is private and the raw URL 403s. Falls back to the stored URL for objects
+    that genuinely live elsewhere.
+    """
+    key = asset.get("b2_key") or key_from_url(asset.get("b2_url"))
+    if key and not str(key).startswith("http"):
+        return get_storage().presigned_get(key)
+    return asset.get("b2_url") or key
 
 
 def with_presigned_url(asset: dict) -> dict:
-    """Attach a short-lived presigned URL.
-
-    Prefers a real object key (presigned against our bucket); falls back to a durable URL
-    stored by the Genblaze sink when no key is available.
-    """
+    """Copy of `asset` with a short-lived presigned `url` attached."""
     a = dict(asset)
-    key = a.get("b2_key")
-    if key and not str(key).startswith("http"):
-        a["url"] = get_storage().presigned_get(key)
-    else:
-        a["url"] = a.get("b2_url") or key
+    a["url"] = presigned_url_for(a)
     return a
 
 

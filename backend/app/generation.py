@@ -12,6 +12,7 @@ import uuid
 
 from .config import get_settings
 from .models import Modality, Style
+from .storage import key_from_url
 
 log = logging.getLogger("listsnap.generation")
 
@@ -209,13 +210,15 @@ def _map(sku, result, style: Style, parent: str, storage) -> dict:
 
     modality = Modality.video if style is Style.video else Modality.image
     mime_type = getattr(asset, "media_type", None)
+    sink_url = getattr(asset, "url", None)
     out = {
         "sku_id": sku["id"],
         "sha256": getattr(asset, "sha256", None),
-        # The Genblaze sink owns the stored object key; we keep its durable URL and let the
-        # response layer presign by key when we manage the object ourselves.
-        "b2_key": None,
-        "b2_url": getattr(asset, "url", None),
+        # The Genblaze sink owns the stored object key and returns an unsigned URL. Our
+        # bucket is private, so recover the key and let callers presign it; keep the raw
+        # URL as a fallback for objects stored outside our bucket.
+        "b2_key": key_from_url(sink_url),
+        "b2_url": sink_url,
         "modality": modality.value,
         "style": style.value,
         "is_authentic": False,
@@ -275,7 +278,9 @@ def _embed_and_store(result, out: dict, storage, mime_type: str | None, manifest
 
     from .storage import storage_key
 
-    url = out.get("b2_url")
+    # Presign when the sink stored into our own (private) bucket — the raw sink URL 403s.
+    key = out.get("b2_key")
+    url = storage.presigned_get(key) if key else out.get("b2_url")
     if not url:
         return
     data = _fetch_bytes(url)

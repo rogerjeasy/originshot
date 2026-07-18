@@ -18,6 +18,36 @@ def storage_key(sha256: str, ext: str) -> str:
     return f"assets/{sha256[:2]}/{sha256[2:4]}/{sha256}{ext}"
 
 
+def key_from_url(url: str | None) -> str | None:
+    """Recover an object key from a URL that points at our own B2 bucket.
+
+    The Genblaze sink writes into the bucket we own but hands back a plain, unsigned URL.
+    The bucket is private (SECURITY.md §8), so that URL 403s — recover the key so callers
+    can presign it instead. Returns None for anything outside our bucket (or when B2 isn't
+    configured), leaving the caller's existing fallback in charge.
+    """
+    from urllib.parse import unquote, urlparse
+
+    settings = get_settings()
+    bucket = settings.b2_bucket
+    # Gate on full B2 config: without credentials get_storage() serves LocalStorage, which
+    # would presign a B2 key into a bogus /media/ URL.
+    if not url or not bucket or not settings.b2_configured:
+        return None
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return None
+
+    host = parsed.netloc.rsplit("@", 1)[-1].split(":")[0]
+    path = unquote(parsed.path).lstrip("/")
+    if host.startswith(f"{bucket}."):  # virtual-hosted style: <bucket>.s3.<region>...
+        return path or None
+    head, _, rest = path.partition("/")  # path style: s3.<region>.../<bucket>/<key>
+    if head == bucket:
+        return rest or None
+    return None
+
+
 class LocalStorage:
     def __init__(self) -> None:
         settings = get_settings()
