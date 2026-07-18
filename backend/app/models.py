@@ -71,6 +71,60 @@ class UserOut(BaseModel):
     roles: list[Role] = Field(default_factory=lambda: list(DEFAULT_ROLES))
     created_at: datetime
     updated_at: datetime | None = None
+    credits_balance: float = 0.0
+
+
+# ── Credits & ledger ──────────────────────────────────────────────────
+class LedgerKind(str, Enum):
+    """Why a balance moved. `hold` and its matching `refund`/`debit` bracket one job."""
+    grant = "grant"     # credit added (signup bonus or admin top-up)
+    hold = "hold"       # estimated cost reserved at job submit
+    debit = "debit"     # settlement at or over the held estimate
+    refund = "refund"   # settlement under the held estimate (or a failed job)
+    adjust = "adjust"   # manual admin correction, may be negative
+
+
+class LedgerEntryOut(BaseModel):
+    id: str
+    uid: str
+    kind: LedgerKind
+    amount_usd: float          # signed: negative means money left the balance
+    balance_after: float
+    seq: int = 0               # per-user monotonic; orders rows sharing a created_at
+    job_id: str | None = None
+    sku_id: str | None = None
+    note: str | None = None
+    actor_uid: str | None = None
+    created_at: datetime
+
+
+class CreditSummaryOut(BaseModel):
+    balance_usd: float
+    granted_total_usd: float
+    spent_total_usd: float
+    held_usd: float
+    daily_quota: int
+    daily_used: int
+    low_balance: bool
+
+
+class GrantRequest(BaseModel):
+    amount_usd: float = Field(gt=-10_000, lt=10_000)
+    note: str | None = Field(default=None, max_length=200)
+
+
+class RolesRequest(BaseModel):
+    roles: list[Role] = Field(min_length=1)
+
+
+class CostEstimateOut(BaseModel):
+    """Pre-flight quote shown before the user commits to a run."""
+    styles: list[dict]
+    total_estimate_usd: float
+    eta_seconds: int
+    balance_usd: float
+    affordable: bool
+    basis: str
 
 
 # ── SKUs ──────────────────────────────────────────────────────────────
@@ -131,6 +185,35 @@ class ExportRequest(BaseModel):
     marketplaces: list[Marketplace] = Field(default_factory=list)
 
 
+class StepStatus(str, Enum):
+    pending = "pending"
+    running = "running"
+    done = "done"
+    failed = "failed"
+    skipped = "skipped"
+
+
+class JobStep(BaseModel):
+    """One style's progress within a job.
+
+    Written by the worker as the run advances so the client can show real per-step state
+    instead of an indeterminate spinner. `duration_ms` is measured, not estimated;
+    `eta_seconds` is the pre-run guess kept alongside it so the UI can show both and the
+    gap between them stays visible.
+    """
+    style: Style
+    status: StepStatus = StepStatus.pending
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration_ms: int | None = None
+    eta_seconds: int | None = None
+    provider: str | None = None
+    model: str | None = None
+    cost_usd: float | None = None
+    asset_count: int = 0
+    error: str | None = None
+
+
 class JobOut(BaseModel):
     id: str
     owner_uid: str
@@ -142,7 +225,13 @@ class JobOut(BaseModel):
     cost_estimate: float | None = None
     error: str | None = None
     created_at: datetime
+    started_at: datetime | None = None
     finished_at: datetime | None = None
+    # Live progress
+    steps: list[JobStep] = Field(default_factory=list)
+    eta_seconds: int | None = None
+    credits_held: float | None = None
+    cost_actual: float | None = None
 
 
 # ── Provenance / verify ───────────────────────────────────────────────
@@ -174,3 +263,110 @@ class AnalyticsOut(BaseModel):
     estimated_cost_usd: float
     provider_mix: dict[str, int]
     fallback_rate: float
+
+
+# ── Admin ─────────────────────────────────────────────────────────────
+class AdminUserRow(BaseModel):
+    uid: str
+    email: str | None = None
+    username: str | None = None
+    roles: list[Role] = Field(default_factory=list)
+    credits_balance: float = 0.0
+    credits_spent_total: float = 0.0
+    skus: int = 0
+    assets: int = 0
+    jobs: int = 0
+    last_active: datetime | None = None
+    created_at: datetime | None = None
+
+
+class AdminJobRow(BaseModel):
+    """A job as the operator sees it — who ran it, how long it took, what it cost."""
+    id: str
+    owner_uid: str
+    owner_email: str | None = None
+    sku_id: str
+    status: JobStatus
+    requested_styles: list[Style] = Field(default_factory=list)
+    asset_count: int = 0
+    cost_actual: float | None = None
+    duration_ms: int | None = None
+    error: str | None = None
+    created_at: datetime
+
+
+class ProviderBudgetOut(BaseModel):
+    """Provider (GMI Cloud) credit position, as far as we can honestly determine it.
+
+    GMI's inference API exposes no balance endpoint (probed 2026-07-18: every billing path
+    on api.gmi-serving.com hits a catch-all 405, and console.gmicloud.ai/api/v1/billing/*
+    rejects an inference key with "token signature is invalid" — those routes want a console
+    session JWT). So `remaining_usd` is NOT read from GMI. It is the operator-recorded
+    top-up minus the spend we metered ourselves from Step.cost_usd.
+
+    `source` says exactly that, and the UI prints it, so nobody mistakes a derived figure
+    for the provider's own number.
+    """
+    budget_usd: float                  # what the operator recorded purchasing
+    metered_spend_usd: float           # summed from real Step.cost_usd on our jobs
+    remaining_usd: float               # budget − metered spend (derived, not authoritative)
+    configured: bool                   # has an operator recorded a budget at all?
+    updated_at: datetime | None = None
+    updated_by: str | None = None
+    provider_api_supports_balance: bool = False
+    source: str
+
+
+class ProviderBudgetRequest(BaseModel):
+    budget_usd: float = Field(ge=0, le=1_000_000)
+    note: str | None = Field(default=None, max_length=200)
+
+
+class AdminOverviewOut(BaseModel):
+    # Platform scale
+    users_total: int
+    users_active_7d: int
+    skus_total: int
+    assets_total: int
+    jobs_total: int
+    # Reliability — the numbers that say whether this is production-ready
+    jobs_succeeded: int
+    jobs_partial: int
+    jobs_failed: int
+    success_rate_pct: float
+    p50_duration_ms: int | None = None
+    p95_duration_ms: int | None = None
+    # Money
+    spend_total_usd: float
+    credits_outstanding_usd: float
+    credits_granted_usd: float
+    # Media
+    images: int
+    videos: int
+    provider_mix: dict[str, int]
+    dedup_savings_pct: float
+    embedded_pct: float
+    # B2
+    b2: dict
+    generated_24h: int
+    # Provider (GMI) credit position — derived, see ProviderBudgetOut.
+    provider_budget: ProviderBudgetOut | None = None
+
+
+class ServiceCheck(BaseModel):
+    name: str
+    ok: bool
+    detail: str | None = None
+    latency_ms: int | None = None
+
+
+class AdminHealthOut(BaseModel):
+    status: str
+    env: str
+    checks: list[ServiceCheck]
+    job_queue: str
+    generation_mode: str
+    providers: dict[str, bool]
+    manifest_embed_mode: str
+    uptime_seconds: int
+    version: str
