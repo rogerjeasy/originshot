@@ -10,9 +10,9 @@ import { useApiData } from "@/lib/use-api";
 import { useSession } from "@/lib/use-session";
 import type { Asset, Job, Marketplace, Sku, Style } from "@/lib/types";
 import { FadeIn } from "@/components/motion/fade-in";
-import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { ImageTile } from "@/components/image-tile";
 import { Lightbox } from "@/components/lightbox";
+import { AssetWorkbench } from "@/components/studio/asset-workbench";
 import { JobProgress } from "@/components/studio/job-progress";
 import { GeneratePanel } from "@/components/studio/generate-panel";
 import { UploadDropzone } from "@/components/upload-dropzone";
@@ -38,6 +38,13 @@ export default function SkuWorkspace() {
   const original = assets?.find((a) => a.is_authentic) ?? null;
   const generated = assets?.filter((a) => !a.is_authentic) ?? [];
   const busyJob = jobId !== null;
+
+  // Styles whose step is queued or running, so the workbench can hold a slot
+  // open for each frame that's still on its way.
+  const pendingStyles =
+    job?.steps
+      ?.filter((s) => s.status === "pending" || s.status === "running")
+      .map((s) => s.style) ?? [];
 
   async function upload(file: File) {
     setUploading(true);
@@ -187,19 +194,12 @@ export default function SkuWorkspace() {
               instead of vanishing the moment the last step lands. */}
           {job && <JobProgress job={job} />}
 
-          {generated.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Generated pack
-              </h2>
-              <Stagger className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-                {generated.map((a) => (
-                  <StaggerItem key={a.id}>
-                    <ImageTile asset={a} onClick={() => setActive(a)} />
-                  </StaggerItem>
-                ))}
-              </Stagger>
-            </section>
+          {(generated.length > 0 || pendingStyles.length > 0) && (
+            <AssetWorkbench
+              assets={generated}
+              pendingStyles={pendingStyles}
+              onSelect={setActive}
+            />
           )}
         </div>
 
