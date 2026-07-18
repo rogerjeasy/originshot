@@ -1,39 +1,46 @@
-import { AlertTriangle, Info, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, ShieldAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-type Variant = "danger" | "warning" | "info";
+type Variant = "danger" | "warning" | "info" | "success";
 
-const STYLES: Record<Variant, { color: string; icon: LucideIcon }> = {
-  danger: { color: "var(--color-danger)", icon: ShieldAlert },
-  warning: { color: "var(--color-warning)", icon: AlertTriangle },
-  info: { color: "var(--color-info)", icon: Info },
+const STYLES: Record<Variant, { cls: string; icon: LucideIcon }> = {
+  danger: { cls: "border-danger/25 bg-danger-surface text-danger", icon: ShieldAlert },
+  warning: { cls: "border-warning/25 bg-warning-surface text-warning", icon: AlertTriangle },
+  info: { cls: "border-info/25 bg-info-surface text-info", icon: Info },
+  success: { cls: "border-verified/25 bg-verified-surface text-verified", icon: CheckCircle2 },
 };
 
-/** Calm inline feedback banner — icon + text + color (never color alone). */
+/**
+ * Inline feedback. States what happened and, where possible, what to do about
+ * it — status is icon + text + colour, never colour alone.
+ */
 export function Alert({
   variant = "danger",
+  title,
   children,
+  action,
   className,
 }: {
   variant?: Variant;
-  children: React.ReactNode;
+  title?: string;
+  children?: React.ReactNode;
+  action?: React.ReactNode;
   className?: string;
 }) {
-  const { color, icon: Icon } = STYLES[variant];
+  const { cls, icon: Icon } = STYLES[variant];
   return (
     <div
       role="alert"
-      className={cn("flex items-start gap-2.5 rounded-lg border p-3 text-sm", className)}
-      style={{
-        color,
-        borderColor: `color-mix(in srgb, ${color} 30%, transparent)`,
-        backgroundColor: `color-mix(in srgb, ${color} 8%, transparent)`,
-      }}
+      className={cn("flex items-start gap-3 rounded-md border p-3 text-sm", cls, className)}
     >
       <Icon className="mt-0.5 size-4 shrink-0" />
-      <div className="min-w-0">{children}</div>
+      <div className="min-w-0 flex-1">
+        {title && <p className="font-medium">{title}</p>}
+        {children && <div className={cn("min-w-0", title && "mt-0.5 opacity-90")}>{children}</div>}
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }
