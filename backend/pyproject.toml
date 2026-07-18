@@ -3,9 +3,9 @@ requires = ["poetry-core>=2.0"]
 build-backend = "poetry.core.masonry.api"
 
 [project]
-name = "listsnap-backend"
+name = "originshot-backend"
 version = "0.1.0"
-description = "ListSnap backend — FastAPI + Genblaze + Backblaze B2 + Firebase"
+description = "OriginShot backend — FastAPI + Genblaze + Backblaze B2 + Firebase"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "MIT"
@@ -33,7 +33,7 @@ genblaze = ["genblaze[gmicloud,video,parquet]>=0.4,<0.5"]
 [tool.poetry]
 packages = [
     { include = "app" },
-    { include = "listsnap_pipelines" },
+    { include = "originshot_pipelines" },
 ]
 
 [tool.poetry.group.dev.dependencies]
