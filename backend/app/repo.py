@@ -44,12 +44,15 @@ class Repo(Protocol):
     def list_skus(self, uid: str) -> list[dict]: ...
     def set_sku_original(self, uid: str, sku_id: str, sha256: str) -> None: ...
 
+    def update_sku(self, uid: str, sku_id: str, patch: dict) -> dict | None: ...
+
     def add_asset(self, uid: str, asset: dict) -> dict: ...
     def list_assets(self, uid: str, sku_id: str) -> list[dict]: ...
     def find_asset_by_sha(self, sha256: str) -> dict | None: ...  # public verify (global)
 
     def create_job(self, uid: str, job: dict) -> dict: ...
     def get_job(self, uid: str, job_id: str) -> dict | None: ...
+    def list_jobs(self, uid: str, limit: int = 200) -> list[dict]: ...
     def update_job(self, uid: str, job_id: str, patch: dict) -> dict | None: ...
 
     def count_generations_today(self, uid: str) -> int: ...
@@ -115,6 +118,12 @@ class InMemoryRepo:
         if sku:
             sku["original_sha256"] = sha256
 
+    def update_sku(self, uid: str, sku_id: str, patch: dict) -> dict | None:
+        sku = self.get_sku(uid, sku_id)
+        if sku:
+            sku.update(patch)
+        return sku
+
     def add_asset(self, uid: str, asset: dict) -> dict:
         doc = {"id": _new_id(), "owner_uid": uid, "created_at": utcnow(), **asset}
         self._assets[doc["id"]] = doc
@@ -141,6 +150,10 @@ class InMemoryRepo:
     def get_job(self, uid: str, job_id: str) -> dict | None:
         job = self._jobs.get(job_id)
         return job if job and job["owner_uid"] == uid else None
+
+    def list_jobs(self, uid: str, limit: int = 200) -> list[dict]:
+        rows = [j for j in self._jobs.values() if j["owner_uid"] == uid]
+        return sorted(rows, key=lambda j: j["created_at"], reverse=True)[:limit]
 
     def update_job(self, uid: str, job_id: str, patch: dict) -> dict | None:
         job = self.get_job(uid, job_id)
@@ -253,6 +266,14 @@ class FirestoreRepo:
     def set_sku_original(self, uid: str, sku_id: str, sha256: str) -> None:
         self._seller(uid).collection("skus").document(sku_id).update({"original_sha256": sha256})
 
+    def update_sku(self, uid: str, sku_id: str, patch: dict) -> dict | None:
+        ref = self._seller(uid).collection("skus").document(sku_id)
+        if not ref.get().exists:
+            return None
+        ref.update(patch)
+        snap = ref.get()
+        return snap.to_dict() if snap.exists else None
+
     def add_asset(self, uid: str, asset: dict) -> dict:
         sku_id = asset["sku_id"]
         ref = self._seller(uid).collection("skus").document(sku_id).collection("assets").document()
@@ -287,6 +308,10 @@ class FirestoreRepo:
     def get_job(self, uid: str, job_id: str) -> dict | None:
         snap = self._seller(uid).collection("jobs").document(job_id).get()
         return snap.to_dict() if snap.exists else None
+
+    def list_jobs(self, uid: str, limit: int = 200) -> list[dict]:
+        rows = [d.to_dict() for d in self._seller(uid).collection("jobs").stream()]
+        return sorted(rows, key=lambda j: j["created_at"], reverse=True)[:limit]
 
     def update_job(self, uid: str, job_id: str, patch: dict) -> dict | None:
         ref = self._seller(uid).collection("jobs").document(job_id)
