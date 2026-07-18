@@ -1,0 +1,22 @@
+# Render's free tier sleeps the API after ~15 minutes idle, and the ~50s cold start is the
+# single worst first impression a judge can get. This pings /healthz every 10 minutes so the
+# service never sleeps during the judging window. Shallow ping on purpose: ?deep=true does a
+# real B2 round-trip and there is no reason to spend bucket transactions on a heartbeat.
+name: keep-warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the API health check
+        run: |
+          code=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 90 \
+            https://originshot-api.onrender.com/healthz)
+          echo "healthz -> HTTP $code"
+          cat /tmp/health.json
+          test "$code" = "200"
