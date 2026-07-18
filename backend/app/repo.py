@@ -10,6 +10,7 @@ See ../docs/SECURITY.md §4.
 """
 from __future__ import annotations
 
+import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Protocol
@@ -24,6 +25,17 @@ def _new_id() -> str:
 
 def _today_key(dt: datetime | None = None) -> str:
     return (dt or utcnow()).astimezone(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _ledger_order(entry: dict) -> tuple:
+    """Sort key for ledger rows: timestamp first, then the per-user sequence.
+
+    The sequence is the tie-breaker that makes ordering correct. Windows' system clock has
+    ~15ms granularity, so several ledger writes in one request routinely share a
+    `created_at` — sorting on the timestamp alone let rows come back in an order where the
+    running balance appeared to move backwards.
+    """
+    return (entry.get("created_at"), int(entry.get("seq") or 0))
 
 
 class Repo(Protocol):
@@ -48,6 +60,26 @@ class Repo(Protocol):
     def get_user(self, uid: str) -> dict | None: ...
     def set_user(self, uid: str, data: dict) -> dict: ...  # upsert-merge; returns stored doc
 
+    # Credits — `adjust_credits` MUST be atomic (concurrent jobs debit the same balance).
+    # Returns (new_balance, seq) where `seq` is a per-user monotonic counter used to order
+    # ledger rows written within the same clock tick.
+    def adjust_credits(self, uid: str, delta: float, *, granted_delta: float = 0.0,
+                       spent_delta: float = 0.0,
+                       held_delta: float = 0.0) -> tuple[float, int]: ...
+    def add_ledger_entry(self, uid: str, entry: dict) -> dict: ...
+    def list_ledger(self, uid: str, limit: int = 50) -> list[dict]: ...
+
+    # Platform-wide operator settings (single document, admin-writable).
+    def get_platform_config(self) -> dict: ...
+    def set_platform_config(self, patch: dict) -> dict: ...
+
+    # Admin — cross-user reads. Only ever called behind require_admin.
+    def list_users(self) -> list[dict]: ...
+    def list_all_jobs(self, limit: int = 200) -> list[dict]: ...
+    def list_all_assets(self) -> list[dict]: ...
+    def list_all_skus(self) -> list[dict]: ...
+    def list_all_ledger(self, limit: int = 100) -> list[dict]: ...
+
 
 # ── In-memory (dev/tests) ─────────────────────────────────────────────
 class InMemoryRepo:
@@ -57,6 +89,10 @@ class InMemoryRepo:
         self._jobs: dict[str, dict] = {}
         self._brand: dict[str, dict] = {}
         self._users: dict[str, dict] = {}
+        self._ledger: list[dict] = []
+        self._platform: dict = {}
+        # Serializes read-modify-write on balances, mirroring the Firestore transaction.
+        self._credit_lock = threading.Lock()
 
     def create_sku(self, uid: str, data: dict) -> dict:
         sku = {"id": _new_id(), "owner_uid": uid, "original_sha256": None,
@@ -133,6 +169,58 @@ class InMemoryRepo:
         doc = {**self._users.get(uid, {}), **data, "uid": uid}
         self._users[uid] = doc
         return doc
+
+    # ── Credits ───────────────────────────────────────────────────────
+    def adjust_credits(self, uid: str, delta: float, *, granted_delta: float = 0.0,
+                       spent_delta: float = 0.0,
+                       held_delta: float = 0.0) -> tuple[float, int]:
+        with self._credit_lock:
+            user = self._users.setdefault(uid, {"uid": uid})
+            balance = round(float(user.get("credits_balance") or 0.0) + delta, 4)
+            user["credits_balance"] = balance
+            user["credits_granted_total"] = round(
+                float(user.get("credits_granted_total") or 0.0) + granted_delta, 4)
+            user["credits_spent_total"] = round(
+                float(user.get("credits_spent_total") or 0.0) + spent_delta, 4)
+            # Clamped: a double-settle must not drive the outstanding hold negative.
+            user["credits_held"] = max(
+                0.0, round(float(user.get("credits_held") or 0.0) + held_delta, 4))
+            seq = int(user.get("ledger_seq") or 0) + 1
+            user["ledger_seq"] = seq
+            return balance, seq
+
+    def add_ledger_entry(self, uid: str, entry: dict) -> dict:
+        doc = {"id": _new_id(), **entry}
+        self._ledger.append(doc)
+        return doc
+
+    def list_ledger(self, uid: str, limit: int = 50) -> list[dict]:
+        rows = [e for e in self._ledger if e.get("uid") == uid]
+        return sorted(rows, key=_ledger_order, reverse=True)[:limit]
+
+    # ── Platform config ───────────────────────────────────────────────
+    def get_platform_config(self) -> dict:
+        return dict(self._platform)
+
+    def set_platform_config(self, patch: dict) -> dict:
+        self._platform.update(patch)
+        return dict(self._platform)
+
+    # ── Admin ─────────────────────────────────────────────────────────
+    def list_users(self) -> list[dict]:
+        return list(self._users.values())
+
+    def list_all_jobs(self, limit: int = 200) -> list[dict]:
+        return sorted(self._jobs.values(), key=lambda j: j["created_at"], reverse=True)[:limit]
+
+    def list_all_assets(self) -> list[dict]:
+        return list(self._assets.values())
+
+    def list_all_skus(self) -> list[dict]:
+        return list(self._skus.values())
+
+    def list_all_ledger(self, limit: int = 100) -> list[dict]:
+        return sorted(self._ledger, key=_ledger_order, reverse=True)[:limit]
 
 
 # ── Firestore (production) ────────────────────────────────────────────
@@ -228,6 +316,85 @@ class FirestoreRepo:
         ref = self._db.collection("users").document(uid)
         ref.set({**data, "uid": uid}, merge=True)   # upsert; never clobbers unset fields
         return ref.get().to_dict()
+
+    # ── Credits ───────────────────────────────────────────────────────
+    def adjust_credits(self, uid: str, delta: float, *, granted_delta: float = 0.0,
+                       spent_delta: float = 0.0,
+                       held_delta: float = 0.0) -> tuple[float, int]:
+        """Atomic read-modify-write on the balance.
+
+        A plain `get()` then `update()` would drop a debit whenever two jobs settle at once,
+        which is exactly the bug that makes a credit system untrustworthy. Firestore's
+        transaction retries the read on contention.
+
+        The ledger sequence is incremented in the same transaction, so it stays gap-free and
+        strictly ordered even under concurrent writers.
+        """
+        from google.cloud import firestore  # type: ignore[attr-defined]
+
+        ref = self._db.collection("users").document(uid)
+
+        @firestore.transactional
+        def _apply(txn) -> tuple[float, int]:
+            snap = ref.get(transaction=txn)
+            cur = snap.to_dict() if snap.exists else {}
+            balance = round(float(cur.get("credits_balance") or 0.0) + delta, 4)
+            seq = int(cur.get("ledger_seq") or 0) + 1
+            txn.set(ref, {
+                "uid": uid,
+                "credits_balance": balance,
+                "credits_granted_total": round(
+                    float(cur.get("credits_granted_total") or 0.0) + granted_delta, 4),
+                "credits_spent_total": round(
+                    float(cur.get("credits_spent_total") or 0.0) + spent_delta, 4),
+                "credits_held": max(
+                    0.0, round(float(cur.get("credits_held") or 0.0) + held_delta, 4)),
+                "ledger_seq": seq,
+            }, merge=True)
+            return balance, seq
+
+        return _apply(self._db.transaction())
+
+    def add_ledger_entry(self, uid: str, entry: dict) -> dict:
+        ref = self._seller(uid).collection("ledger").document()
+        doc = {"id": ref.id, **entry}
+        ref.set(doc)
+        return doc
+
+    def list_ledger(self, uid: str, limit: int = 50) -> list[dict]:
+        col = self._seller(uid).collection("ledger")
+        rows = [d.to_dict() for d in col.stream()]
+        return sorted(rows, key=_ledger_order, reverse=True)[:limit]
+
+    # ── Platform config ───────────────────────────────────────────────
+    def get_platform_config(self) -> dict:
+        snap = self._db.collection("platform").document("config").get()
+        return snap.to_dict() if snap.exists else {}
+
+    def set_platform_config(self, patch: dict) -> dict:
+        ref = self._db.collection("platform").document("config")
+        ref.set(patch, merge=True)
+        return ref.get().to_dict() or {}
+
+    # ── Admin ─────────────────────────────────────────────────────────
+    # Cross-user reads via collection-group queries. These scan; at real scale they'd be
+    # replaced by maintained rollup documents, but they are correct and honest here.
+    def list_users(self) -> list[dict]:
+        return [d.to_dict() for d in self._db.collection("users").stream()]
+
+    def list_all_jobs(self, limit: int = 200) -> list[dict]:
+        rows = [d.to_dict() for d in self._db.collection_group("jobs").stream()]
+        return sorted(rows, key=lambda j: j["created_at"], reverse=True)[:limit]
+
+    def list_all_assets(self) -> list[dict]:
+        return [d.to_dict() for d in self._db.collection_group("assets").stream()]
+
+    def list_all_skus(self) -> list[dict]:
+        return [d.to_dict() for d in self._db.collection_group("skus").stream()]
+
+    def list_all_ledger(self, limit: int = 100) -> list[dict]:
+        rows = [d.to_dict() for d in self._db.collection_group("ledger").stream()]
+        return sorted(rows, key=_ledger_order, reverse=True)[:limit]
 
 
 _repo: Any = None
