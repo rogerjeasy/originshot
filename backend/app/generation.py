@@ -14,7 +14,7 @@ from .config import get_settings
 from .models import Modality, Style
 from .storage import key_from_url
 
-log = logging.getLogger("listsnap.generation")
+log = logging.getLogger("originshot.generation")
 
 GENERATED_STYLES = [Style.studio, Style.lifestyle, Style.onmodel, Style.variant, Style.video]
 
@@ -96,7 +96,7 @@ def _run_mock(sku, original, wanted) -> list[dict]:
 
 # ── Real Genblaze path ─────────────────────────────────────────────────
 async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces):
-    from listsnap_pipelines import (
+    from originshot_pipelines import (
         lifestyle,
         onmodel,
         presets,
@@ -274,7 +274,7 @@ def _embed_and_store(result, out: dict, storage, mime_type: str | None, manifest
     import tempfile
     from pathlib import Path
 
-    from listsnap_pipelines import provenance
+    from originshot_pipelines import provenance
 
     from .storage import storage_key
 
