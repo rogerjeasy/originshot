@@ -17,6 +17,10 @@ backend/.devdata/
 *firebase-admin*.json
 *service-account*.json
 
+.hero_url.txt
+*_url.txt
+*.presigned.txt
+
 # Node / Next
 node_modules/
 .next/
