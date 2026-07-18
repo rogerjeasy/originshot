@@ -15,7 +15,7 @@ const VALUES: Value[] = [
   {
     icon: ShieldCheck,
     title: "Made for real sellers",
-    body: "Studio-grade catalogs are the daily, paid-for pain of millions of Etsy, Shopify, Amazon and eBay sellers. ListSnap removes the shoot entirely.",
+    body: "Studio-grade catalogs are the daily, paid-for pain of millions of Etsy, Shopify, Amazon and eBay sellers. OriginShot removes the shoot entirely.",
     tag: "real-world utility",
   },
   {
@@ -38,10 +38,10 @@ const VALUES: Value[] = [
   },
 ];
 
-export function WhyListSnap() {
+export function WhyOriginShot() {
   return (
     <MarketingSection
-      eyebrow="Why ListSnap"
+      eyebrow="Why OriginShot"
       title="Built useful, creative, and production-minded"
       description="From prompt to pipeline to durable storage — the way generative media is supposed to ship."
       className="border-b"
