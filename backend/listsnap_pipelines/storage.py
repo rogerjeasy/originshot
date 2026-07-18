@@ -11,18 +11,32 @@
 """
 from __future__ import annotations
 
+import logging
 import os
+
+log = logging.getLogger("listsnap.pipelines.storage")
 
 
 def _parquet_sink():
-    """Return a ParquetSink('data/') if pyarrow is available, else None."""
+    """Return a ParquetSink if pyarrow is available and the dir is writable, else None.
+
+    The directory comes from PARQUET_DIR (default ``data/``, relative to the working dir).
+    Analytics are a nice-to-have, so an unwritable path degrades to None rather than
+    failing the whole generation run — in the container /app is root-owned and we run as
+    appuser, so this would otherwise raise PermissionError.
+    """
     try:
         import pyarrow  # noqa: F401
     except Exception:  # noqa: BLE001
         return None
     from genblaze_core import ParquetSink
 
-    return ParquetSink("data/")
+    base_dir = os.environ.get("PARQUET_DIR", "data/")
+    try:
+        return ParquetSink(base_dir)
+    except OSError as exc:
+        log.warning("Parquet analytics disabled — %s is not writable (%s).", base_dir, exc)
+        return None
 
 
 def make_sink():

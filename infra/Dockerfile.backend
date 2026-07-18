@@ -15,9 +15,13 @@ COPY backend/ ./
 # is False and the API falls back to mock generation — so it MUST be installed in production.
 RUN pip install --upgrade pip && pip install ".[firebase,worker,analytics,genblaze]"
 
-# Run as a non-root user (SECURITY.md §14).
-RUN useradd -m appuser
+# Run as a non-root user (SECURITY.md §14). /app is root-owned, so give appuser its own
+# writable dir for the Genblaze ParquetSink (analytics export; see listsnap_pipelines/storage.py).
+RUN useradd -m appuser \
+    && mkdir -p /app/data \
+    && chown appuser:appuser /app/data
 USER appuser
+ENV PARQUET_DIR=/app/data
 
 EXPOSE 8000
 # Bind Render's injected $PORT (falls back to 8000 locally / in docker-compose). Shell form
