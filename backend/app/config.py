@@ -10,10 +10,10 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Single repo-root env file (listsnap/.env), shared with the frontend. Resolved relative to
+# Single repo-root env file (originshot/.env), shared with the frontend. Resolved relative to
 # this module so it loads no matter where uvicorn is launched from. Missing in production
 # (Render injects real env vars, which always take precedence over an env file) — pydantic
-# tolerates the absent file. config.py is at listsnap/backend/app/ ⇒ parents[2] == listsnap/.
+# tolerates the absent file. config.py is at originshot/backend/app/ ⇒ parents[2] == originshot/.
 _ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
 
 
@@ -103,7 +103,7 @@ class Settings(BaseSettings):
 
 # Keys that downstream libraries read straight from `os.environ` rather than from our
 # Settings object: the Genblaze GMICloud providers (`GMI_API_KEY`), the Genblaze B2 sink
-# (`listsnap_pipelines/storage.py` → `B2_*`), and the Firebase Admin SDK
+# (`originshot_pipelines/storage.py` → `B2_*`), and the Firebase Admin SDK
 # (`GOOGLE_APPLICATION_CREDENTIALS`). `pydantic-settings` reads the `.env` FILE into this
 # object but does NOT populate `os.environ`, so we mirror these across explicitly. Without
 # this, flipping on real keys makes `make_sink()` KeyError and the providers auth-fail.
