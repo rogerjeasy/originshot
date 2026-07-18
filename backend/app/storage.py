@@ -61,6 +61,9 @@ class LocalStorage:
         path.write_bytes(data)
         return key
 
+    def get_bytes(self, key: str) -> bytes:
+        return (self.root / key).read_bytes()
+
     def presigned_get(self, key: str) -> str:
         return f"{self.base_url}/media/{key}"
 
@@ -68,6 +71,19 @@ class LocalStorage:
         path = self.root / key
         if path.exists():
             path.unlink()
+
+    def stats(self, prefix: str = "") -> dict:
+        files = [p for p in self.root.rglob("*") if p.is_file()]
+        if prefix:
+            files = [p for p in files
+                     if str(p.relative_to(self.root)).replace("\\", "/").startswith(prefix)]
+        return {
+            "backend": "local",
+            "bucket": None,
+            "objects": len(files),
+            "bytes": sum(p.stat().st_size for p in files),
+            "truncated": False,
+        }
 
 
 class B2Storage:
@@ -97,6 +113,10 @@ class B2Storage:
         self.client.put_object(Bucket=self._settings.b2_bucket, Key=key, Body=data, **extra)
         return key
 
+    def get_bytes(self, key: str) -> bytes:
+        obj = self.client.get_object(Bucket=self._settings.b2_bucket, Key=key)
+        return obj["Body"].read()
+
     def presigned_get(self, key: str) -> str:
         return self.client.generate_presigned_url(
             "get_object",
@@ -106,6 +126,40 @@ class B2Storage:
 
     def delete(self, key: str) -> None:
         self.client.delete_object(Bucket=self._settings.b2_bucket, Key=key)
+
+    def stats(self, prefix: str = "", *, max_objects: int = 10_000) -> dict:
+        """Real object count and byte total from B2, for the admin storage panel.
+
+        Bounded by `max_objects` and reported with `truncated` so a large bucket degrades
+        into a partial-but-labelled number rather than an unbounded listing that hangs the
+        dashboard. Counting via ListObjectsV2 is the only way to get a true total — B2
+        exposes no cheap bucket-size metric over the S3 API.
+        """
+        paginator = self.client.get_paginator("list_objects_v2")
+        objects = 0
+        total = 0
+        truncated = False
+        by_prefix: dict[str, int] = {}
+        for page in paginator.paginate(Bucket=self._settings.b2_bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                objects += 1
+                total += obj.get("Size", 0)
+                top = obj["Key"].split("/", 1)[0]
+                by_prefix[top] = by_prefix.get(top, 0) + 1
+                if objects >= max_objects:
+                    truncated = True
+                    break
+            if truncated:
+                break
+        return {
+            "backend": "b2",
+            "bucket": self._settings.b2_bucket,
+            "region": self._settings.b2_region,
+            "objects": objects,
+            "bytes": total,
+            "by_prefix": by_prefix,
+            "truncated": truncated,
+        }
 
 
 _storage = None
