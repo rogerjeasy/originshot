@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
-import { apiFetch } from "@/lib/api";
+import { apiDownload, apiFetch } from "@/lib/api";
 import { useApiData } from "@/lib/use-api";
+import { useSession } from "@/lib/use-session";
 import type { Asset, Job, Marketplace, Sku, Style } from "@/lib/types";
 import { FadeIn } from "@/components/motion/fade-in";
 import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { ImageTile } from "@/components/image-tile";
 import { Lightbox } from "@/components/lightbox";
-import { DevelopingGrid } from "@/components/studio/developing-grid";
+import { JobProgress } from "@/components/studio/job-progress";
 import { GeneratePanel } from "@/components/studio/generate-panel";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { Alert } from "@/components/ui/alert";
@@ -26,13 +27,17 @@ export default function SkuWorkspace() {
   const [styles, setStyles] = useState<Style[]>(["studio", "lifestyle"]);
   const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
   const [active, setActive] = useState<Asset | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const doneStepsRef = useRef(0);
+  const { refreshCredits } = useSession();
 
   const original = assets?.find((a) => a.is_authentic) ?? null;
   const generated = assets?.filter((a) => !a.is_authentic) ?? [];
-  const busyJob = job !== null && job.status !== "done" && job.status !== "failed";
+  const busyJob = jobId !== null;
 
   async function upload(file: File) {
     setUploading(true);
@@ -51,51 +56,81 @@ export default function SkuWorkspace() {
 
   async function generate() {
     setError(null);
+    doneStepsRef.current = 0;
     try {
       const j = await apiFetch<Job>(`/api/skus/${skuId}/generate`, {
         method: "POST",
         body: JSON.stringify({ styles, marketplaces }),
       });
       setJob(j);
+      setJobId(j.id);
+      // The estimate has just been held, so the visible balance is already out of date.
+      void refreshCredits();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed");
     }
   }
 
+  // Poll the job while it runs. Polls on the job *id* (not the job object) so a new
+  // interval isn't torn down and rebuilt on every status update the poll itself causes.
   useEffect(() => {
-    if (!job || job.status === "done" || job.status === "failed") return;
+    if (!jobId) return;
+    let stopped = false;
+
     const t = setInterval(async () => {
       try {
-        const j = await apiFetch<Job>(`/api/jobs/${job.id}`);
+        const j = await apiFetch<Job>(`/api/jobs/${jobId}`);
+        if (stopped) return;
         setJob(j);
-        if (j.status === "done" || j.status === "failed") {
+
+        // Assets land step by step, so refresh the grid whenever the completed-step count
+        // moves — the user sees each image as it finishes instead of all of them at the end.
+        const done = j.steps?.filter((s) => s.status === "done").length ?? 0;
+        if (done !== doneStepsRef.current) {
+          doneStepsRef.current = done;
+          void reloadAssets();
+        }
+
+        if (j.status === "done" || j.status === "failed" || j.status === "partial") {
           clearInterval(t);
+          setJobId(null);
           if (j.status === "failed") setError(j.error ?? "Generation failed");
           await reloadAssets();
+          // The hold has been settled against real provider cost — pull the true balance.
+          await refreshCredits();
         }
       } catch {
         clearInterval(t);
+        setJobId(null);
       }
-    }, 1500);
-    return () => clearInterval(t);
-  }, [job, reloadAssets]);
+    }, 1200);
+
+    return () => {
+      stopped = true;
+      clearInterval(t);
+    };
+  }, [jobId, reloadAssets, refreshCredits]);
 
   async function exportPack() {
     setError(null);
+    setExporting(true);
     try {
-      const data = await apiFetch(`/api/skus/${skuId}/export`, {
+      // The export is a ZIP (marketplace renditions + verifiable masters + manifests),
+      // so take the raw blob — never stringify it.
+      const { blob, filename } = await apiDownload(`/api/skus/${skuId}/export`, {
         method: "POST",
         body: JSON.stringify({ marketplaces }),
       });
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${skuId}-export.json`;
+      a.download = filename ?? `OriginShot-${skuId}.zip`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Export failed");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -148,9 +183,11 @@ export default function SkuWorkspace() {
             </FadeIn>
           )}
 
-          {busyJob ? (
-            <DevelopingGrid styles={job!.requested_styles} />
-          ) : generated.length > 0 ? (
+          {/* Progress stays mounted after the run so the finished timings remain readable
+              instead of vanishing the moment the last step lands. */}
+          {job && <JobProgress job={job} />}
+
+          {generated.length > 0 && (
             <section>
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 Generated pack
@@ -163,7 +200,7 @@ export default function SkuWorkspace() {
                 ))}
               </Stagger>
             </section>
-          ) : null}
+          )}
         </div>
 
         <FadeIn delay={0.08} className="lg:sticky lg:top-20 lg:self-start">
@@ -177,6 +214,7 @@ export default function SkuWorkspace() {
             onGenerate={generate}
             canExport={generated.length > 0}
             onExport={exportPack}
+            exporting={exporting}
             job={job}
           />
         </FadeIn>
