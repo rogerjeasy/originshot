@@ -13,9 +13,9 @@ import { SiteFooter } from "@/components/site-footer";
 import { buttonVariants } from "@/components/ui/button";
 
 export const metadata: Metadata = {
-  title: "About · ListSnap",
+  title: "About · OriginShot",
   description:
-    "Why ListSnap exists: studio-grade product catalogs from one phone photo, with cryptographic proof of what's real and what's AI.",
+    "Why OriginShot exists: studio-grade product catalogs from one phone photo, with cryptographic proof of what's real and what's AI.",
 };
 
 const PRINCIPLES = [
@@ -47,7 +47,7 @@ export default function AboutPage() {
       <MarketingHeader />
       <main>
         <MarketingPageHero
-          eyebrow="About ListSnap"
+          eyebrow="About OriginShot"
           title="Studio-grade catalogs, honest about what's real"
           description="One phone photo in, a full marketplace-ready catalog out — with cryptographic proof of what's authentic and what's AI."
         >
@@ -82,9 +82,9 @@ export default function AboutPage() {
                 <span className="mb-4 inline-grid size-10 place-items-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
                   <Wand2 className="size-5" />
                 </span>
-                <h2 className="text-xl font-semibold tracking-tight">What ListSnap does</h2>
+                <h2 className="text-xl font-semibold tracking-tight">What OriginShot does</h2>
                 <p className="mt-3 text-pretty text-muted-foreground">
-                  Upload one snapshot and ListSnap generates a full pack — studio shots, lifestyle
+                  Upload one snapshot and OriginShot generates a full pack — studio shots, lifestyle
                   scenes, on-model images, color and angle variants, and a short product video.
                   Every output is stored durably on Backblaze B2 and carries an embedded provenance
                   manifest, so authenticity travels with the file and doubles as AI-disclosure
@@ -119,7 +119,7 @@ export default function AboutPage() {
         <MarketingSection
           eyebrow="The stack"
           title="Generate with Genblaze. Store on Backblaze B2."
-          description="ListSnap was built for the Backblaze Generative Media Hackathon — to show how AI media moves from prompt to pipeline to durable storage."
+          description="OriginShot was built for the Backblaze Generative Media Hackathon — to show how AI media moves from prompt to pipeline to durable storage."
           className="border-b"
         >
           <TrustStrip />

@@ -16,9 +16,9 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const metadata: Metadata = {
-  title: "How it works · ListSnap",
+  title: "How it works · OriginShot",
   description:
-    "From one phone photo to a verified, marketplace-ready pack — the ListSnap pipeline, step by step.",
+    "From one phone photo to a verified, marketplace-ready pack — the OriginShot pipeline, step by step.",
 };
 
 const STEPS: FlowStep[] = [
@@ -55,7 +55,7 @@ const STACK = [
 const FAQ = [
   {
     q: "Do I need a real product shoot?",
-    a: "No. A single ordinary phone photo is enough. ListSnap treats it as the authentic source and generates the rest of the catalog around it.",
+    a: "No. A single ordinary phone photo is enough. OriginShot treats it as the authentic source and generates the rest of the catalog around it.",
   },
   {
     q: "What does “provenance-verified” actually mean?",
@@ -107,7 +107,7 @@ export default function HowItWorksPage() {
             <PipelineFlow />
           </FadeIn>
           <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-muted-foreground">
-            Model names shown are representative; ListSnap picks the best available provider per
+            Model names shown are representative; OriginShot picks the best available provider per
             style at run time and records the exact one in each manifest.
           </p>
         </MarketingSection>
