@@ -125,9 +125,11 @@ export function ListingPanel({
 
   useEffect(() => {
     let cancelled = false;
-    apiFetch<Listing>(`/api/skus/${skuId}/listing`)
-      .then((l) => !cancelled && setListing(l))
-      .catch(() => undefined); // 404 just means nothing generated yet
+    // Responds with null when no copy has been generated yet — that's the normal state,
+    // not an error, so only a genuine request failure lands in the catch.
+    apiFetch<Listing | null>(`/api/skus/${skuId}/listing`)
+      .then((l) => !cancelled && l && setListing(l))
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };

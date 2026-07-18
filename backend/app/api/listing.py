@@ -24,15 +24,18 @@ router = APIRouter(tags=["listing"])
 log = logging.getLogger("originshot.listing")
 
 
-@router.get("/skus/{sku_id}/listing", response_model=ListingOut)
+@router.get("/skus/{sku_id}/listing", response_model=ListingOut | None)
 def get_listing(sku_id: str, user: CurrentUser = Depends(get_current_user)):
+    """Stored listing copy, or `null` when none has been generated yet.
+
+    "Not generated yet" is the normal state of a SKU, not an error: a 404 here made the
+    browser console log a failed request on every studio page load, which trains people to
+    ignore red lines in the console. A missing SKU is still a 404.
+    """
     sku = get_repo().get_sku(user.uid, sku_id)
     if not sku:
         raise HTTPException(404, "Not found")
-    stored = sku.get("listing")
-    if not stored:
-        raise HTTPException(404, "No listing copy generated yet")
-    return stored
+    return sku.get("listing")
 
 
 @router.post("/skus/{sku_id}/listing", response_model=ListingOut)

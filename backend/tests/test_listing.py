@@ -81,8 +81,12 @@ def test_prompt_carries_facts_and_rules():
 def test_listing_endpoint_stores_and_returns(client, stub_chat):
     sku = client.post("/api/skus", json={"title": "Mug"}).json()
 
-    # Nothing generated yet.
-    assert client.get(f"/api/skus/{sku['id']}/listing").status_code == 404
+    # Nothing generated yet is the normal state: 200 with a null body, not an error.
+    empty = client.get(f"/api/skus/{sku['id']}/listing")
+    assert empty.status_code == 200
+    assert empty.json() is None
+    # A SKU that doesn't exist is still a 404.
+    assert client.get("/api/skus/does-not-exist/listing").status_code == 404
 
     r = client.post(f"/api/skus/{sku['id']}/listing",
                     json={"marketplaces": ["amazon", "etsy"]})
