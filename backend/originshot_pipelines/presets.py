@@ -43,14 +43,52 @@ def studio_aspect_for(marketplaces: list[str]) -> str:
     return "1:1"
 
 
+_WHITE_LUMA = 235  # 0–255 luminance above which a pixel reads as white background
+
+
+def _product_bbox(img) -> tuple[int, int, int, int] | None:
+    """Bounding box of the non-white content, at full resolution (or None if blank).
+
+    Measured on a 1/8 downscale — within a pixel of the full-size answer — then mapped
+    back with a small pad so anti-aliased product edges aren't clipped.
+    """
+    from PIL import Image
+
+    small = img.resize((max(1, img.width // 8), max(1, img.height // 8)), Image.BILINEAR)
+    px = small.load()
+    xs: list[int] = []
+    ys: list[int] = []
+    for y in range(small.height):
+        for x in range(small.width):
+            r, g, b = px[x, y][:3]
+            if 0.2126 * r + 0.7152 * g + 0.0722 * b < _WHITE_LUMA:
+                xs.append(x)
+                ys.append(y)
+    if not xs:
+        return None
+    sx = img.width / small.width
+    sy = img.height / small.height
+    pad_x = max(2, round(img.width * 0.01))
+    pad_y = max(2, round(img.height * 0.01))
+    return (
+        max(0, round(min(xs) * sx) - pad_x),
+        max(0, round(min(ys) * sy) - pad_y),
+        min(img.width, round((max(xs) + 1) * sx) + pad_x),
+        min(img.height, round((max(ys) + 1) * sy) + pad_y),
+    )
+
+
 def render_for_preset(data: bytes, preset: Preset) -> tuple[bytes, str]:
     """Render image `data` to `preset`'s exact dimensions. Returns (bytes, extension).
 
     Two strategies, driven by the preset's background rule:
 
-    * ``background == "white"`` (Amazon/eBay main images) — *contain* the product on a pure
-      white canvas, scaled so it occupies ``min_fill_ratio`` of the frame. Never crops, so
-      the product is always whole, which is exactly what those listing rules require.
+    * ``background == "white"`` (Amazon/eBay main images) — trim the master to the
+      *product's* bounding box, then *contain* it on a pure white canvas scaled so the
+      product occupies ``min_fill_ratio`` of the frame. The trim matters: without it a
+      master with generous white margin ships a rendition whose product fills ~half of
+      what the listing rule demands (caught by `compliance.studio_scorecard`, which
+      measures fill on the delivered file). Never crops into the product itself.
     * ``background == "any"`` (Etsy/Shopify/Social) — *cover* the frame and centre-crop, so
       lifestyle scenes fill the tile edge to edge with no letterboxing.
 
@@ -67,11 +105,15 @@ def render_for_preset(data: bytes, preset: Preset) -> tuple[bytes, str]:
         target_w, target_h = preset.width, preset.height
 
         if preset.background == "white":
-            fit = min(target_w / img.width, target_h / img.height) * preset.min_fill_ratio
-            new_size = (max(1, round(img.width * fit)), max(1, round(img.height * fit)))
+            bbox = _product_bbox(img)
+            product = img.crop(bbox) if bbox else img
+            fit = (min(target_w / product.width, target_h / product.height)
+                   * preset.min_fill_ratio)
+            new_size = (max(1, round(product.width * fit)),
+                        max(1, round(product.height * fit)))
             canvas = Image.new("RGB", (target_w, target_h), (255, 255, 255))
             canvas.paste(
-                img.resize(new_size, Image.LANCZOS),
+                product.resize(new_size, Image.LANCZOS),
                 ((target_w - new_size[0]) // 2, (target_h - new_size[1]) // 2),
             )
         else:
