@@ -40,7 +40,42 @@ export interface Asset {
   width?: number | null;
   height?: number | null;
   duration?: number | null;
+  qa?: QAReport | null;
   created_at: string;
+}
+
+export interface ListingEntry {
+  title: string;
+  description: string;
+  bullets: string[];
+  keywords: string[];
+  title_max: number;
+}
+
+export interface Listing {
+  generated_at: string;
+  provider: string;
+  model: string;
+  disclosure: string;
+  marketplaces: Record<string, ListingEntry>;
+}
+
+export interface QACheck {
+  name: string;
+  passed: boolean;
+  value?: string | number;
+  threshold?: string | number;
+  detail?: string;
+}
+
+export interface QAReport {
+  passed: boolean;
+  checks: QACheck[];
+  scorer: "deterministic" | "deterministic+vlm";
+  vlm_score?: number | null;
+  vlm_verdict?: string | null;
+  attempt?: number;
+  attempts?: number;
 }
 
 export type StepStatus = "pending" | "running" | "done" | "failed" | "skipped";
@@ -57,6 +92,8 @@ export interface JobStep {
   cost_usd?: number | null;
   asset_count: number;
   error?: string | null;
+  qa_passed?: boolean | null;
+  qa_attempts?: number | null;
 }
 
 export interface Job {
@@ -100,7 +137,9 @@ export interface Analytics {
   dedup_savings_pct: number;
   images: number;
   videos: number;
+  actual_cost_usd: number;
   estimated_cost_usd: number;
+  cost_source: string;
   provider_mix: Record<string, number>;
   fallback_rate: number;
 }
