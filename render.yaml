@@ -9,12 +9,15 @@
 # for an always-on, demo-reliable service.
 services:
   - type: web
-    # PINNED to the existing live service (https://listsnap-api.onrender.com) during the
-    # OriginShot rebrand. Renaming this key makes Render provision a BRAND-NEW service with a
-    # new URL and no `sync: false` secrets, taking the demo API offline. To migrate: create
-    # the new service, set its secrets, repoint NEXT_PUBLIC_API_BASE_URL + ALLOWED_ORIGINS,
-    # verify /healthz, then retire the old one.
-    name: listsnap-api
+    # MUST match the service name in the Render dashboard (renamed to originshot-api on
+    # 2026-07-18, service ID srv-d9d58dmrnols73csvg00). Render matches blueprint entries to
+    # existing services BY NAME — a mismatch here makes the next sync provision a duplicate
+    # service with no `sync: false` secrets instead of updating this one.
+    #
+    # NOTE: the public URL stays https://listsnap-api.onrender.com. Render's onrender.com
+    # subdomain is assigned at creation and is NOT changed by a rename; only a brand-new
+    # service can get originshot-api.onrender.com (and would need every secret re-entered).
+    name: originshot-api
     runtime: docker
     dockerfilePath: ./infra/Dockerfile.backend
     dockerContext: .
@@ -43,10 +46,12 @@ services:
       - key: B2_REGION
         value: eu-central-003
       # ── Set these in the dashboard (Environment) ──
-      # Current live values (update if/when the services are renamed to originshot-*).
+      # The API subdomain is fixed at listsnap-api.onrender.com (see the name: note above).
       - key: PUBLIC_BASE_URL        # https://listsnap-api.onrender.com
         sync: false
-      - key: ALLOWED_ORIGINS        # the Vercel URL, e.g. https://listsnap-smoky.vercel.app
+      # Comma-separated allowlist. Keep both Vercel domains while migrating the frontend to
+      # originshot.vercel.app, then drop the old one.
+      - key: ALLOWED_ORIGINS        # https://originshot.vercel.app,https://listsnap-smoky.vercel.app
         sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
