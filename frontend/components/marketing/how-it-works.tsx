@@ -12,7 +12,7 @@ const STEPS: FlowStep[] = [
   {
     icon: Wand2,
     title: "Generate the pack",
-    body: "Pick styles and target marketplaces. ListSnap runs multi-step pipelines to produce studio, lifestyle, variant, and video outputs.",
+    body: "Pick styles and target marketplaces. OriginShot runs multi-step pipelines to produce studio, lifestyle, variant, and video outputs.",
   },
   {
     icon: ShieldCheck,

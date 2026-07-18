@@ -30,7 +30,7 @@ export function Hero() {
             <span className="text-muted-foreground">A full product catalog out.</span>
           </h1>
           <p className="mt-5 max-w-xl text-pretty text-base text-muted-foreground sm:text-lg">
-            Snap a single phone photo and ListSnap generates studio shots, lifestyle scenes, color
+            Snap a single phone photo and OriginShot generates studio shots, lifestyle scenes, color
             and angle variants, and a short product video — each carrying a verifiable provenance
             manifest, so buyers can tell what&apos;s authentic from what&apos;s AI.
           </p>

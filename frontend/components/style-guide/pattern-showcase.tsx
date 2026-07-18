@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const STYLES = ["Studio", "Lifestyle", "On-model", "Variants", "Video"];
 
-/** Composite ListSnap patterns (framed tile, stat card, style pills) for reference. */
+/** Composite OriginShot patterns (framed tile, stat card, style pills) for reference. */
 export function PatternShowcase() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

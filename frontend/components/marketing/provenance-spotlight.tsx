@@ -26,7 +26,7 @@ export function ProvenanceSpotlight() {
             Provenance you can check from the file itself
           </h2>
           <p className="mt-3 text-pretty text-muted-foreground">
-            ListSnap embeds a SHA-256 manifest into every generated image and video. Drop any file
+            OriginShot embeds a SHA-256 manifest into every generated image and video. Drop any file
             back into Verify and we re-extract the manifest and re-hash the content — proving
             whether it&apos;s an authentic original, an AI generation, or has been tampered with.
           </p>
