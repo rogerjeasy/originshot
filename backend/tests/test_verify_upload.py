@@ -23,23 +23,28 @@ def test_verify_upload_plain_image_has_no_manifest(client):
 
 
 async def test_verify_upload_embedded_file_self_verifies(client):
-    """A downloaded, manifest-embedded file verifies from its bytes with no DB record."""
+    """A downloaded, manifest-embedded file verifies from its bytes with no DB record.
+
+    The manifest is signed for the exact bytes we embed into, which is what the real
+    pipeline produces (generation._embed_and_store re-hashes after embedding). Skipping
+    that step would build a file whose manifest commits one hash while its pixels hash to
+    another — genuinely tampered-looking, and since genblaze-core 0.3.6 correctly reported
+    as such, because MockProvider now emits a placeholder `sha256` of 64 zeros where it
+    previously left the field unset.
+    """
     pytest.importorskip("genblaze")
+    import hashlib
     import tempfile
     from pathlib import Path
 
-    from genblaze import Modality, MockProvider, Pipeline
-
     from originshot_pipelines import provenance
 
-    # Produce a real embedded PNG (full mode → self-contained, standalone-verifiable).
-    pipe = Pipeline("t").step(MockProvider(), model="m", prompt="p", modality=Modality.IMAGE)
-    pipe.preflight = False
-    res = await pipe.arun(timeout=30, raise_on_failure=False)
+    canon = _png()
+    res = await _manifest_committing(hashlib.sha256(canon).hexdigest())
 
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "shot.png"
-        path.write_bytes(_png())
+        path.write_bytes(canon)
         provenance.embed_manifest(res, path, mode="full")
         embedded = path.read_bytes()
 
@@ -48,6 +53,7 @@ async def test_verify_upload_embedded_file_self_verifies(client):
     body = r.json()
     assert body["embedded"] is True
     assert body["verified"] is True
+    assert body["content_bound"] is True
     assert body["found"] is False                     # not stored in this instance
     assert "provenance manifest" in body["disclosure"].lower()
 
