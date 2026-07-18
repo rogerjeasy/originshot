@@ -164,6 +164,10 @@ class AssetOut(BaseModel):
     width: int | None = None
     height: int | None = None
     duration: float | None = None
+    # Post-generation QA report (originshot_pipelines/qa.py): passed, checks[], scorer,
+    # vlm_score/verdict, attempt(s). None ⇒ QA didn't run for this asset (video, mock, or
+    # the bytes couldn't be fetched) — absence of a report is never presented as a pass.
+    qa: dict | None = None
     created_at: datetime
 
 
@@ -212,6 +216,9 @@ class JobStep(BaseModel):
     cost_usd: float | None = None
     asset_count: int = 0
     error: str | None = None
+    # QA rollup for the step: None when no asset carried a report.
+    qa_passed: bool | None = None
+    qa_attempts: int | None = None
 
 
 class JobOut(BaseModel):
@@ -232,6 +239,31 @@ class JobOut(BaseModel):
     eta_seconds: int | None = None
     credits_held: float | None = None
     cost_actual: float | None = None
+
+
+# ── Marketplace compliance ────────────────────────────────────────────
+class ComplianceOut(BaseModel):
+    """Scorecard for the SKU's main image across marketplace presets. `items` entries:
+    {marketplace, preset, passed, checks[]} — measured on rendered output, not intent."""
+    source_style: str | None = None
+    source_sha256: str | None = None
+    items: list[dict]
+
+
+# ── Listing copy ──────────────────────────────────────────────────────
+class ListingRequest(BaseModel):
+    marketplaces: list[Marketplace] = Field(default_factory=list)  # empty ⇒ all channels
+
+
+class ListingOut(BaseModel):
+    """Per-marketplace listing copy, stored on the SKU document. `marketplaces` maps
+    channel → {title, description, bullets[], keywords[], title_max}; the hard limits are
+    enforced server-side (originshot_pipelines/listing.py), not trusted from the model."""
+    generated_at: str
+    provider: str
+    model: str
+    disclosure: str
+    marketplaces: dict[str, dict]
 
 
 # ── Provenance / verify ───────────────────────────────────────────────
@@ -260,7 +292,14 @@ class AnalyticsOut(BaseModel):
     dedup_savings_pct: float
     images: int
     videos: int
+    # Two cost figures, deliberately kept apart (see app/pricing.py's module docstring):
+    # `actual_cost_usd` is the ledger-settled sum of provider-billed Step.cost_usd;
+    # `estimated_cost_usd` is derived from list prices and exists for assets that predate
+    # cost capture (and the dev mock, which bills nothing). `cost_source` says which is which
+    # so the UI never has to guess.
+    actual_cost_usd: float
     estimated_cost_usd: float
+    cost_source: str
     provider_mix: dict[str, int]
     fallback_rate: float
 
