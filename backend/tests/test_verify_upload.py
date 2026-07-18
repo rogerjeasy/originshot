@@ -30,7 +30,7 @@ async def test_verify_upload_embedded_file_self_verifies(client):
 
     from genblaze import Modality, MockProvider, Pipeline
 
-    from listsnap_pipelines import provenance
+    from originshot_pipelines import provenance
 
     # Produce a real embedded PNG (full mode → self-contained, standalone-verifiable).
     pipe = Pipeline("t").step(MockProvider(), model="m", prompt="p", modality=Modality.IMAGE)
@@ -71,7 +71,7 @@ async def test_verify_upload_content_bound_true(client):
     import tempfile
     from pathlib import Path
 
-    from listsnap_pipelines import provenance
+    from originshot_pipelines import provenance
 
     canon = _png((220, 30, 30))
     res = await _manifest_committing(hashlib.sha256(canon).hexdigest())
@@ -94,7 +94,7 @@ async def test_verify_upload_detects_tampered_content(client):
     import tempfile
     from pathlib import Path
 
-    from listsnap_pipelines import provenance
+    from originshot_pipelines import provenance
 
     canon = _png((220, 30, 30))                       # manifest is signed for THIS content
     res = await _manifest_committing(hashlib.sha256(canon).hexdigest())
@@ -128,7 +128,7 @@ async def test_verify_upload_video_content_bound_true(client):
     import tempfile
     from pathlib import Path
 
-    from listsnap_pipelines import provenance
+    from originshot_pipelines import provenance
 
     canon = _mp4()
     res = await _manifest_committing(hashlib.sha256(canon).hexdigest())
@@ -151,7 +151,7 @@ async def test_verify_upload_video_detects_tampered_frames(client):
     import tempfile
     from pathlib import Path
 
-    from listsnap_pipelines import provenance
+    from originshot_pipelines import provenance
 
     canon = _mp4(b"\x00" * 8)
     res = await _manifest_committing(hashlib.sha256(canon).hexdigest())
@@ -186,7 +186,7 @@ async def test_verify_upload_reencoding_formats_content_bound(client, fmt, ext, 
     import tempfile
     from pathlib import Path
 
-    from listsnap_pipelines import provenance
+    from originshot_pipelines import provenance
 
     canon = _img(fmt)
     res = await _manifest_committing(hashlib.sha256(canon).hexdigest())
@@ -213,7 +213,7 @@ async def test_verify_upload_reencoding_formats_detect_tamper(client, fmt, ext, 
     import tempfile
     from pathlib import Path
 
-    from listsnap_pipelines import provenance
+    from originshot_pipelines import provenance
 
     canon = _img(fmt, (90, 140, 40))
     res = await _manifest_committing(hashlib.sha256(canon).hexdigest())

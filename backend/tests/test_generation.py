@@ -79,7 +79,7 @@ def fake_sdk(monkeypatch):
     """Replace pipeline builders with fakes; capture the kwargs they were called with."""
     captured: dict[str, dict] = {}
     monkeypatch.setattr(generation, "generation_mode", lambda: "genblaze")
-    from listsnap_pipelines import lifestyle, onmodel, storage, studio, variants, video
+    from originshot_pipelines import lifestyle, onmodel, storage, studio, variants, video
 
     monkeypatch.setattr(storage, "make_sink", lambda: object())
 
@@ -112,7 +112,7 @@ def fake_sdk(monkeypatch):
     # Embedding deps: fake the byte download and the post-embed extract/verify (the fake
     # bytes aren't a real PNG, so the SDK extractor can't run — the real roundtrip is
     # covered in test_sdk_integration.py).
-    from listsnap_pipelines import provenance
+    from originshot_pipelines import provenance
 
     monkeypatch.setattr(generation, "_fetch_bytes", lambda url: b"\x89PNG-fake-bytes")
     monkeypatch.setattr(provenance, "extract_and_verify", lambda path, mime: True)
