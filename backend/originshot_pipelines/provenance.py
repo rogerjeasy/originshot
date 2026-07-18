@@ -345,10 +345,10 @@ def extract_and_verify(local_path: Path, mime_type: str) -> bool:
 def disclosure_text(*, is_authentic: bool, model: str | None = None,
                     provider: str | None = None, parent_sha256: str | None = None) -> str:
     if is_authentic:
-        return "Authentic photo — unedited original. Verifiable via ListSnap manifest."
+        return "Authentic photo — unedited original. Verifiable via OriginShot manifest."
     parent = (parent_sha256 or "")[:12]
     return (
         f"AI-generated image. Model: {model or 'unknown'} ({provider or 'provider'}). "
         f"Derived from authentic source {parent}. "
-        "Provenance verifiable via ListSnap (SHA-256 manifest embedded)."
+        "Provenance verifiable via OriginShot (SHA-256 manifest embedded)."
     )

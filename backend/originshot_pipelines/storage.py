@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("listsnap.pipelines.storage")
+log = logging.getLogger("originshot.pipelines.storage")
 
 
 def _parquet_sink():
