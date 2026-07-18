@@ -84,6 +84,8 @@ class _JobStepReporter(StepReporter):
         # after the call returns, which is the whole reason these are reported per step.
         first = assets[0] if assets else {}
         cost = sum(c for a in assets if (c := a.get("cost_usd")) is not None)
+        # QA rollup: only over assets that actually carry a report — no report, no claim.
+        reports = [a["qa"] for a in assets if a.get("qa")]
         self._patch(
             style,
             status=StepStatus.done.value,
@@ -93,6 +95,10 @@ class _JobStepReporter(StepReporter):
             model=first.get("model"),
             cost_usd=round(cost, 4) if cost else None,
             asset_count=len(assets),
+            qa_passed=all(r.get("passed") for r in reports) if reports else None,
+            qa_attempts=max(
+                (r.get("attempts") or r.get("attempt") or 1) for r in reports
+            ) if reports else None,
         )
 
     def fail(self, style: Style, error: str) -> None:
