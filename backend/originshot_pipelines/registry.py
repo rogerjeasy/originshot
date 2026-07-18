@@ -2,8 +2,10 @@
 
 This is also the canonical list of providers/models for the hackathon submission.
 
-✅ WEEK-1 VERIFIED against the installed SDK (genblaze 0.4.0, genblaze-core 0.3.2,
-   genblaze-gmicloud 0.3.1). Model IDs come from `genblaze_gmicloud.models`
+✅ VERIFIED against the installed SDK — re-verified 2026-07-19 on genblaze 0.4.3,
+   genblaze-core 0.3.6, genblaze-gmicloud 0.3.3 (the GitHub "v0.5.0" release; the umbrella
+   publishes as 0.4.3 — `genblaze==0.5.0` does not exist on PyPI).
+   Model IDs come from `genblaze_gmicloud.models`
    (`build_image_registry()` / `build_video_registry()`); the reference-image kwarg and
    aspect/duration params were confirmed against each model's `param_allowlist`.
 """
@@ -19,6 +21,13 @@ from __future__ import annotations
 #   request-queue API this app must use (`.../ie/requestqueue/.../requests`) — i.e. they are
 #   NOT callable via the API for our account. `reve-*` additionally probe as upstream DEAD.
 #   Do not put them back without a fresh live check (`validate_model`/probe LIE about these).
+#
+#   🔁 RE-VERIFIED on genblaze-gmicloud 0.3.3 (2026-07-19) — the validation is *inverted*
+#   for our account, which is why only a real generation settles entitlement:
+#     validate_model("seededit-3-0-i2i-250628")  -> ok_authoritative   (but 404s on submit)
+#     validate_model("gemini-3-pro-image-preview") -> unknown_permissive (our WORKING model)
+#     validate_model("totally-made-up-model-xyz")  -> unknown_permissive (identical verdict)
+#     validate_model("reve-edit-20250915")         -> not_found
 IMAGE_EDIT_MODEL = "gemini-3-pro-image-preview"       # Google Gemini 3 Pro image (via GMI)
 # No same-signature image model is currently API-accessible as a fallback (seededit/reve are
 # playground-only/dead). Bria genfill/eraser work but require a mask (different flow). Add a
@@ -42,6 +51,32 @@ TEXT2VIDEO_MODEL = "Kling-Text2Video-V2.1-Master"
 # ✅ Confirmed: both the image and video model `param_allowlist`s accept `image` (and
 #    `image_url`). `aspect_ratio` and (for video) `duration` are also allow-listed params.
 REFERENCE_IMAGE_KWARG = "image"
+
+# ── Chat / vision-language (QA evaluator + listing copy) ────────────────────────────
+# ✅ RUNTIME-VERIFIED (2026-07-18) with real completions against GMI's OpenAI-compatible
+#   endpoint — latency-probed under load, because catalog presence proves nothing here:
+#   * `x-ai/grok-4.5` — vision QA. Scored on four REAL product pairs (2026-07-19), not a
+#     toy image: same product/different shot → 9, same product hue-rotated → 3, different
+#     object → 0, identical → 10, in 3.8–8.8s. That hue-rotated 3 is the whole point: it
+#     catches an AI silently recolouring the product, which deterministic checks cannot see.
+#     Its verdicts cite specifics ("two-tone speckled glaze, dark horizontal line").
+#   * `moonshotai/Kimi-K2.5` — REJECTED for QA despite answering a toy 64px solid-red PNG
+#     correctly: on real product photos it burns the entire token budget and returns EMPTY
+#     content (completion_tokens == max_tokens, reasoning_tokens == 0, at 500/1500/3000).
+#     Passing a toy vision probe does not mean a model can do the real job.
+#   * `tencent/Hy3` — REJECTED: fast, but scored two photos of the SAME mug as 0
+#     ("completely different product"). A confidently wrong evaluator is worse than none.
+#   * `zai-org/GLM-5.1-FP8` — listing copy: 31s for a full channel of copy, zero hidden
+#     reasoning tokens, clean JSON. Text-only (rejects image input — politely, inside a
+#     HTTP 200).
+#   Rejected with evidence: GLM-5.2-FP8 burns the whole token budget on hidden reasoning
+#   (1200/1200 reasoning ⇒ empty content) and silently ACCEPTS images it cannot see;
+#   Kimi-K2.6 is fast but doesn't hold the JSON contract; GLM-4.7/K2-Instruct-0905 404/400
+#   despite being in the catalog; gemma-4/gpt-4o* 429 "all endpoints overloaded". Nothing
+#   may hard-depend on this endpoint — every consumer degrades gracefully.
+GMI_CHAT_BASE_URL = "https://api.gmi-serving.com/v1"
+QA_VISION_MODEL = "x-ai/grok-4.5"
+LISTING_MODEL = "zai-org/GLM-5.1-FP8"
 
 # Aspect ratios per style (passed through as the `aspect_ratio` step param).
 ASPECT = {
