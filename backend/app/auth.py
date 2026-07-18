@@ -31,7 +31,7 @@ async def get_current_user(
 
     # Dev-only shortcut: a fake, verified user so the app runs without Firebase.
     if settings.auth_dev_bypass and settings.is_dev:
-        return CurrentUser(uid="dev-user", email="dev@listsnap.local", email_verified=True, is_dev=True)
+        return CurrentUser(uid="dev-user", email="dev@originshot.local", email_verified=True, is_dev=True)
 
     if cred is None or not cred.credentials:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")

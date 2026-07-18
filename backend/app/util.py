@@ -28,11 +28,11 @@ def with_presigned_url(asset: dict) -> dict:
 def disclosure(asset: dict) -> str:
     """Human-readable AI-disclosure / authenticity statement for an asset."""
     if asset.get("is_authentic"):
-        return "Authentic original — unedited upload. Provenance verifiable via ListSnap."
+        return "Authentic original — unedited upload. Provenance verifiable via OriginShot."
     model = asset.get("model") or "an AI model"
     provider = asset.get("provider") or "provider"
     parent = (asset.get("parent_sha256") or "")[:12]
     return (
         f"AI-generated image. Model: {model} ({provider}). "
-        f"Derived from authentic source {parent}. Provenance verifiable via ListSnap."
+        f"Derived from authentic source {parent}. Provenance verifiable via OriginShot."
     )
