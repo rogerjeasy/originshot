@@ -1,4 +1,4 @@
-# ListSnap Backend (FastAPI)
+# OriginShot Backend (FastAPI)
 
 FastAPI service orchestrating Genblaze pipelines and Backblaze B2 storage, with Firebase
 Auth + Firestore. Designed to **run locally with zero external services** (dev mode) and
@@ -33,12 +33,12 @@ poetry run pytest -q
 `GET /healthz` reports the active mode:
 
 - **`mock`** (dev default) — no providers/B2 needed; generated styles reference your upload so the full UX works locally.
-- **`genblaze`** — used automatically once **Genblaze is installed, `GMI_API_KEY` is set, and B2 is configured**. Real pipelines (`app/generation.py` → `listsnap_pipelines/`) run per style, write to B2 via the Genblaze sink, persist a sidecar manifest, **embed the provenance manifest into the generated media bytes** (`PipelineResult.save` → re-stored content-addressably + re-verified), and record lineage. Each style is isolated, so one provider failure yields a `partial` job rather than a total failure.
+- **`genblaze`** — used automatically once **Genblaze is installed, `GMI_API_KEY` is set, and B2 is configured**. Real pipelines (`app/generation.py` → `originshot_pipelines/`) run per style, write to B2 via the Genblaze sink, persist a sidecar manifest, **embed the provenance manifest into the generated media bytes** (`PipelineResult.save` → re-stored content-addressably + re-verified), and record lineage. Each style is isolated, so one provider failure yields a `partial` job rather than a total failure.
 
   Embedding is controlled by `MANIFEST_EMBED_MODE`: `full` (default — self-contained, standalone `genblaze verify`), `pointer` (privacy — embeds `{hash, manifest_uri}`, full manifest stays in the B2 sidecar), or `none`.
 
 > ✅ **Week-1 SDK lock-in done.** Model IDs, the reference-image kwarg (`image`), and the
-> manifest-embedding approach in `listsnap_pipelines/` are verified against the installed SDK
+> manifest-embedding approach in `originshot_pipelines/` are verified against the installed SDK
 > (genblaze 0.4.0 / genblaze-core 0.3.2 / genblaze-gmicloud 0.3.1). `tests/test_sdk_integration.py`
 > re-checks every model ID against the live GMI registry so they can't silently drift.
 
@@ -53,7 +53,7 @@ poetry run pytest -q
 
 ```
 app/            FastAPI app: config, auth, firebase, repo, storage, security, worker, api/
-listsnap_pipelines/   Genblaze pipeline builders (studio, lifestyle, variants, video, provenance)
+originshot_pipelines/   Genblaze pipeline builders (studio, lifestyle, variants, video, provenance)
 tests/          pytest suite (health, full flow, security, pipelines)
 ```
 
