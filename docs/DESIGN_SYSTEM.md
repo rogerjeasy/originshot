@@ -1,113 +1,239 @@
-# 01 · OriginShot Design System (PASTE THIS INTO v0 FIRST)
+# OriginShot Design System — "Calibration"
 
-Paste the block below as your **first message** in the v0 project. It establishes OriginShot's entire visual language so every later screen is consistent, distinctive, and responsive. Everything after the block is notes for you (the builder), not for v0.
-
-OriginShot's identity is deliberately **its own** — a gallery-grade product **studio in software**: crisp, editorial, confident, high-craft. Cool "seamless paper" neutrals, a single electric **cobalt** signal, an **emerald "Verified"** trust layer, **Geist Sans + Geist Mono** (mono carries every hash/SKU/price — a provenance-native detail). No warm creams, no serif headlines, no teal — a clean break from any softer, warmer system.
-
----
-
-```
-You are designing OriginShot — a gallery-grade product-photography studio in software. A seller uploads ONE ordinary phone photo of a product and OriginShot generates a full marketplace-ready pack: studio white-background shots, lifestyle scenes, on-model images, color/angle variants, and a short product video — every output carrying a verifiable provenance manifest (proof of what's authentic vs AI). Users are online sellers (Etsy/Shopify/Amazon/eBay), from solo makers to multi-SKU operators. It will be used daily by millions worldwide. Establish this design system and reuse it for every screen I ask for next.
-
-PLATFORM (read first)
-- OriginShot is a RESPONSIVE WEB APPLICATION that runs in the browser. It must look and work great on desktop browsers, laptops, tablets/iPad (portrait AND landscape), and mobile phone browsers — the SAME web app fluidly adapting to the viewport. It is NOT a native iOS/Android app. Where these prompts say "mobile" or "mobile-first", they mean the responsive web layout adapting to a small browser viewport (standard responsive CSS), not a separate app.
-
-TECH
-- Next.js App Router, TypeScript, Tailwind CSS (v4), shadcn/ui (install components as needed), lucide-react icons, recharts for charts, framer-motion (motion/react) for motion. Responsive web; mobile-first CSS.
-
-BRAND PERSONALITY
-- Studio-grade, precise, confident, premium, editorial. "Quiet craft." Think a high-end photography studio crossed with a modern developer tool: the product is the hero, lit perfectly on a seamless backdrop, and everything around it is calm scaffolding that gets out of the way.
-- Image-FIRST: the generated media is the star of every screen. Big, beautifully framed thumbnails, locked aspect ratios, gallery grids, before/after, lightbox. UI chrome is restrained so photos pop.
-- Trustworthy by design: provenance ("Verified") is a recurring, branded trust signal, not an afterthought.
-
-ANTI-GENERIC (avoid the default AI look)
-- NO purple/indigo gradients, NO neon glow, NO glassmorphism everywhere, NO emoji as UI icons, NO cramped dashboards, NO warm cream/beige backgrounds, NO serif display headlines, NO teal as a primary. Avoid pure #000 on pure #FFF. Color is a precise SIGNAL, not wallpaper — most of the interface is ink-on-paper neutral, with cobalt and emerald used sparingly and intentionally.
-
-COLOR TOKENS — install as CSS variables (light / dark). Use semantic tokens, never raw hex in components.
-Light ("Seamless"):
-- background #F4F5F7 (cool seamless-paper neutral)   foreground #0E1116 (cool near-black ink)
-- card #FFFFFF                                       card-foreground #0E1116
-- popover #FFFFFF                                    popover-foreground #0E1116
-- primary #14161B (studio ink)                       primary-foreground #FFFFFF   (default buttons/structure)
-- secondary #EEF0F3                                  secondary-foreground #14161B
-- accent #2F54EB (electric cobalt — the SIGNAL)      accent-foreground #FFFFFF    (key CTAs, links, focus; use sparingly)
-- muted #EDEFF2                                      muted-foreground #5B6470
-- border #E2E5EA   input #E2E5EA   ring #2F54EB
-- verified #0E9F6E (emerald — provenance/authentic)  success #0E9F6E  warning #B45309  danger #DC2626  info #2F54EB
-Dark ("Darkroom"):
-- background #0B0D10   foreground #E7EAEE
-- card #12151A         card-foreground #E7EAEE
-- popover #12151A      popover-foreground #E7EAEE
-- primary #F2F4F7 (light ink on dark)                primary-foreground #0B0D10
-- secondary #1A1F26    secondary-foreground #E7EAEE
-- accent #5B7BFF       accent-foreground #0B0D10
-- muted #161A20        muted-foreground #9AA3AF
-- border #232A33   input #232A33   ring #5B7BFF
-- verified #2BD4A0  success #2BD4A0  warning #D98324  danger #F26464  info #5B7BFF
-- Charts: cobalt, ink/graphite, emerald, slate, desaturated amber — never rainbow.
-
-TYPOGRAPHY (distinctive on purpose)
-- UI + display font: GEIST SANS (next/font via the `geist` package). Modern grotesk; broad glyph coverage. Headings semibold/medium with TIGHT tracking; large display can use a slightly negative letter-spacing. NO serif anywhere.
-- Technical/metadata font: GEIST MONO. Use it for EVERYTHING machine-true: SHA-256 hashes, SKU codes, file sizes/dimensions, prices, run IDs, model names, timestamps. This mono treatment is a signature OriginShot detail tied to provenance — lean into it.
-- Base 16px, line-height ~1.55 for body; in-app meaningful text never below 14px. Clear h1–h4 hierarchy. Tabular-nums for stats/tables.
-
-SHAPE & DEPTH (crisp, gallery-framed — not pillowy)
-- Use a consistent --radius = 0.625rem. Panels/cards rounded-xl; large media & hero rounded-2xl; controls/inputs rounded-lg; pills/badges rounded-full.
-- IMAGE FRAMING is a core motif: media tiles get a 1px hairline border + a subtle inner ring (ring-1 ring-black/5) so photos read as "framed" gallery objects on the paper background. Lock aspect ratios (aspect-square for studio shots, aspect-[4/5] for lifestyle, aspect-video for video).
-- Shadows: soft, low-opacity, cool-tinted (shadow-sm default; a slightly larger soft shadow on raised/hover). Prefer hairline border + subtle shadow over heavy elevation. No harsh black drop shadows.
-
-SIGNATURE MOTIF — "the seamless sweep"
-- Hero and empty states may use a subtle studio-sweep background: a very soft vertical gradient from background to a touch cooler/lighter near the top (like a photography seamless backdrop curving to the floor). Extremely restrained — barely-there, never a loud gradient. This is the one place gradient is allowed, and it must stay subtle.
-
-PROVENANCE UI (brand-defining, reuse everywhere media appears)
-- "Verified Original" / "AI-generated" status is shown as a small pill: icon (ShieldCheck / Sparkles) + text + color, plus a Geist-Mono truncated hash (e.g., `sha256 7f3a…b1c4`). Verified = emerald; AI-generated = ink/neutral with a Sparkles glyph. Status is ALWAYS icon + text + color (never color alone).
-- A "Verify" action opens a panel showing integrity (pass/fail), model/provider (mono), and lineage to the authentic source. Make this feel trustworthy and precise, like a certificate.
-
-SPACING & LAYOUT
-- 4px spacing scale. Page padding px-4 sm:px-6 lg:px-8; vertical rhythm via gap utilities (not ad-hoc margins). Content max-width ~ max-w-7xl, centered. Cards use p-5/p-6. Gallery grids are the backbone: responsive auto-fit grids of framed media tiles.
-
-⚖️ THE RESPONSIVENESS LAW (must hold on EVERY screen, no exceptions)
-- This is a WEB app: every screen must be flawless across ALL browser viewports — mobile phone browser (320–767px), tablet/iPad portrait & landscape (768–1023px), laptop (1024–1279px), desktop (1280px+), up to 4K. Verify each of these four classes.
-- Flawless from 320px to 4K. ZERO horizontal page scroll. ZERO content overflow. ZERO overlapping elements at any width.
-- Layout with responsive flex/grid; add min-w-0 to flex/grid children so text can truncate instead of pushing layout. Media: max-w-full h-auto, locked aspect-ratio, object-cover inside framed tiles. Long text: truncate or break-words. Hashes/SKUs/prices in mono must truncate (with copy affordance), never force overflow.
-- Gallery grids fold step by step (e.g., 5→4→3→2→1 or 4→2→1) — never all at once. Tables become stacked cards on small screens OR live inside an overflow-x-auto container that is itself contained — the PAGE never scrolls sideways.
-- Sticky headers/upload bars must be safe-area aware (env(safe-area-inset-*)). Modals/sheets and the lightbox fit small viewports (max-h with internal scroll).
-- Breakpoints (Tailwind): mobile-first, refine at sm(640) md(768 = tablet/iPad) lg(1024 = laptop) xl(1280 = desktop) 2xl(1536). Tablet/iPad gets a REAL intermediate layout (2-column workspace or a collapsed icon rail) — never a stretched-out phone view. Sidebars collapse to an icon rail; the studio workspace reflows gracefully.
-
-MOTION SYSTEM (precise, quick, gallery-like)
-- 120–220ms, ease-out. Media reveals: fade-in + slight scale from 0.98 → 1, with small stagger across a grid (a "developing"/print-coming-to-life feel). Cards: subtle hover lift (translate-y-0.5 + soft shadow + ring). Stat counters animate up (tabular-nums). Lightbox opens with a soft spring; accordions/sheets ease smoothly. Page content does a gentle fade-in.
-- Loading skeletons use a cool shimmer that reads like a photo "developing" — image-shaped placeholders, not generic gray bars, wherever media will appear.
-- ALWAYS honor prefers-reduced-motion: replace movement with instant/opacity-only. Never animate in a way that blocks interaction.
-
-ACCESSIBILITY (WCAG AA)
-- Visible focus rings (ring token, 2px) on all interactive elements. Keyboard operable; lightbox/dialogs are focus-trapped and escape-closable. Semantic HTML + aria labels. 44px min touch targets. Contrast AA for text and UI. Status uses icon + text + color (never color alone). Forms have labels, helper text, and clear inline errors. Provide descriptive alt text for generated media.
-
-INTERNATIONALIZATION
-- Use CSS logical properties (ms/me/ps/pe, start/end) so RTL works. Leave room for ~30% text expansion. Locale-aware dates/numbers/currency. No text baked into images.
-
-REQUIRED STATES on every data view: loading (image-shaped "developing" skeletons), empty (clean framed illustration + guidance + primary action, e.g., "Drop a product photo to start your first studio pack"), error (calm retry with a correlation hint). Confident, plain microcopy ("12 shots ready · all verified", "Studio pack generated", "Verified original") — never robotic ("0 errors").
-
-COMPONENT CONVENTIONS (shadcn): Button (default=ink primary, secondary, ghost, destructive, plus an accent/cobalt variant for the single key CTA per screen; sizes sm/default/lg), Card, Badge, Avatar, Tabs, Dialog (desktop) / Sheet (mobile drawers), Sidebar (collapses to icon rail), Tooltip, DropdownMenu, Table, Calendar, Form (react-hook-form + zod), Sonner toasts, Skeleton, Progress, Separator, ScrollArea, Tabs. Charts via shadcn/recharts. Keep ONE consistent set.
-- OriginShot-specific patterns to define and reuse: UploadDropzone (the hero input), GalleryGrid + ImageTile (framed, with provenance pill + hover actions), BeforeAfter slider (original → studio), StylePicker (studio/lifestyle/on-model/variants/video), MarketplacePresetSelector (Amazon/Etsy/Shopify/eBay/Social), JobProgress (per-style tiles with developing skeletons), ProvenanceBadge + VerifyPanel, StatCard (mono numbers), Lightbox.
-
-Acknowledge by generating a compact "Design tokens & components" style-guide screen: color swatches (with token names), the Geist Sans + Geist Mono type scale, all button variants/sizes, badges incl. the Verified/AI provenance pills, a sample framed ImageTile with a provenance pill, a small StatCard, and a light/dark toggle — so I can verify the system. Make it responsive per the Responsiveness Law.
-Remember: responsive web app. Show it working at 375px (phone browser), 820px (iPad portrait), 1024px (iPad landscape/laptop), and 1440px (desktop) — no horizontal scroll, no overflow, and the iPad layout is a REAL tablet layout, not a stretched phone view.
-```
+The source of truth for OriginShot's visual language. Tokens live in
+`frontend/app/globals.css`; this document explains what they mean and why.
 
 ---
 
-## Notes for the builder (not for v0)
+## The thesis
 
-**Why this looks nothing like a "default AI app" (and nothing like warmer systems):**
-- **Cool ink-on-paper, not warm cream.** The base is a cool seamless-paper neutral with cool near-black ink — a studio, not a kitchen.
-- **One signal color.** Cobalt is a precise accent (CTAs, links, focus), emerald is reserved for trust/provenance. The interface is mostly neutral so the *photos* are the color.
-- **Geist Sans + Geist Mono**, no serif. The mono-everywhere-technical treatment (hashes, SKUs, prices, model names) is the ownable signature and ties directly to the provenance product story.
-- **Gallery framing + the seamless-sweep motif** make the app feel like a photography studio rather than a generic dashboard.
+Every semantic colour in this system is a patch from the **ColorChecker chart** —
+the 24-square reference card photographers shoot to prove their colour is
+truthful.
 
-**Fonts:** install the `geist` package and load `GeistSans` / `GeistMono` via `next/font` in `app/layout.tsx`; wire them to `--font-sans` / `--font-mono` and reference those in the Tailwind theme. (The starter frontend in `../frontend` already encodes these tokens in `app/globals.css` and demonstrates them on the home/style-guide page — keep v0 output consistent with it.)
+For a product whose entire claim is *verifiable photographic authenticity*, the
+instrument of photographic truth is the right source material. It gives the
+system three things a chosen-from-nowhere palette can't:
 
-**Token mapping for Tailwind v4:** define the tokens above as CSS variables under `:root` and `.dark` in `globals.css`, then expose them through `@theme inline` (e.g., `--color-background`, `--color-primary`, `--color-accent`, `--color-verified`, `--radius`). Drive dark mode with a `.dark` class on `<html>`.
+1. **Colours with provenance of their own.** These are standardised, measured,
+   slightly desaturated values. They read as expensive precisely because they
+   aren't SaaS colours.
+2. **A neutral ramp that comes from somewhere.** The greys are the chart's own
+   greyscale patches (19–24), so the interface stays achromatic and the
+   generated photographs are the only real colour on screen.
+3. **A defensible chart palette.** Analytics uses patch hues in a fixed order,
+   so categorical series never need an arbitrary decision.
 
-**Suggested screen order to ask v0 for next:** (1) this style guide → (2) marketing/landing with the seamless-sweep hero → (3) auth (sign in/up) → (4) the Studio workspace (upload → style/preset pick → generate) → (5) Job progress with developing skeletons → (6) SKU gallery with provenance pills + lightbox → (7) public Verify page → (8) Analytics dashboard (recharts, mono stats) → (9) Settings/Brand kit. Each must obey the Responsiveness Law and reuse the components above.
+**What this system deliberately is not:** no cream-and-terracotta editorial, no
+near-black-with-one-acid-accent, no broadsheet hairline pastiche, and no
+Geist/cobalt developer-tool look. Those are defaults, not choices.
 
-**Consistency rule:** every screen reuses the tokens, the framed ImageTile, and the ProvenanceBadge. If a new color is ever needed, add it as a semantic token here first — never hardcode hex in a component.
+---
+
+## Colour
+
+Tokens are semantic. **Never write a raw hex in a component** — if a new colour
+is needed, add it here first.
+
+### Light — "Daylight" (the card shot at 5000K)
+
+| Token | Value | Patch |
+| --- | --- | --- |
+| `background` | `#EDEDE9` | below patch 19 white, so white cards frame |
+| `foreground` | `#1A1A18` | below patch 24 black, for AA body contrast |
+| `card` / `popover` | `#FFFFFF` | — |
+| `primary` | `#1F1F1D` | studio ink |
+| `secondary` | `#E4E4E0` | — |
+| `muted` | `#E8E8E4` | — |
+| `muted-foreground` | `#6B6B64` | patch 22, darkened to AA |
+| `border` / `input` | `#DCDCD7` | — |
+| `accent` / `ring` | `#383D96` | **patch 13 · blue — the signal** |
+| `verified` / `success` | `#3B7C3D` | patch 14 green, darkened to AA |
+| `warning` | `#9E5A15` | patch 7 orange, darkened to AA |
+| `danger` | `#A83239` | patch 15 red |
+| `info` | `#06697F` | patch 18 cyan, darkened to AA |
+
+Each status colour also has a `-surface` companion (`verified-surface`,
+`warning-surface`, `danger-surface`, `info-surface`) for tinted badge and alert
+grounds.
+
+### Dark — "Darkroom" (the card under safelight)
+
+Same roles, patches lifted for legibility against `#121211`. See `.dark` in
+`globals.css`.
+
+### Chart ramp
+
+**The raw patches fail as a data palette.** Validated with the six checks, patch
+13 sits below the lightness band, patches 5 and 22 read as grey, and patches
+18/5 are indistinguishable under protanopia (ΔE 2.6). Aesthetic provenance
+doesn't buy accessibility.
+
+`--chart-1` … `--chart-4` are those patch hues **re-stepped until every check
+passes**, in this fixed order — orange, blue, green, magenta:
+
+```
+node scripts/validate_palette.js "#C67B1E,#3F49BE,#1E8A4E,#B563A6" --mode light
+node scripts/validate_palette.js "#C4822C,#6F78DD,#35A65E,#C574B6" --mode dark
+```
+
+Four slots, not eight: a fifth passing hue doesn't exist at this chroma without
+colliding with one already in the set. A fifth series folds into "Other" or gets
+faceted — it is never a generated hue.
+
+Dark steps are **selected against the darkroom surface**, not flipped from light.
+
+**Assign in fixed order, never cycled.** Colour follows the entity, never its
+rank, so a filter that changes the series count must not repaint the survivors.
+
+### When not to use the ramp
+
+Most charts here are one series. Provider mix is counts by category — a
+magnitude comparison, so it takes **one hue** (the accent) and direct value
+labels. Colour that only restates the axis label is noise. Reach for the
+categorical ramp only when colour is genuinely carrying identity.
+
+### Rules
+
+- **The accent is a signal, not decoration.** One `accent` action per screen. If
+  two things on a screen are cobalt, neither reads as the primary action.
+- **Colour is used flat.** No gradients on interactive surfaces. The only
+  gradients in the system are the calibration-grid backdrop and the `developing`
+  shimmer.
+- **Status is always icon + text + colour**, never colour alone.
+
+---
+
+## Type
+
+Two families, three roles.
+
+- **Archivo** (`--font-sans`) — a grotesk drawn for print and screen
+  performance. Carries the whole interface.
+- **IBM Plex Mono** (`--font-mono`) — carries everything machine-true: SHA-256
+  hashes, SKU codes, model names, dimensions, timestamps, prices, run IDs.
+
+The typographic signature is **width tension**:
+
+| Class | Use |
+| --- | --- |
+| `.display` | Hero headlines. `-0.035em` tracking, line-height 1.02. |
+| `h1`–`h4` | `-0.022em` tracking, weight 600, balanced wrapping. |
+| `.label` | Micro-labels: 11px, uppercase, `0.14em` tracking, weight 600. |
+| `.label-mono` | Same, in mono — for technical legends and rebate strips. |
+| `.tabular` | `tabular-nums` for any figure that sits in a column. |
+
+Headlines are set tight and heavy; micro-labels are set small, wide, and
+uppercase — like the legend printed along the bottom edge of a calibration card.
+That contrast, not a decorative typeface, is what makes the system recognisable.
+
+**The mono/sans split carries meaning:** sans is what we claim, mono is what can
+be checked. Keep it honest — don't set marketing copy in mono for texture.
+
+---
+
+## Shape, depth, framing
+
+- `--radius: 0.5rem`. Panels `rounded-lg`, media `rounded-md`, pills
+  `rounded-full`.
+- Depth comes from a **hairline border first**, elevation second. Three shadow
+  tokens only: `shadow-hairline`, `shadow-raised`, `shadow-float`.
+- **`.frame`** — the media motif. A 1px inset ring so every generated asset
+  reads as a mounted print against the neutral ground. **`.frame-deep`** adds
+  float elevation for hero media.
+- Aspect ratios are locked per style so grids never reflow as assets land:
+  `aspect-square` (studio, variant), `aspect-[4/5]` (lifestyle, on-model),
+  `aspect-video` (video).
+
+---
+
+## Signature motifs
+
+- **`.patch-grid`** — the calibration lattice, at 72px. Pair with
+  `.patch-grid-fade` to mask it toward the edges. Used on the hero and the
+  closing CTA. This is the system's one piece of ambient decoration; don't add a
+  second.
+- **The contact sheet** (`components/marketing/contact-sheet.tsx`) — the hero's
+  centrepiece. Uniform frames, a mono rebate strip, and each frame's **real**
+  SHA-256 beneath it, linking to `/verify`. The proof on the marketing site is
+  checkable rather than claimed.
+- **`.developing`** — loading shimmer for anywhere media will land. A print
+  coming up in the tray, not a grey bar. Use `MediaSkeleton`, not `Skeleton`,
+  wherever an image is coming.
+
+---
+
+## Motion
+
+120–220ms, ease-out. Media reveals fade in with a slight scale from 0.98,
+staggered across a grid. Cards lift 2px on hover (`.lift`). Overlays animate off
+Radix `data-state` via `.anim-overlay` / `.anim-pop` / `.anim-pop-plain` — there
+is **no animation library beyond framer-motion**; don't add `tailwindcss-animate`.
+
+`prefers-reduced-motion` is honoured globally in `globals.css`. Never rely on a
+component to remember.
+
+---
+
+## Components
+
+Primitives live in `frontend/components/ui/` and are Radix-backed where
+behaviour matters (dialog, tabs, tooltip, progress, label, separator).
+
+Composite patterns to reuse rather than re-invent:
+
+| Component | Role |
+| --- | --- |
+| `ProvenanceBadge` | The trust signal. Icon + text + colour + mono hash. |
+| `ImageTile` | A generated asset as a mounted print, with caption strip. |
+| `AssetWorkbench` | The pack grouped by style, with slots held for pending frames. |
+| `ContactSheet` | The marketing hero's proof surface. |
+| `BrandMark` | Four-patch calibration glyph, one patch struck in verified green. |
+| `StatCard` / `StatGrid` | Metrics in a hairline-divided grid — no card-in-a-card. Figures are mono and tabular. |
+| `ProviderChart` | A real `<table>`, not a charting library. There is **no chart dependency** in this project; don't reintroduce one for a handful of bars. |
+| `Field` | Label + control + hint/error. Wires `aria-describedby` and `aria-invalid` — use it instead of hand-assembling a `Label` and an `Input`. |
+| `AccountPanel` | Identity and sign-out on Settings. Sign-out is deliberately duplicated from the sidebar rail. |
+| `Card` | `CardTitle` is a **micro-label** (names a region); `CardHeading` is a real heading (names content). Picking the wrong one is the easiest mistake to make here. |
+
+---
+
+## Responsiveness
+
+Must hold on every screen, no exceptions:
+
+- Flawless 320px → 4K. **Zero horizontal page scroll, zero overflow, zero
+  overlap** at any width.
+- `min-w-0` on flex/grid children so text truncates instead of pushing layout.
+- Tables scroll inside their own container (`Table` does this already) — the
+  page never scrolls sideways.
+- Hashes and SKUs truncate; they never force overflow.
+- Grids fold stepwise (4→2→1), never all at once.
+- Tablet gets a real intermediate layout — the sidebar collapses to an icon
+  rail, not a stretched phone view.
+- Sticky bars are safe-area aware (`env(safe-area-inset-*)`).
+
+Verify with `scripts/` + Playwright at 390 / 820 / 1440, light and dark. The
+screenshot harness asserts no horizontal overflow.
+
+---
+
+## Accessibility
+
+WCAG AA. One focus treatment, defined once on `:focus-visible` in `globals.css`
+— don't re-style focus per component. 44px minimum touch targets. Status is
+never colour alone. Every form control has a label; `Field` wires up
+`aria-describedby` and `aria-invalid` for you. Generated media needs descriptive
+alt text.
+
+---
+
+## Content
+
+Words are design material. Name things by what the user controls. Active voice;
+a control says what happens when it's used, and keeps the same name through the
+flow. Errors state what happened and what to do — they don't apologise and
+they're never vague. Empty states are an invitation to act.
+
+**Never state a number the code doesn't support.** Figures on the marketing site
+(assets per pack, timings) come from `backend/app/pricing.py`; if `_OUTPUTS` or
+`_ETA_SECONDS` change, the copy changes with them.
