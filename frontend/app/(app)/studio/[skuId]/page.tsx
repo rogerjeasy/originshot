@@ -21,11 +21,16 @@ import { ListingPanel } from "@/components/studio/listing-panel";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MediaSkeleton } from "@/components/ui/skeleton";
 
 export default function SkuWorkspace() {
   const { skuId } = useParams<{ skuId: string }>();
   const { data: sku, reload: reloadSku } = useApiData<Sku>(`/api/skus/${skuId}`);
-  const { data: assets, reload: reloadAssets } = useApiData<Asset[]>(`/api/skus/${skuId}/assets`);
+  const {
+    data: assets,
+    loading: assetsLoading,
+    reload: reloadAssets,
+  } = useApiData<Asset[]>(`/api/skus/${skuId}/assets`);
 
   const [styles, setStyles] = useState<Style[]>(["studio", "lifestyle"]);
   const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
@@ -176,7 +181,21 @@ export default function SkuWorkspace() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="min-w-0 space-y-6">
-          {!original ? (
+          {/* "Still loading" and "no photo yet" are different states and must not render
+              the same thing — treating them alike flashed the upload dropzone on every
+              visit to a SKU that already has a photo. */}
+          {assetsLoading && !assets ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Original</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="max-w-xs">
+                  <MediaSkeleton aspect="aspect-square" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : !original ? (
             <UploadDropzone onFile={upload} busy={uploading} />
           ) : (
             <FadeIn>
