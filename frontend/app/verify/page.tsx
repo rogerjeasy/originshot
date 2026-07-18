@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import type { VerifyResult } from "@/lib/types";
 import { AdaptiveChrome } from "@/components/adaptive-chrome";
 import { FadeIn } from "@/components/motion/fade-in";
+import { TamperDemo } from "@/components/tamper-demo";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { VerifyPanel } from "@/components/verify-panel";
 import { Alert } from "@/components/ui/alert";
@@ -126,6 +127,9 @@ export default function VerifyHome() {
                 <VerifyPanel result={result} />
               </FadeIn>
             )}
+            <FadeIn delay={0.06}>
+              <TamperDemo />
+            </FadeIn>
           </div>
         ) : (
           <FadeIn>
