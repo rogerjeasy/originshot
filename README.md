@@ -1,8 +1,8 @@
-# ListSnap
+# OriginShot
 
 **One phone photo in. A full marketplace-ready product catalog out — with cryptographic proof of what's real and what's AI.**
 
-ListSnap turns a single product snapshot into studio white-background shots, lifestyle scenes,
+OriginShot turns a single product snapshot into studio white-background shots, lifestyle scenes,
 on-model images, color/angle variants, and a short product video — every asset stored on
 **Backblaze B2** with an embedded, verifiable **Genblaze** provenance manifest that doubles as
 AI-disclosure compliance.
@@ -19,9 +19,9 @@ AI-disclosure compliance.
 ## Repository structure
 
 ```
-listsnap/
+originshot/
 ├── docs/         PROJECT_DESCRIPTION · BUILD_PLAN · SECURITY · DESIGN_SYSTEM
-├── backend/      FastAPI app + listsnap_pipelines (Genblaze) + tests
+├── backend/      FastAPI app + originshot_pipelines (Genblaze) + tests
 ├── frontend/     Next.js (App Router) + Tailwind v4 + shadcn/ui
 ├── infra/        Dockerfile.backend · docker-compose.yml · firestore.rules
 └── render.yaml   Render Blueprint (backend) · frontend/vercel.json (Vercel)
@@ -30,7 +30,7 @@ listsnap/
 ## Quickstart
 
 **One env file for both apps.** Copy the root template once; the backend (pydantic) and the
-frontend (`frontend/next.config.mjs`) both read this single `listsnap/.env`:
+frontend (`frontend/next.config.mjs`) both read this single `originshot/.env`:
 ```bash
 cp .env.example .env                               # then fill in your keys
 ```
@@ -50,7 +50,7 @@ npm install
 npm run dev                                         # http://localhost:3000
 ```
 
-The home page is a live **design-system style guide** demonstrating the ListSnap visual
+The home page is a live **design-system style guide** demonstrating the OriginShot visual
 language (see `docs/DESIGN_SYSTEM.md`).
 
 ## How it maps to the judging criteria
@@ -62,7 +62,7 @@ language (see `docs/DESIGN_SYSTEM.md`).
 
 ## Providers & models
 
-Canonical list lives in [`backend/listsnap_pipelines/registry.py`](backend/listsnap_pipelines/registry.py):
+Canonical list lives in [`backend/originshot_pipelines/registry.py`](backend/originshot_pipelines/registry.py):
 GMI Cloud (Seedream/FLUX/Gemini image; Kling/Seedance video), with OpenAI `gpt-image`,
 Google Imagen/Veo, and Luma as fallbacks.
 

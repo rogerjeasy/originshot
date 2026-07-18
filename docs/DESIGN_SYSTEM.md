@@ -1,16 +1,16 @@
-# 01 · ListSnap Design System (PASTE THIS INTO v0 FIRST)
+# 01 · OriginShot Design System (PASTE THIS INTO v0 FIRST)
 
-Paste the block below as your **first message** in the v0 project. It establishes ListSnap's entire visual language so every later screen is consistent, distinctive, and responsive. Everything after the block is notes for you (the builder), not for v0.
+Paste the block below as your **first message** in the v0 project. It establishes OriginShot's entire visual language so every later screen is consistent, distinctive, and responsive. Everything after the block is notes for you (the builder), not for v0.
 
-ListSnap's identity is deliberately **its own** — a gallery-grade product **studio in software**: crisp, editorial, confident, high-craft. Cool "seamless paper" neutrals, a single electric **cobalt** signal, an **emerald "Verified"** trust layer, **Geist Sans + Geist Mono** (mono carries every hash/SKU/price — a provenance-native detail). No warm creams, no serif headlines, no teal — a clean break from any softer, warmer system.
+OriginShot's identity is deliberately **its own** — a gallery-grade product **studio in software**: crisp, editorial, confident, high-craft. Cool "seamless paper" neutrals, a single electric **cobalt** signal, an **emerald "Verified"** trust layer, **Geist Sans + Geist Mono** (mono carries every hash/SKU/price — a provenance-native detail). No warm creams, no serif headlines, no teal — a clean break from any softer, warmer system.
 
 ---
 
 ```
-You are designing ListSnap — a gallery-grade product-photography studio in software. A seller uploads ONE ordinary phone photo of a product and ListSnap generates a full marketplace-ready pack: studio white-background shots, lifestyle scenes, on-model images, color/angle variants, and a short product video — every output carrying a verifiable provenance manifest (proof of what's authentic vs AI). Users are online sellers (Etsy/Shopify/Amazon/eBay), from solo makers to multi-SKU operators. It will be used daily by millions worldwide. Establish this design system and reuse it for every screen I ask for next.
+You are designing OriginShot — a gallery-grade product-photography studio in software. A seller uploads ONE ordinary phone photo of a product and OriginShot generates a full marketplace-ready pack: studio white-background shots, lifestyle scenes, on-model images, color/angle variants, and a short product video — every output carrying a verifiable provenance manifest (proof of what's authentic vs AI). Users are online sellers (Etsy/Shopify/Amazon/eBay), from solo makers to multi-SKU operators. It will be used daily by millions worldwide. Establish this design system and reuse it for every screen I ask for next.
 
 PLATFORM (read first)
-- ListSnap is a RESPONSIVE WEB APPLICATION that runs in the browser. It must look and work great on desktop browsers, laptops, tablets/iPad (portrait AND landscape), and mobile phone browsers — the SAME web app fluidly adapting to the viewport. It is NOT a native iOS/Android app. Where these prompts say "mobile" or "mobile-first", they mean the responsive web layout adapting to a small browser viewport (standard responsive CSS), not a separate app.
+- OriginShot is a RESPONSIVE WEB APPLICATION that runs in the browser. It must look and work great on desktop browsers, laptops, tablets/iPad (portrait AND landscape), and mobile phone browsers — the SAME web app fluidly adapting to the viewport. It is NOT a native iOS/Android app. Where these prompts say "mobile" or "mobile-first", they mean the responsive web layout adapting to a small browser viewport (standard responsive CSS), not a separate app.
 
 TECH
 - Next.js App Router, TypeScript, Tailwind CSS (v4), shadcn/ui (install components as needed), lucide-react icons, recharts for charts, framer-motion (motion/react) for motion. Responsive web; mobile-first CSS.
@@ -48,7 +48,7 @@ Dark ("Darkroom"):
 
 TYPOGRAPHY (distinctive on purpose)
 - UI + display font: GEIST SANS (next/font via the `geist` package). Modern grotesk; broad glyph coverage. Headings semibold/medium with TIGHT tracking; large display can use a slightly negative letter-spacing. NO serif anywhere.
-- Technical/metadata font: GEIST MONO. Use it for EVERYTHING machine-true: SHA-256 hashes, SKU codes, file sizes/dimensions, prices, run IDs, model names, timestamps. This mono treatment is a signature ListSnap detail tied to provenance — lean into it.
+- Technical/metadata font: GEIST MONO. Use it for EVERYTHING machine-true: SHA-256 hashes, SKU codes, file sizes/dimensions, prices, run IDs, model names, timestamps. This mono treatment is a signature OriginShot detail tied to provenance — lean into it.
 - Base 16px, line-height ~1.55 for body; in-app meaningful text never below 14px. Clear h1–h4 hierarchy. Tabular-nums for stats/tables.
 
 SHAPE & DEPTH (crisp, gallery-framed — not pillowy)
@@ -88,7 +88,7 @@ INTERNATIONALIZATION
 REQUIRED STATES on every data view: loading (image-shaped "developing" skeletons), empty (clean framed illustration + guidance + primary action, e.g., "Drop a product photo to start your first studio pack"), error (calm retry with a correlation hint). Confident, plain microcopy ("12 shots ready · all verified", "Studio pack generated", "Verified original") — never robotic ("0 errors").
 
 COMPONENT CONVENTIONS (shadcn): Button (default=ink primary, secondary, ghost, destructive, plus an accent/cobalt variant for the single key CTA per screen; sizes sm/default/lg), Card, Badge, Avatar, Tabs, Dialog (desktop) / Sheet (mobile drawers), Sidebar (collapses to icon rail), Tooltip, DropdownMenu, Table, Calendar, Form (react-hook-form + zod), Sonner toasts, Skeleton, Progress, Separator, ScrollArea, Tabs. Charts via shadcn/recharts. Keep ONE consistent set.
-- ListSnap-specific patterns to define and reuse: UploadDropzone (the hero input), GalleryGrid + ImageTile (framed, with provenance pill + hover actions), BeforeAfter slider (original → studio), StylePicker (studio/lifestyle/on-model/variants/video), MarketplacePresetSelector (Amazon/Etsy/Shopify/eBay/Social), JobProgress (per-style tiles with developing skeletons), ProvenanceBadge + VerifyPanel, StatCard (mono numbers), Lightbox.
+- OriginShot-specific patterns to define and reuse: UploadDropzone (the hero input), GalleryGrid + ImageTile (framed, with provenance pill + hover actions), BeforeAfter slider (original → studio), StylePicker (studio/lifestyle/on-model/variants/video), MarketplacePresetSelector (Amazon/Etsy/Shopify/eBay/Social), JobProgress (per-style tiles with developing skeletons), ProvenanceBadge + VerifyPanel, StatCard (mono numbers), Lightbox.
 
 Acknowledge by generating a compact "Design tokens & components" style-guide screen: color swatches (with token names), the Geist Sans + Geist Mono type scale, all button variants/sizes, badges incl. the Verified/AI provenance pills, a sample framed ImageTile with a provenance pill, a small StatCard, and a light/dark toggle — so I can verify the system. Make it responsive per the Responsiveness Law.
 Remember: responsive web app. Show it working at 375px (phone browser), 820px (iPad portrait), 1024px (iPad landscape/laptop), and 1440px (desktop) — no horizontal scroll, no overflow, and the iPad layout is a REAL tablet layout, not a stretched phone view.

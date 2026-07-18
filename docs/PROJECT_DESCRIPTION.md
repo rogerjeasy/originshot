@@ -1,8 +1,8 @@
-# ListSnap — Project Description
+# OriginShot — Project Description
 
 > **One phone photo in. A full marketplace-ready catalog out — with cryptographic proof of what's real and what's AI.**
 
-ListSnap turns a single snapshot of a product into studio-quality white-background shots, lifestyle scenes, on-model images, color/angle variants, and a short product video — then stores every asset on Backblaze B2 with an embedded, verifiable provenance manifest that doubles as AI-disclosure compliance.
+OriginShot turns a single snapshot of a product into studio-quality white-background shots, lifestyle scenes, on-model images, color/angle variants, and a short product video — then stores every asset on Backblaze B2 with an embedded, verifiable provenance manifest that doubles as AI-disclosure compliance.
 
 - **Built for:** Backblaze Generative Media Hackathon ("Build with Genblaze on B2")
 - **Submission deadline:** August 3, 2026, 5:00 PM EDT
@@ -20,7 +20,7 @@ ListSnap turns a single snapshot of a product into studio-quality white-backgrou
 5. [Core Features](#5-core-features)
 6. [The Provenance Advantage](#6-the-provenance-advantage)
 7. [Why Backblaze B2 + Genblaze](#7-why-backblaze-b2--genblaze)
-8. [How ListSnap Maps to the Judging Criteria](#8-how-listsnap-maps-to-the-judging-criteria)
+8. [How OriginShot Maps to the Judging Criteria](#8-how-originshot-maps-to-the-judging-criteria)
 9. [Competitive Landscape & Differentiation](#9-competitive-landscape--differentiation)
 10. [Business Model](#10-business-model)
 11. [Scope: MVP vs. Stretch](#11-scope-mvp-vs-stretch)
@@ -32,15 +32,15 @@ ListSnap turns a single snapshot of a product into studio-quality white-backgrou
 
 ## 1. Executive Summary
 
-Online sellers live or die by their product images, yet shooting good photos is the single most repetitive, expensive, and skill-gated chore in their day. ListSnap removes it. A seller uploads **one** ordinary phone photo of a product and receives, in minutes, a complete, marketplace-formatted image pack plus a short product video — all generated through orchestrated Genblaze pipelines, all stored and organized on Backblaze B2.
+Online sellers live or die by their product images, yet shooting good photos is the single most repetitive, expensive, and skill-gated chore in their day. OriginShot removes it. A seller uploads **one** ordinary phone photo of a product and receives, in minutes, a complete, marketplace-formatted image pack plus a short product video — all generated through orchestrated Genblaze pipelines, all stored and organized on Backblaze B2.
 
-What makes ListSnap a *winning* hackathon entry rather than another "AI image tool" is the **provenance layer**. Every generated file carries a SHA-256–verified Genblaze manifest embedded directly into the media and persisted to B2. That single design choice turns a feature into a defensible product:
+What makes OriginShot a *winning* hackathon entry rather than another "AI image tool" is the **provenance layer**. Every generated file carries a SHA-256–verified Genblaze manifest embedded directly into the media and persisted to B2. That single design choice turns a feature into a defensible product:
 
 - It is **automatic AI-disclosure compliance** for marketplaces and the EU AI Act.
 - It provides **proof of authenticity** — which pixels are the real product vs. AI-enhanced.
 - It enables **one-click reproducibility** — any asset can be regenerated or audited from its manifest.
 
-ListSnap therefore hits all four judging criteria at full strength: it solves a real, daily, mass-market problem (Real-World Utility), it is architected like a real SaaS with multi-provider fallback (Production Readiness), it uses B2 as a content-addressable, deduplicated, analytics-backed asset library (B2 Storage & Data Orchestration), and it leans on Genblaze for genuinely multi-step, chained, provenance-stamped generation (Genblaze Usage).
+OriginShot therefore hits all four judging criteria at full strength: it solves a real, daily, mass-market problem (Real-World Utility), it is architected like a real SaaS with multi-provider fallback (Production Readiness), it uses B2 as a content-addressable, deduplicated, analytics-backed asset library (B2 Storage & Data Orchestration), and it leans on Genblaze for genuinely multi-step, chained, provenance-stamped generation (Genblaze Usage).
 
 ---
 
@@ -68,7 +68,7 @@ Listings with clean, varied, professional imagery convert dramatically better th
 
 > Figures are rounded public estimates for sizing only. Even a fraction of this base is a multi-million-user market, and listing/refreshing products is a recurring, high-frequency activity — exactly the "real daily, boring problem" profile.
 
-**Current alternatives and why they fall short.** Tools like Photoroom, Pebblely, Claid, and various "AI product photo" apps do background removal and scene generation well, but they: (a) treat each image as a one-off rather than orchestrating a full multi-output catalog + video pipeline, (b) provide **no provenance or AI-disclosure trail**, and (c) lock assets in their own storage with no cost-transparent, durable, portable library. ListSnap is positioned exactly in those gaps.
+**Current alternatives and why they fall short.** Tools like Photoroom, Pebblely, Claid, and various "AI product photo" apps do background removal and scene generation well, but they: (a) treat each image as a one-off rather than orchestrating a full multi-output catalog + video pipeline, (b) provide **no provenance or AI-disclosure trail**, and (c) lock assets in their own storage with no cost-transparent, durable, portable library. OriginShot is positioned exactly in those gaps.
 
 ---
 
@@ -80,13 +80,13 @@ Listings with clean, varied, professional imagery convert dramatically better th
 
 **Tertiary persona — "Casey, the casual reseller."** Sells used and handmade items on eBay/Depop/FB Marketplace. Won't pay for a photographer ever. Wants a "make this look good and write the listing" button. Trust/authenticity matters to buyers of used goods.
 
-**Buyer-side beneficiary.** Shoppers benefit from honest "AI-enhanced" labels — ListSnap's verify page lets a marketplace or a buyer confirm what's authentic.
+**Buyer-side beneficiary.** Shoppers benefit from honest "AI-enhanced" labels — OriginShot's verify page lets a marketplace or a buyer confirm what's authentic.
 
 ---
 
 ## 4. Solution Overview
 
-ListSnap is a web app with a simple core loop:
+OriginShot is a web app with a simple core loop:
 
 ```
 1. CREATE a product (SKU) → 2. UPLOAD one (or a few) phone photos
@@ -110,7 +110,7 @@ Everything generated is durable, organized by SKU, deduplicated, and provably at
 
 ### A. Capture & Ingest
 - **One-photo input.** Drag-drop or mobile capture of a single product photo; optional multi-angle upload.
-- **Authentic-source anchoring.** On upload, ListSnap computes the SHA-256, stores the original on B2 as an immutable "authentic" asset, and marks it `is_authentic = true` (no AI). This is the trust anchor for all downstream provenance.
+- **Authentic-source anchoring.** On upload, OriginShot computes the SHA-256, stores the original on B2 as an immutable "authentic" asset, and marks it `is_authentic = true` (no AI). This is the trust anchor for all downstream provenance.
 - **Auto product analysis.** A vision/chat model (e.g., Gemini/Qwen-VL via GMI Cloud) detects product type, dominant colors, and suggested categories to drive smart defaults.
 
 ### B. Generation Studio (the heart of the app)
@@ -167,13 +167,13 @@ Each is an orchestrated Genblaze pipeline (see [`BUILD_PLAN.md`](./BUILD_PLAN.md
 
 ## 6. The Provenance Advantage
 
-This is what separates ListSnap from every other AI product-photo tool and what aligns it with the feature Backblaze built Genblaze around.
+This is what separates OriginShot from every other AI product-photo tool and what aligns it with the feature Backblaze built Genblaze around.
 
 **What we do.** Every generated image and video is stamped with a Genblaze **Manifest** — a canonical, SHA-256–verified record of provider, model, prompt, parameters, timestamps, and parent lineage — *embedded directly into the file* (`.png`, `.webp`, `.jpeg`, `.mp4`) and also persisted to B2 as a sidecar. Original uploads are hash-anchored as authentic. Generated assets carry `parent_run_id` lineage back to that original.
 
 **Why it matters — three concrete payoffs:**
 
-1. **Automatic AI-disclosure compliance.** Marketplaces and the EU AI Act increasingly require labeling AI-generated/altered media. ListSnap produces the disclosure automatically and makes it *verifiable*, not just a checkbox. This is a genuine, emerging legal need — strong "Real-World Utility."
+1. **Automatic AI-disclosure compliance.** Marketplaces and the EU AI Act increasingly require labeling AI-generated/altered media. OriginShot produces the disclosure automatically and makes it *verifiable*, not just a checkbox. This is a genuine, emerging legal need — strong "Real-World Utility."
 2. **Proof of authenticity / anti-fraud.** Buyers of used or high-value goods (and the marketplaces policing them) can confirm which image is the unedited real product and which is an enhancement. The manifest distinguishes "authentic" from "AI-derived" cryptographically.
 3. **Reproducibility & audit.** Because each manifest captures the full run, any asset can be **replayed** (`genblaze replay`) — regenerated in a new size/style, or audited months later. Sellers and platforms get a tamper-evident trail.
 
@@ -183,7 +183,7 @@ This is what separates ListSnap from every other AI product-photo tool and what 
 
 ## 7. Why Backblaze B2 + Genblaze
 
-**Genblaze is the orchestration brain.** ListSnap is inherently multi-step and multi-provider: background removal → relight → scene compositing → variant fan-out → image-to-video → SFX mux → provenance embed. Genblaze's `Pipeline`/`Step`/`chain=True`, fallback chains, batch runners, lineage, and manifests express this cleanly and reliably. We are not bolting one API call onto a UI — we're orchestrating a real media pipeline, which is exactly the "meaningful Genblaze integration" the judges want.
+**Genblaze is the orchestration brain.** OriginShot is inherently multi-step and multi-provider: background removal → relight → scene compositing → variant fan-out → image-to-video → SFX mux → provenance embed. Genblaze's `Pipeline`/`Step`/`chain=True`, fallback chains, batch runners, lineage, and manifests express this cleanly and reliably. We are not bolting one API call onto a UI — we're orchestrating a real media pipeline, which is exactly the "meaningful Genblaze integration" the judges want.
 
 **B2 is the durable, cost-smart media backbone.** An asset-heavy app generates a lot of large files. B2 gives us:
 - **Low storage + generous egress economics**, so a media library at scale is actually affordable (a real cost story for sellers).
@@ -195,9 +195,9 @@ Together they let a small team ship something that looks and behaves like a prod
 
 ---
 
-## 8. How ListSnap Maps to the Judging Criteria
+## 8. How OriginShot Maps to the Judging Criteria
 
-| Judging criterion | How ListSnap nails it |
+| Judging criterion | How OriginShot nails it |
 |---|---|
 | **Real-World Utility** | Solves the #1 daily, paid-for pain of tens of millions of sellers; provenance addresses a real emerging compliance need. People pay for this category *today*. |
 | **Production Readiness** | **Firebase Auth + strict per-user isolation**, multi-provider **fallback chains** (provider outage ≠ failed job), retries, async job workers, live deployed URL (Render + Vercel), secret management, rate limits/quotas, robust error handling, and per-marketplace correctness. Full security design in [`SECURITY.md`](./SECURITY.md). |
@@ -208,7 +208,7 @@ Together they let a small team ship something that looks and behaves like a prod
 
 ## 9. Competitive Landscape & Differentiation
 
-| Capability | Photoroom / Pebblely / Claid (typical) | **ListSnap** |
+| Capability | Photoroom / Pebblely / Claid (typical) | **OriginShot** |
 |---|---|---|
 | Background removal & scenes | ✅ | ✅ |
 | Full multi-output catalog in one run | ◻️ partial | ✅ orchestrated pipeline |

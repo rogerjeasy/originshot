@@ -1,13 +1,13 @@
-# ListSnap — Security & Privacy Design
+# OriginShot — Security & Privacy Design
 
-> **Security is a mandatory, first-class requirement of ListSnap — designed in from day one, not bolted on.**
+> **Security is a mandatory, first-class requirement of OriginShot — designed in from day one, not bolted on.**
 > This document defines the threat model, the controls, and the pre-launch checklist. It is referenced throughout [`BUILD_PLAN.md`](./BUILD_PLAN.md) and summarized in the product's [`PROJECT_DESCRIPTION.md`](./PROJECT_DESCRIPTION.md).
 
 - **Stack in scope:** Firebase Authentication + Cloud Firestore · FastAPI on Render (+ Arq worker + Redis) · Next.js (Tailwind + shadcn/ui) on Vercel · Backblaze B2 · Genblaze SDK · generation providers (GMI Cloud, OpenAI, Google, Luma, …).
 - **Last updated:** 2026-06-24
-- **Owner:** ListSnap team
+- **Owner:** OriginShot team
 
-**Why this matters for the hackathon.** The judging rubric weights **Production Readiness** heavily. A generative app that handles user accounts, user-uploaded media, paid third-party APIs, and durable cloud storage is *only* production-ready if it is secure. This document is how ListSnap demonstrates that.
+**Why this matters for the hackathon.** The judging rubric weights **Production Readiness** heavily. A generative app that handles user accounts, user-uploaded media, paid third-party APIs, and durable cloud storage is *only* production-ready if it is secure. This document is how OriginShot demonstrates that.
 
 ---
 
@@ -70,7 +70,7 @@
 - **Insider / operator error** — leaked secret, misconfigured bucket, secret in logs.
 
 ### 2.3 STRIDE overview
-| Threat | Example against ListSnap | Primary control(s) |
+| Threat | Example against OriginShot | Primary control(s) |
 |---|---|---|
 | **S**poofing | Forged identity / stolen token | Firebase ID-token verification (§3) |
 | **T**ampering | Altering another user's asset; forging "authentic" badge | Authz + Firestore rules (§4); manifest integrity (§11) |
@@ -185,7 +185,7 @@ User uploads (product photos) are the largest untrusted-input surface.
 **Other input validation:**
 - Validate all JSON bodies with Pydantic (strict types, length limits) — titles, descriptions, style lists, marketplace enums.
 - **Prompt-injection awareness:** user text (product descriptions) feeds LLM/image prompts. Treat it as data: constrain with templates, cap length, and never let user text alter system instructions, tool use, or storage targets. Don't reflect raw model output into privileged operations.
-- Reject requests for unknown providers/models; the provider/model set is a server-side allowlist (`listsnap_pipelines/registry.py`).
+- Reject requests for unknown providers/models; the provider/model set is a server-side allowlist (`originshot_pipelines/registry.py`).
 
 ---
 
@@ -196,7 +196,7 @@ A generative product can be abused to create disallowed content; moderation is b
 - **Input moderation:** screen uploaded images (and text) for disallowed content (CSAM — zero tolerance, reported per law; explicit/violent content; obvious illegal goods) using a moderation model/provider before generation.
 - **Output moderation:** screen generated images/video before they're shown or exported; quarantine and log violations.
 - **On-model / likeness safeguards:** on-model shots must not target real identifiable individuals without consent; restrict to synthetic models and block prompts naming real people (anti-deepfake).
-- **IP/trademark guardrails:** discourage generating counterfeit/branded logos; surface a usage-policy reminder. (ListSnap is for *your* products.)
+- **IP/trademark guardrails:** discourage generating counterfeit/branded logos; surface a usage-policy reminder. (OriginShot is for *your* products.)
 - **Acceptable Use Policy** presented at sign-up; repeat violations → account suspension.
 - **Audit trail:** moderation decisions logged; provenance manifest records what was generated (supports takedown/repudiation handling).
 
@@ -246,7 +246,7 @@ Because each generation calls a **paid** provider, abuse is a *financial* attack
 
 ## 11. Provenance & Integrity Security
 
-Provenance is ListSnap's trust feature, so its own security is in scope.
+Provenance is OriginShot's trust feature, so its own security is in scope.
 
 - **Integrity:** every generated asset carries a SHA-256 Genblaze manifest; `verify()` detects tampering. Originals are hash-anchored at upload.
 - **Redaction via `EmbedPolicy`:** public-facing manifests **redact prompts/params** and any sensitive fields so the `/verify` endpoint can't leak business-sensitive prompts or PII. Pointer-mode/sidecars used where appropriate.
@@ -379,10 +379,10 @@ Provenance is ListSnap's trust feature, so its own security is in scope.
 
 ## 19. Responsible Disclosure
 
-- Provide a `SECURITY.txt` / contact (e.g., `security@listsnap.app`) for reporting vulnerabilities.
+- Provide a `SECURITY.txt` / contact (e.g., `security@originshot.app`) for reporting vulnerabilities.
 - Commit to acknowledging reports promptly and not pursuing good-faith researchers.
 - Track and remediate reported issues with severity-based SLAs.
 
 ---
 
-*Security is a feature of ListSnap, not a phase. If the architecture changes, update this document first, then the build.*
+*Security is a feature of OriginShot, not a phase. If the architecture changes, update this document first, then the build.*

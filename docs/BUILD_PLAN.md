@@ -1,6 +1,6 @@
-# ListSnap — End-to-End Build Plan
+# OriginShot — End-to-End Build Plan
 
-> Engineering plan to ship ListSnap for the **Backblaze Generative Media Hackathon** by **August 3, 2026, 5:00 PM EDT**.
+> Engineering plan to ship OriginShot for the **Backblaze Generative Media Hackathon** by **August 3, 2026, 5:00 PM EDT**.
 > Product context: [`PROJECT_DESCRIPTION.md`](./PROJECT_DESCRIPTION.md).
 >
 > 🔒 **Security is a first-class, mandatory requirement of this build — not a Week-5 afterthought.** Authentication, per-user data isolation, secret management, upload safety, and denial-of-wallet protection are designed in from Week 1. The complete security & privacy design and threat model live in **[`SECURITY.md`](./SECURITY.md)**, and this plan references it throughout.
@@ -60,7 +60,7 @@ This plan is written to be executed by a 1–2 person team in ~6 weeks. Code sni
 | Analytics read | **DuckDB** over Parquet, or pandas | Reads Genblaze `ParquetSink` output for the dashboard. |
 | Security | Firebase Auth · Firestore Rules · scoped B2 presigned URLs · secret mgmt · quotas | **Mandatory** — full design in [`SECURITY.md`](./SECURITY.md). |
 
-> Keep the generation/orchestration logic in a standalone Python package (`listsnap_pipelines`) so it's testable and reusable independent of the web layer.
+> Keep the generation/orchestration logic in a standalone Python package (`originshot_pipelines`) so it's testable and reusable independent of the web layer.
 
 ---
 
@@ -116,7 +116,7 @@ This plan is written to be executed by a 1–2 person team in ~6 weeks. Code sni
 ## 4. Repository Structure
 
 ```
-listsnap/
+originshot/
 ├── docs/
 │   ├── PROJECT_DESCRIPTION.md
 │   └── BUILD_PLAN.md
@@ -132,7 +132,7 @@ listsnap/
 │   │   ├── storage.py          # B2 raw uploads + short-lived presigned URLs
 │   │   ├── security.py         # rate limiting, quotas, headers, upload validation
 │   │   └── config.py           # settings/env (secrets via env only)
-│   ├── listsnap_pipelines/     # standalone, testable Genblaze logic
+│   ├── originshot_pipelines/     # standalone, testable Genblaze logic
 │   │   ├── studio.py
 │   │   ├── lifestyle.py
 │   │   ├── variants.py
@@ -176,7 +176,7 @@ pip install fastapi uvicorn firebase-admin arq redis boto3 duckdb python-multipa
 # Backblaze B2 (app key scoped to the single bucket; least privilege)
 B2_KEY_ID=...
 B2_APP_KEY=...
-B2_BUCKET=listsnap-media
+B2_BUCKET=originshot-media
 B2_REGION=us-west-000
 
 # Generation providers
@@ -188,20 +188,20 @@ ELEVENLABS_API_KEY=...         # stretch: video SFX
 
 # Firebase Admin (service account) — provide as a Render secret file or JSON env
 GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/firebase-admin.json
-FIREBASE_PROJECT_ID=listsnap-prod
+FIREBASE_PROJECT_ID=originshot-prod
 
 # App
 REDIS_URL=redis://...          # Render Key Value
-PUBLIC_BASE_URL=https://listsnap-api.onrender.com
-ALLOWED_ORIGINS=https://listsnap.vercel.app
+PUBLIC_BASE_URL=https://originshot-api.onrender.com
+ALLOWED_ORIGINS=https://originshot.vercel.app
 ```
 
 **Frontend `.env.local` (Firebase *web* config is public by design, but still locked down via Auth authorized domains + API-key referrer restrictions):**
 ```bash
 NEXT_PUBLIC_FIREBASE_API_KEY=...
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=listsnap-prod.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=listsnap-prod
-NEXT_PUBLIC_API_BASE_URL=https://listsnap-api.onrender.com
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=originshot-prod.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=originshot-prod
+NEXT_PUBLIC_API_BASE_URL=https://originshot-api.onrender.com
 ```
 
 > **No generation/provider keys or B2 credentials ever reach the browser.** The frontend holds only the Firebase *web* config and talks to the backend, which holds every real secret. See [`SECURITY.md`](./SECURITY.md) §4.
@@ -263,7 +263,7 @@ service cloud.firestore {
 **B2 bucket layout** (Genblaze manages asset keys via `KeyStrategy`; we add logical sidecars):
 
 ```
-listsnap-media/
+originshot-media/
 ├── assets/<sha[:2]>/<sha[2:4]>/<sha>.<ext>     # CONTENT_ADDRESSABLE (dedup) — generated + originals
 ├── manifests/<run_id>/<step>.json              # sidecar provenance (also embedded in files)
 ├── exports/<sku_id>/<marketplace>.zip          # generated export packs
@@ -276,9 +276,9 @@ listsnap-media/
 
 ## 7. The Genblaze Pipelines (Core)
 
-All pipeline builders live in `listsnap_pipelines/` and return Genblaze `Pipeline` objects so they're unit-testable with mocked providers.
+All pipeline builders live in `originshot_pipelines/` and return Genblaze `Pipeline` objects so they're unit-testable with mocked providers.
 
-> ✅ **Week-1 verified — the code snippets below are illustrative; `listsnap_pipelines/registry.py` is the source of truth.** Confirmed against genblaze 0.4.0 / genblaze-core 0.3.2 / genblaze-gmicloud 0.3.1:
+> ✅ **Week-1 verified — the code snippets below are illustrative; `originshot_pipelines/registry.py` is the source of truth.** Confirmed against genblaze 0.4.0 / genblaze-core 0.3.2 / genblaze-gmicloud 0.3.1:
 > - **GMI Cloud image models are edit/i2i only** (no `gemini-2.5-flash-image`/`flux-kontext`/`seedream`). Real IDs: `seededit-3-0-i2i-250628`, `reve-edit-20250915`, `reve-edit-fast-20251030`, `reve-remix-*`, `bria-genfill`, `bria-eraser`. This *fits* our use-case (edit a real photo → studio/lifestyle/variant). A true text→image→video chain would need a text→image provider (e.g. Google Imagen).
 > - **Video IDs are real**: `Kling-Image2Video-V2.1-Master` (primary), fallbacks `pixverse-v5.6-i2v`, `wan2.6-r2v`; also `Kling-Text2Video-V2.1-Master`, `Veo3`/`Veo3-Fast`. (`seedance-*` / `luma-dream-machine` are **not** GMI models; Luma is a separate provider package, not a GMI `fallback_models` entry.)
 > - **Reference-image kwarg = `image`** (both image & video `param_allowlist`s accept `image`/`image_url`); `aspect_ratio` and video `duration` are allow-listed. Provider classes `GMICloudImageProvider` / `GMICloudVideoProvider` import from `genblaze_gmicloud` ✓.
@@ -288,7 +288,7 @@ All pipeline builders live in `listsnap_pipelines/` and return Genblaze `Pipelin
 ### 7.0 Shared storage sink
 
 ```python
-# listsnap_pipelines/storage.py
+# originshot_pipelines/storage.py
 import os
 from genblaze_core import ObjectStorageSink, KeyStrategy, ParquetSink
 from genblaze_s3 import S3StorageBackend
@@ -305,13 +305,13 @@ def make_sink() -> ObjectStorageSink:
 ### 7.1 Studio shot (image edit, with fallback)
 
 ```python
-# listsnap_pipelines/studio.py
+# originshot_pipelines/studio.py
 from genblaze_core import Pipeline, Modality
 from genblaze_gmicloud import GMICloudImageProvider
 
 def build_studio_pipeline(source_image_uri: str, product_desc: str) -> Pipeline:
     return (
-        Pipeline("listsnap-studio")
+        Pipeline("originshot-studio")
         .step(
             GMICloudImageProvider(),
             model="gemini-2.5-flash-image",          # ⚠️ confirm image-edit model id
@@ -331,7 +331,7 @@ def build_studio_pipeline(source_image_uri: str, product_desc: str) -> Pipeline:
 ### 7.2 Lifestyle scenes (parallel fan-out)
 
 ```python
-# listsnap_pipelines/lifestyle.py
+# originshot_pipelines/lifestyle.py
 import asyncio
 from genblaze_core import Pipeline, Modality
 from genblaze_gmicloud import GMICloudImageProvider
@@ -344,7 +344,7 @@ SCENES = [
 ]
 
 def _scene_pipeline(source_image_uri: str, product_desc: str, scene: str) -> Pipeline:
-    return Pipeline("listsnap-lifestyle").step(
+    return Pipeline("originshot-lifestyle").step(
         GMICloudImageProvider(),
         model="gemini-2.5-flash-image",   # ⚠️
         prompt=f"{product_desc} placed {scene}, realistic shadows and reflections, lifestyle product photography",
@@ -364,7 +364,7 @@ async def run_lifestyle(source_image_uri, product_desc, sink, scenes=SCENES):
 ### 7.3 Variant fan-out (color / angle)
 
 ```python
-# listsnap_pipelines/variants.py
+# originshot_pipelines/variants.py
 def build_variant_prompts(product_desc, colors=(), angles=()):
     base = "studio product photo on pure white background, soft lighting"
     out = []
@@ -381,12 +381,12 @@ def build_variant_prompts(product_desc, colors=(), angles=()):
 The hero studio image is already generated and provenance-anchored; feed it into a video step. (Use `chain=True` if you want text→image→video in one pass instead.)
 
 ```python
-# listsnap_pipelines/video.py
+# originshot_pipelines/video.py
 from genblaze_core import Pipeline, Modality
 from genblaze_gmicloud import GMICloudVideoProvider
 
 def build_hero_video(hero_image_uri: str, product_desc: str) -> Pipeline:
-    return Pipeline("listsnap-hero-video").step(
+    return Pipeline("originshot-hero-video").step(
         GMICloudVideoProvider(),
         model="Kling-Image2Video-V2.1-Master",   # ⚠️ confirm id
         prompt="slow turntable rotation with a gentle camera push-in, premium product reveal, clean background",
@@ -401,7 +401,7 @@ def build_hero_video(hero_image_uri: str, product_desc: str) -> Pipeline:
 def build_chained_video(product_desc: str) -> Pipeline:
     from genblaze_gmicloud import GMICloudImageProvider
     return (
-        Pipeline("listsnap-chained-video", chain=True)
+        Pipeline("originshot-chained-video", chain=True)
         .step(GMICloudImageProvider(), model="seedream-5.0-lite",
               prompt=f"{product_desc}, studio product photo, white background",
               modality=Modality.IMAGE)
@@ -414,11 +414,11 @@ def build_chained_video(product_desc: str) -> Pipeline:
 
 ```python
 # backend/app/worker.py (sketch)
-from listsnap_pipelines.storage import make_sink
-from listsnap_pipelines.studio import build_studio_pipeline
-from listsnap_pipelines.lifestyle import run_lifestyle
-from listsnap_pipelines.video import build_hero_video
-from listsnap_pipelines.provenance import record_asset
+from originshot_pipelines.storage import make_sink
+from originshot_pipelines.studio import build_studio_pipeline
+from originshot_pipelines.lifestyle import run_lifestyle
+from originshot_pipelines.video import build_hero_video
+from originshot_pipelines.provenance import record_asset
 
 async def run_generation(job_id, sku, source_uri, styles):
     sink = make_sink()
@@ -497,7 +497,7 @@ Built with **Next.js (App Router) + Tailwind + shadcn/ui**. Auth is **Firebase A
 ## 10. Provenance & Compliance Implementation
 
 ```python
-# listsnap_pipelines/provenance.py
+# originshot_pipelines/provenance.py
 from pathlib import Path
 from genblaze_core.media import Mp4Handler   # ⚠️ image handlers: PngHandler/WebpHandler/JpegHandler (confirm names)
 
@@ -510,14 +510,14 @@ def embed_and_verify(local_path: Path, manifest):
 
 def disclosure_text(asset) -> str:
     if asset.is_authentic:
-        return "Authentic photo — unedited original. Verifiable via ListSnap manifest."
+        return "Authentic photo — unedited original. Verifiable via OriginShot manifest."
     return (f"AI-generated image. Model: {asset.model} ({asset.provider}). "
             f"Derived from authentic source {asset.parent_sha256[:12]}. "
-            f"Provenance verifiable via ListSnap (SHA-256 manifest embedded).")
+            f"Provenance verifiable via OriginShot (SHA-256 manifest embedded).")
 ```
 
 **Implementation tasks:**
-- [x] ~~Prefer automatic embedding via `EmbedPolicy` on the sink~~ — **resolved Week 1: embedding is explicit.** The generation flow embeds via `PipelineResult.save(path, embed=True, policy=EmbedPolicy(...))` (`app/generation.py::_embed_and_store` → `listsnap_pipelines/provenance.py`), then re-stores the embedded bytes content-addressably and re-extracts to verify. Mode is configurable (`MANIFEST_EMBED_MODE` = `full`/`pointer`/`none`); `full` keeps the file standalone-verifiable, `pointer` redacts prompts and points to the B2 sidecar.
+- [x] ~~Prefer automatic embedding via `EmbedPolicy` on the sink~~ — **resolved Week 1: embedding is explicit.** The generation flow embeds via `PipelineResult.save(path, embed=True, policy=EmbedPolicy(...))` (`app/generation.py::_embed_and_store` → `originshot_pipelines/provenance.py`), then re-stores the embedded bytes content-addressably and re-extracts to verify. Mode is configurable (`MANIFEST_EMBED_MODE` = `full`/`pointer`/`none`); `full` keeps the file standalone-verifiable, `pointer` redacts prompts and points to the B2 sidecar.
 - [x] Persist a **sidecar manifest** to B2 and store `manifest_key` on the `Asset` (the `embedded` flag records whether the bytes carry the manifest).
 - `/verify` endpoints: **`GET /verify/{sha}`** returns integrity + lineage from the record; **`POST /verify`** (file upload) **re-extracts the embedded manifest from the actual bytes, re-runs `verify()`, and checks content-binding** — never trusts stored state — then matches the bytes' SHA-256 to a record for lineage. A downloaded `full`-mode asset self-verifies even with no DB record. Both surface the `embedded` flag; the upload route also returns `content_bound`.
 - **Content-binding (tamper-evidence).** `verify()` only proves the manifest's *internal* integrity, and the SDK exposes no content-binding API — but the manifest's canonical hash commits to each asset's `sha256`. So `POST /verify` recomputes the file's **canonical content hash** (strips the embedded genblaze manifest, re-hashes — `provenance.canonical_content_hash`) and compares it to the signed hash → `content_bound = True/False`. Covered for **PNG** (iTXt), **MP4** (uuid box, ISO-BMFF walk), **JPEG** (APP1 XMP), and **WebP** (`XMP ` RIFF chunk). A byte-exact match to a stored asset also counts as bound. `content_bound=False` ⇒ a valid manifest embedded into altered pixels/frames — surfaced as a **"Tampered"** disclosure.
@@ -563,7 +563,7 @@ Surface: total assets, unique objects, **dedup savings %**, estimated cost (via 
 
 ### Week 1 — Jun 23–29 · Spike & Skeleton  ⏱️ *De-risk the SDK*
 - [x] Install Genblaze (0.4.0 / core 0.3.2 / gmicloud 0.3.1); pipeline runs and manifest `verify()` passes (proven via `MockProvider`; real B2 run pending live keys).
-- [x] **Locked exact model IDs** and the **reference-image kwarg** (`image`) — see `listsnap_pipelines/registry.py` + `tests/test_sdk_integration.py`. (Findings below.)
+- [x] **Locked exact model IDs** and the **reference-image kwarg** (`image`) — see `originshot_pipelines/registry.py` + `tests/test_sdk_integration.py`. (Findings below.)
 - [x] Confirmed manifest embedding is **manual/explicit** — `ObjectStorageSink` has no `embed_policy`; embed via `PipelineResult.save(path, embed=True, policy=EmbedPolicy(...))` / `SmartEmbedder`.
 - [ ] Scaffold repo: FastAPI hello-world, Next.js (Tailwind + shadcn/ui) hello-world, docker-compose, `.env`.
 - [ ] **Firebase project**: enable Auth + Firestore; wire Firebase Admin into the backend; implement the ID-token verification dependency; deploy **deny-by-default Firestore rules**.
@@ -571,7 +571,7 @@ Surface: total assets, unique objects, **dedup savings %**, estimated cost (via 
 - **Exit criteria:** `python spike.py photo.jpg` produces a verifiable studio PNG on B2.
 
 ### Week 2 — Jun 30–Jul 6 · Core Generation End-to-End
-- [ ] `listsnap_pipelines`: studio + lifestyle + variant fan-out builders (unit-tested with mocks).
+- [ ] `originshot_pipelines`: studio + lifestyle + variant fan-out builders (unit-tested with mocks).
 - [ ] `POST /skus`, `/upload` (hash + authentic anchor), `/generate` (Arq job), `/jobs/{id}` — **all authenticated and scoped to the caller's `uid`** (no cross-user access).
 - [ ] Worker runs studio + lifestyle and writes `Asset` rows.
 - [ ] Frontend: upload → generate → gallery grid renders real outputs.
@@ -660,7 +660,7 @@ Mapped to the hackathon's required submission materials:
 
 - [ ] **Functional app at a public URL** (verified cold, second device).
 - [ ] **GitHub repo** with clear setup instructions (`README.md`).
-- [ ] **List of AI providers & models used** (keep `listsnap_pipelines/registry.py` as the source of truth; mirror in README).
+- [ ] **List of AI providers & models used** (keep `originshot_pipelines/registry.py` as the source of truth; mirror in README).
 - [ ] **Explanation of B2 integration** (content-addressable sink, manifests, Parquet analytics).
 - [ ] **Explanation of Genblaze integration** (multi-step pipelines, fallback, chaining, lineage, provenance embed/verify/replay).
 - [ ] **~3-minute demo video** (≤ 3:00).
