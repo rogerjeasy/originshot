@@ -242,7 +242,7 @@ export default function SignInPage() {
                     </form>
 
                     <div className="mt-5 border-t pt-5 text-center text-sm text-muted-foreground">
-                      {mode === "in" ? "New to ListSnap?" : "Already have an account?"}{" "}
+                      {mode === "in" ? "New to OriginShot?" : "Already have an account?"}{" "}
                       <button
                         type="button"
                         className="font-medium text-accent hover:underline"

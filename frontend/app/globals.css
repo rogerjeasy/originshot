@@ -3,7 +3,7 @@
 /* Dark mode driven by a `.dark` class on <html> */
 @custom-variant dark (&:is(.dark *));
 
-/* ── ListSnap design tokens — "Studio" (see docs/DESIGN_SYSTEM.md) ──────── */
+/* ── OriginShot design tokens — "Studio" (see docs/DESIGN_SYSTEM.md) ──────── */
 :root {
   --radius: 0.625rem;
 

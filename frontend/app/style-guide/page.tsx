@@ -10,8 +10,8 @@ import { SgSection } from "@/components/style-guide/sg-section";
 import { TypeScale } from "@/components/style-guide/type-scale";
 
 export const metadata: Metadata = {
-  title: "Design system — ListSnap",
-  description: "ListSnap design tokens and components reference.",
+  title: "Design system — OriginShot",
+  description: "OriginShot design tokens and components reference.",
 };
 
 export default function StyleGuidePage() {
