@@ -45,6 +45,9 @@ class Repo(Protocol):
     def get_brand_kit(self, uid: str) -> dict | None: ...
     def set_brand_kit(self, uid: str, data: dict) -> dict: ...
 
+    def get_user(self, uid: str) -> dict | None: ...
+    def set_user(self, uid: str, data: dict) -> dict: ...  # upsert-merge; returns stored doc
+
 
 # ── In-memory (dev/tests) ─────────────────────────────────────────────
 class InMemoryRepo:
@@ -53,6 +56,7 @@ class InMemoryRepo:
         self._assets: dict[str, dict] = {}
         self._jobs: dict[str, dict] = {}
         self._brand: dict[str, dict] = {}
+        self._users: dict[str, dict] = {}
 
     def create_sku(self, uid: str, data: dict) -> dict:
         sku = {"id": _new_id(), "owner_uid": uid, "original_sha256": None,
@@ -121,6 +125,14 @@ class InMemoryRepo:
     def set_brand_kit(self, uid: str, data: dict) -> dict:
         self._brand[uid] = data
         return data
+
+    def get_user(self, uid: str) -> dict | None:
+        return self._users.get(uid)
+
+    def set_user(self, uid: str, data: dict) -> dict:
+        doc = {**self._users.get(uid, {}), **data, "uid": uid}
+        self._users[uid] = doc
+        return doc
 
 
 # ── Firestore (production) ────────────────────────────────────────────
@@ -207,6 +219,15 @@ class FirestoreRepo:
     def set_brand_kit(self, uid: str, data: dict) -> dict:
         self._seller(uid).set({"brand_kit": data}, merge=True)
         return data
+
+    def get_user(self, uid: str) -> dict | None:
+        snap = self._db.collection("users").document(uid).get()
+        return snap.to_dict() if snap.exists else None
+
+    def set_user(self, uid: str, data: dict) -> dict:
+        ref = self._db.collection("users").document(uid)
+        ref.set({**data, "uid": uid}, merge=True)   # upsert; never clobbers unset fields
+        return ref.get().to_dict()
 
 
 _repo: Any = None

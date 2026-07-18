@@ -52,10 +52,3 @@ async def get_current_user(
         email=decoded.get("email"),
         email_verified=bool(decoded.get("email_verified", False)),
     )
-
-
-def require_verified_email(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
-    """Dependency for mutating actions: require a verified email."""
-    if not user.email_verified:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Email not verified")
-    return user

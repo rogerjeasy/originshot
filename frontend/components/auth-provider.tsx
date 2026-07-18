@@ -13,9 +13,28 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
+  updateProfile,
 } from "firebase/auth";
 
+import { apiFetch } from "@/lib/api";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
+
+/**
+ * Persist the signed-in user into the backend `users` collection. Best-effort: a failure
+ * here (e.g. a cold backend) must never block sign-in — the record is re-ensured on the
+ * next sign-in and lazily by GET /api/me.
+ */
+async function persistUser(username?: string): Promise<void> {
+  try {
+    if (username) {
+      await apiFetch("/api/users", { method: "POST", body: JSON.stringify({ username }) });
+    } else {
+      await apiFetch("/api/me"); // ensure a record exists (created with defaults if missing)
+    }
+  } catch {
+    /* non-fatal */
+  }
+}
 
 export interface AuthUser {
   uid: string;
@@ -27,7 +46,7 @@ interface AuthContextValue {
   loading: boolean;
   configured: boolean;
   signIn(email: string, password: string): Promise<void>;
-  signUp(email: string, password: string): Promise<void>;
+  signUp(email: string, password: string, username: string): Promise<void>;
   signOut(): Promise<void>;
 }
 
@@ -62,11 +81,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const auth = getFirebaseAuth();
         if (!auth) throw new Error("Auth is not configured");
         await signInWithEmailAndPassword(auth, email, password);
+        await persistUser(); // ensure the backend profile exists
       },
-      async signUp(email, password) {
+      async signUp(email, password, username) {
         const auth = getFirebaseAuth();
         if (!auth) throw new Error("Auth is not configured");
-        await createUserWithEmailAndPassword(auth, email, password);
+        const { user: fbUser } = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(fbUser, { displayName: username });
+        await persistUser(username); // create the users/{uid} record with role "customer"
       },
       async signOut() {
         const auth = getFirebaseAuth();

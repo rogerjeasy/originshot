@@ -41,6 +41,38 @@ class JobStatus(str, Enum):
     failed = "failed"
 
 
+# ── Users & roles ─────────────────────────────────────────────────────
+class Role(str, Enum):
+    """A user may hold several of these at once (see UserOut.roles)."""
+    customer = "customer"   # default — everyone starts here
+    seller = "seller"       # can be granted later for seller-specific features
+    admin = "admin"         # elevated / staff access
+
+
+# Roles are stored as an ARRAY of strings on the user document. An array (rather than a
+# single field) lets one user hold multiple roles and is directly queryable in Firestore
+# via `array_contains` (e.g. "all admins"). New users default to exactly ["customer"].
+DEFAULT_ROLES: list[Role] = [Role.customer]
+
+
+class UserRegister(BaseModel):
+    """Body for POST /users, sent by the client right after Firebase sign-up.
+
+    NOTE: the password is handled entirely by Firebase Auth on the client and is NEVER
+    sent to or stored by this backend — we only persist a profile keyed by the verified uid.
+    """
+    username: str = Field(min_length=2, max_length=40)
+
+
+class UserOut(BaseModel):
+    uid: str
+    email: str | None = None
+    username: str | None = None
+    roles: list[Role] = Field(default_factory=lambda: list(DEFAULT_ROLES))
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
 # ── SKUs ──────────────────────────────────────────────────────────────
 class SkuCreate(BaseModel):
     title: str = Field(min_length=1, max_length=140)
