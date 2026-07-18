@@ -52,18 +52,16 @@ def _rate_limited():
 
 
 @app.get("/healthz", tags=["meta"])
-def healthz():
-    from .generation import generation_mode
+def healthz(deep: bool = False):
+    """Liveness + honest dependency status.
 
-    return {
-        "status": "ok",
-        "env": settings.app_env,
-        "firebase": settings.firebase_configured,
-        "b2": settings.b2_configured,
-        "generation": generation_mode(),  # "genblaze" | "mock"
-        "job_queue": settings.job_queue,
-        "auth_dev_bypass": settings.auth_dev_bypass and settings.is_dev,
-    }
+    Always 200 while the process is alive — Render restart-loops a service whose health
+    check fails, so degradation is reported in the body (`status`, `degraded`) rather than
+    via the status code. `?deep=true` additionally round-trips to B2.
+    """
+    from .health import collect_health
+
+    return collect_health(deep=deep)
 
 
 # Dev only: serve locally-stored media (when B2 isn't configured).
