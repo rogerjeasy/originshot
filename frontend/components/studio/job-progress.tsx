@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -21,6 +21,14 @@ const STYLE_LABELS: Record<string, string> = {
   variant: "Colour & angle variants",
   video: "Hero video",
   original: "Original",
+};
+
+const STATUS_LABELS: Record<StepStatus, string> = {
+  pending: "pending",
+  running: "developing",
+  done: "done",
+  failed: "failed",
+  skipped: "skipped",
 };
 
 /** mm:ss — the only format that stays readable at a glance while a number is ticking. */
@@ -53,6 +61,44 @@ function useElapsed(startedAt: string | null | undefined, running: boolean): num
   const start = new Date(startedAt).getTime();
   if (Number.isNaN(start)) return 0;
   return Math.max(0, (now - start) / 1000);
+}
+
+/**
+ * One calibration patch per step — the progress bar as a strip of chart squares.
+ * A patch develops (shimmer) while its provider call runs, then fixes to its status
+ * colour. Colour is never the only signal: each patch carries a title and the step
+ * rows below repeat every status as icon + text.
+ */
+function PatchStrip({ steps, pct }: { steps: JobStep[]; pct: number }) {
+  return (
+    <div
+      className="flex gap-1.5"
+      role="progressbar"
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label="Generation progress"
+    >
+      {steps.map((step) => (
+        <span
+          key={step.style}
+          title={`${STYLE_LABELS[step.style] ?? step.style} — ${STATUS_LABELS[step.status]}`}
+          className={cn(
+            "h-7 flex-1 rounded-[3px] transition-colors duration-300",
+            step.status === "done" && "bg-verified",
+            step.status === "running" && "developing bg-accent/25",
+            step.status === "failed" && "bg-danger",
+            step.status === "skipped" && "bg-muted",
+            step.status === "pending" && "border bg-transparent",
+          )}
+        >
+          <span className="sr-only">
+            {STYLE_LABELS[step.style] ?? step.style}: {STATUS_LABELS[step.status]}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 const STEP_ICON: Record<StepStatus, React.ComponentType<{ className?: string }>> = {
@@ -100,6 +146,21 @@ function StepRow({ step }: { step: JobStep }) {
             {step.asset_count > 1 ? ` · ${step.asset_count} images` : ""}
           </p>
         )}
+        {/* The evaluate-retry verdict. qa_passed is only ever set from real reports. */}
+        {step.status === "done" && step.qa_passed != null && (
+          <p
+            className={cn(
+              "truncate text-xs",
+              step.qa_passed ? "text-verified" : "text-warning",
+            )}
+          >
+            {step.qa_passed
+              ? (step.qa_attempts ?? 1) > 1
+                ? `Passed QA on attempt ${step.qa_attempts}`
+                : "Passed QA"
+              : "QA flagged — delivered with report"}
+          </p>
+        )}
         {step.status === "failed" && step.error && (
           <p className="truncate text-xs text-danger" title={step.error}>
             {step.error}
@@ -129,8 +190,8 @@ function StepRow({ step }: { step: JobStep }) {
  * Live generation progress: total elapsed timer plus a real per-step breakdown.
  *
  * Every value here comes from the job document the worker writes as it goes — there is no
- * simulated progress bar. The completion fraction is steps-resolved / steps-total, so it
- * only advances when a provider call actually returns.
+ * simulated progress bar. The patch strip advances only when a provider call actually
+ * returns, one calibration square per step.
  */
 export function JobProgress({ job }: { job: Job }) {
   const running = job.status === "queued" || job.status === "running";
@@ -149,12 +210,12 @@ export function JobProgress({ job }: { job: Job }) {
     <Card>
       <CardContent className="p-5">
         <div className="mb-4 flex items-baseline justify-between gap-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          <h2 className="label flex items-center gap-2 text-muted-foreground">
             <Sparkles
               className={cn("size-3.5 text-accent", running && "animate-pulse")}
               aria-hidden
             />
-            {running ? "Generating" : "Generation complete"}
+            {running ? "Developing" : "Generation complete"}
           </h2>
           <div className="text-right">
             <span
@@ -172,24 +233,9 @@ export function JobProgress({ job }: { job: Job }) {
           </div>
         </div>
 
-        <div
-          className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
-          role="progressbar"
-          aria-valuenow={pct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label="Generation progress"
-        >
-          <div
-            className={cn(
-              "h-full rounded-full transition-[width] duration-500 ease-out",
-              job.status === "failed" ? "bg-danger" : "bg-accent",
-            )}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
+        <PatchStrip steps={steps} pct={pct} />
 
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-2 font-mono text-xs text-muted-foreground">
           {resolved} of {steps.length} steps
           {overrun && " · taking longer than usual"}
           {job.cost_actual != null && !running && ` · $${job.cost_actual.toFixed(4)} spent`}

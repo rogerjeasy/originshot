@@ -94,7 +94,28 @@ export function ImageTile({
       </div>
 
       <div className="mt-2 flex items-baseline justify-between gap-2">
-        <span className="truncate text-[13px] font-medium">{label}</span>
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span className="truncate text-[13px] font-medium">{label}</span>
+          {/* QA verdict travels with the frame; absence of a report shows nothing. */}
+          {asset.qa && (
+            <span
+              className={cn(
+                "shrink-0 font-mono text-[11px]",
+                asset.qa.passed ? "text-verified" : "text-warning",
+              )}
+              title={
+                asset.qa.checks
+                  .map((c) => `${c.name}: ${c.passed ? "pass" : "FAIL"}`)
+                  .join(" · ") +
+                (asset.qa.vlm_verdict ? ` — ${asset.qa.vlm_verdict}` : "")
+              }
+            >
+              {asset.qa.passed
+                ? `QA ✓${(asset.qa.attempts ?? 1) > 1 ? ` ×${asset.qa.attempts}` : ""}`
+                : "QA ⚠"}
+            </span>
+          )}
+        </span>
         <span className="tabular shrink-0 font-mono text-[11px] text-muted-foreground">
           {dims ?? asset.modality}
         </span>
