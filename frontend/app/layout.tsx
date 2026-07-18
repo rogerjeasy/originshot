@@ -6,7 +6,7 @@ import { AuthProvider } from "@/components/auth-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ListSnap — one photo to a full product catalog",
+  title: "OriginShot — one photo to a full product catalog",
   description:
     "Turn one phone photo into studio shots, lifestyle scenes, variants, and a product video — each with verifiable provenance. Generated with Genblaze, stored on Backblaze B2.",
 };
