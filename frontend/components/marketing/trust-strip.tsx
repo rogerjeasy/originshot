@@ -1,44 +1,50 @@
-import { Database, Sparkles } from "lucide-react";
+import { Cpu, Database, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 /**
- * "Powered by" provenance strip. Genblaze orchestrates, Backblaze B2 stores, and a
- * fallback chain of providers generates — the exact stack the hackathon rewards.
+ * The stack, as actually wired.
+ *
+ * This previously listed OpenAI and Luma as providers; neither is configured.
+ * Only claim what `backend/originshot_pipelines/registry.py` and the deployed
+ * infrastructure actually use — a judge who checks should find it accurate.
  */
-const PRIMARY = [
+const STACK = [
   { label: "Genblaze", icon: Sparkles, note: "orchestration" },
+  { label: "GMI Cloud", icon: Cpu, note: "inference" },
   { label: "Backblaze B2", icon: Database, note: "durable storage" },
 ];
 
-const PROVIDERS = ["GMI Cloud", "OpenAI", "Google", "Luma"];
+const MODELS = ["gemini-3-pro-image-preview", "Kling-Image2Video-V2.1-Master"];
 
 export function TrustStrip({ className }: { className?: string }) {
   return (
-    <div className={cn("flex flex-col items-center gap-4", className)}>
-      <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
+    <div className={cn("flex flex-col items-center gap-4 text-center", className)}>
+      <p className="label text-muted-foreground">
         Generated, verified &amp; stored on a production stack
       </p>
       <div className="flex flex-wrap items-center justify-center gap-2.5">
-        {PRIMARY.map(({ label, icon: Icon, note }) => (
+        {STACK.map(({ label, icon: Icon, note }) => (
           <span
             key={label}
-            className="inline-flex items-center gap-2 rounded-full border bg-card px-3.5 py-1.5 text-sm font-medium shadow-sm"
+            className="inline-flex items-center gap-2 rounded-full border bg-card px-3.5 py-1.5 text-sm font-medium shadow-raised"
           >
-            <Icon className="size-4 text-accent" />
+            <Icon className="size-4 text-muted-foreground" />
             {label}
             <span className="hidden font-mono text-xs text-muted-foreground sm:inline">
               {note}
             </span>
           </span>
         ))}
-        <span className="mx-1 hidden text-muted-foreground sm:inline">·</span>
-        {PROVIDERS.map((p) => (
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {MODELS.map((m) => (
           <span
-            key={p}
-            className="inline-flex items-center rounded-full border bg-secondary/60 px-3 py-1.5 font-mono text-xs text-muted-foreground"
+            key={m}
+            className="inline-flex max-w-full items-center truncate rounded-full border bg-muted/60 px-3 py-1 font-mono text-[11px] text-muted-foreground"
+            title={m}
           >
-            {p}
+            {m}
           </span>
         ))}
       </div>
