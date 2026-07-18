@@ -4,7 +4,7 @@ MVP returns JSON; a stretch goal renders a marketplace-formatted ZIP (BUILD_PLAN
 """
 from fastapi import APIRouter, Depends, HTTPException
 
-from listsnap_pipelines.presets import preset_targets
+from originshot_pipelines.presets import preset_targets
 
 from ..auth import CurrentUser, get_current_user
 from ..models import ExportRequest

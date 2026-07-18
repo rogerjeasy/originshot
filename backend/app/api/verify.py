@@ -10,7 +10,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
-from listsnap_pipelines import provenance
+from originshot_pipelines import provenance
 
 from ..config import get_settings
 from ..models import VerifyResult
@@ -59,7 +59,7 @@ async def verify_upload(file: UploadFile = File(...)):
     if content_bound is False:
         # Manifest is intact but the media bytes don't match its signed content hash.
         disclosure_text = (
-            "⚠ Tampered: this file carries a ListSnap manifest, but the media content has "
+            "⚠ Tampered: this file carries a OriginShot manifest, but the media content has "
             "been altered and no longer matches the signed hash."
         )
     elif found:
@@ -68,7 +68,7 @@ async def verify_upload(file: UploadFile = File(...)):
         disclosure_text = (
             "This file carries a "
             + ("verified" if verified else "invalid")
-            + " ListSnap provenance manifest, but no matching record exists in this instance."
+            + " OriginShot provenance manifest, but no matching record exists in this instance."
         )
     else:
         disclosure_text = "No embedded manifest and no record found for this file."
