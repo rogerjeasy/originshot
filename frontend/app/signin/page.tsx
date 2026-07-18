@@ -30,6 +30,12 @@ const FIREBASE_ENV = [
   "NEXT_PUBLIC_FIREBASE_APP_ID",
 ];
 
+// Shared, deliberately public demo credentials (seeded by scripts/seed-demo-account.py).
+// The account holds pre-generated packs so a first click lands on real work, not an empty
+// studio. Unset in an environment ⇒ the button simply doesn't render.
+const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_EMAIL;
+const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD;
+
 type Mode = "in" | "up" | "reset";
 
 const COPY: Record<Mode, { title: string; sub: string; cta: string }> = {
@@ -106,6 +112,21 @@ export default function SignInPage() {
     setErrField(null);
     setConfirm("");
     setSent(false);
+  }
+
+  async function demoSignIn() {
+    if (!DEMO_EMAIL || !DEMO_PASSWORD) return;
+    setErr(null);
+    setErrField(null);
+    setBusy(true);
+    try {
+      await signIn(DEMO_EMAIL, DEMO_PASSWORD);
+      router.replace("/studio");
+    } catch (e2) {
+      fail(authError(e2).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   const copy = COPY[mode];
@@ -286,6 +307,18 @@ export default function SignInPage() {
                             {copy.cta}
                           </Button>
                         </form>
+
+                        {mode === "in" && DEMO_EMAIL && DEMO_PASSWORD && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="mt-3 w-full"
+                            disabled={busy}
+                            onClick={demoSignIn}
+                          >
+                            Explore a pre-loaded demo account
+                          </Button>
+                        )}
 
                         {mode === "in" && (
                           <button
