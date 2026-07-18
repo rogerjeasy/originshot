@@ -3,7 +3,7 @@ import { ShieldCheck, Sparkles } from "lucide-react";
 import { cn, shortHash } from "@/lib/utils";
 
 /**
- * ListSnap's signature trust signal. Verified original = emerald + ShieldCheck;
+ * OriginShot's signature trust signal. Verified original = emerald + ShieldCheck;
  * AI-generated = neutral + Sparkles. Always icon + text + color, with a mono hash.
  */
 export function ProvenanceBadge({

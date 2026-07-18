@@ -4,7 +4,7 @@ import { Aperture } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * The ListSnap logo lockup (aperture glyph + wordmark). Single source of truth so the
+ * The OriginShot logo lockup (aperture glyph + wordmark). Single source of truth so the
  * brand reads identically in the app shell, public headers, and marketing pages.
  */
 export function BrandMark({
@@ -24,14 +24,14 @@ export function BrandMark({
         <Aperture className="size-4" />
       </span>
       <span className={cn("truncate text-lg font-semibold tracking-tight", wordmarkClassName)}>
-        ListSnap
+        OriginShot
       </span>
     </>
   );
   const classes = cn("flex min-w-0 items-center gap-2", className);
 
   return href ? (
-    <Link href={href} className={classes} aria-label="ListSnap home">
+    <Link href={href} className={classes} aria-label="OriginShot home">
       {content}
     </Link>
   ) : (
