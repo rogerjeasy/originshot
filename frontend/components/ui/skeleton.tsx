@@ -2,9 +2,27 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-/** Image-shaped placeholder with a cool "developing" shimmer (see globals.css `.shimmer`). */
+/**
+ * Placeholders where media will land are image-shaped and "develop" — a print
+ * coming up in the tray. Text placeholders are plain bars.
+ */
 function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("shimmer rounded-lg bg-muted", className)} {...props} />;
+  return <div aria-hidden className={cn("developing rounded-md bg-muted", className)} {...props} />;
 }
 
-export { Skeleton };
+/** Image-shaped variant: keeps the frame motif so the grid never reflows. */
+function MediaSkeleton({
+  className,
+  aspect = "aspect-square",
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { aspect?: string }) {
+  return (
+    <div
+      aria-hidden
+      className={cn("developing frame w-full rounded-md border bg-muted", aspect, className)}
+      {...props}
+    />
+  );
+}
+
+export { Skeleton, MediaSkeleton };

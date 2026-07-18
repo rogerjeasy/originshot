@@ -160,7 +160,7 @@ a ready-to-file `disclosure.txt` and per-asset statements automatically.
 - **Private bucket.** Media is served only through short-lived presigned URLs (15 min default) — no public objects.
 - **Graceful degradation** — partial job results, provider fallback chains, and a storage/repo abstraction that runs fully offline in dev.
 - **A health check that doesn't lie.** `/healthz` *exercises* each dependency rather than checking that an env var is set — it initializes the Firebase Admin SDK and (with `?deep=true`) round-trips to the B2 bucket, reporting `status: degraded` plus the failing exception type. It deliberately still returns **200** while the process is alive, because a failing health check makes the platform restart-loop the service; degradation belongs in the body. Config problems surface as **503**, never as an unhandled 500 — a 500 escapes the CORS middleware and reaches browsers disguised as a CORS error.
-- **47 automated tests** covering auth, IDOR isolation, upload validation, pipelines, provenance round-trips, and the export ZIP.
+- **85 automated tests** covering auth, IDOR isolation, upload validation, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), and the export ZIP.
 
 ### B2 Storage and Data Orchestration
 
@@ -178,6 +178,13 @@ B2 is the system of record for every byte, not an afterthought:
 identical bytes — a re-uploaded original, a repeated generation, a shared scene plate — are
 physically stored once. Dedup savings surface in the in-app analytics dashboard. Access is
 via `S3StorageBackend.for_backblaze(...)` with a least-privilege key scoped to one bucket.
+
+**The marketing site runs on real output, and its hashes resolve.** The landing page's
+contact sheet is genuine pipeline output pulled from the B2 bucket by
+[`scripts/sync-demo-assets.py`](scripts/sync-demo-assets.py) — no stock photography, no
+placeholder glyphs. Because bucket keys *are* content hashes, the SHA-256 printed under
+each frame is the real one: click any frame and `/verify` resolves it against the ledger.
+The provenance claim on the homepage is checkable before you sign up.
 
 ### Use of Genblaze
 
@@ -275,7 +282,7 @@ npm run dev                                    # http://localhost:3000
 **Tests:**
 
 ```bash
-cd backend && poetry run python -m pytest -q   # 47 passing
+cd backend && poetry run python -m pytest -q   # 85 passing
 ```
 
 > **Auth is always enforced** — there is no production bypass. Signing in locally requires
@@ -338,8 +345,8 @@ originshot/
 │   │   ├── storage.py      Genblaze ObjectStorageSink → B2 + ParquetSink
 │   │   ├── presets.py      marketplace dimensions + rendition rendering
 │   │   └── studio · lifestyle · onmodel · variants · video
-│   └── tests/              47 tests
-├── frontend/               Next.js 15 App Router · Tailwind v4 · shadcn/ui · Firebase Auth
+│   └── tests/              85 tests
+├── frontend/               Next.js 15 App Router · Tailwind v4 · Radix primitives · Firebase Auth
 ├── infra/                  Dockerfile.backend · docker-compose · firestore.rules
 ├── docs/                   PROJECT_DESCRIPTION · BUILD_PLAN · SECURITY · DESIGN_SYSTEM
 └── render.yaml             Render Blueprint

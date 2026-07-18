@@ -3,59 +3,123 @@
 /* Dark mode driven by a `.dark` class on <html> */
 @custom-variant dark (&:is(.dark *));
 
-/* ── OriginShot design tokens — "Studio" (see docs/DESIGN_SYSTEM.md) ──────── */
-:root {
-  --radius: 0.625rem;
+/* ═══════════════════════════════════════════════════════════════════════════
+   OriginShot — "Calibration"
 
-  /* Light · "Seamless" */
-  --background: #f4f5f7;
-  --foreground: #0e1116;
+   Every semantic colour in this system is a patch from the 24-square
+   ColorChecker chart: the reference card photographers shoot to prove their
+   colour is truthful. For a product whose claim is verifiable photographic
+   authenticity, the instrument of photographic truth is the source material.
+
+   Patch numbers are noted against each token. Neutrals come from the chart's
+   own greyscale ramp (patches 19-24), so the interface stays achromatic and
+   the generated photographs are the only real colour on screen.
+
+   See docs/DESIGN_SYSTEM.md.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --radius: 0.5rem;
+
+  /* ── Light · "Daylight" (the card shot at 5000K) ───────────────────────── */
+
+  /* Neutrals — ColorChecker greyscale ramp, patches 19-24 */
+  --background: #edede9; /* just below patch 19 white, so white cards frame */
+  --foreground: #1a1a18; /* below patch 24 black, for AA body contrast */
   --card: #ffffff;
-  --card-foreground: #0e1116;
+  --card-foreground: #1a1a18;
   --popover: #ffffff;
-  --popover-foreground: #0e1116;
-  --primary: #14161b;
+  --popover-foreground: #1a1a18;
+  --primary: #1f1f1d; /* studio ink */
   --primary-foreground: #ffffff;
-  --secondary: #eef0f3;
-  --secondary-foreground: #14161b;
-  --accent: #2f54eb; /* electric cobalt — the SIGNAL */
+  --secondary: #e4e4e0;
+  --secondary-foreground: #1f1f1d;
+  --muted: #e8e8e4;
+  --muted-foreground: #6b6b64; /* patch 22 neutral-5, darkened to AA */
+  --border: #dcdcd7;
+  --input: #dcdcd7;
+
+  /* Chromatic patches — used flat, never as gradient */
+  --accent: #383d96; /* patch 13 · blue — the signal */
   --accent-foreground: #ffffff;
-  --muted: #edeff2;
-  --muted-foreground: #5b6470;
-  --border: #e2e5ea;
-  --input: #e2e5ea;
-  --ring: #2f54eb;
-  --verified: #0e9f6e; /* emerald — provenance / authentic */
-  --success: #0e9f6e;
-  --warning: #b45309;
-  --danger: #dc2626;
-  --info: #2f54eb;
+  --accent-hover: #2e327f;
+  --ring: #383d96;
+
+  --verified: #3b7c3d; /* patch 14 · green, darkened to AA on white */
+  --verified-surface: #eaf3ea;
+  --success: #3b7c3d;
+  --warning: #9e5a15; /* patch 7 · orange, darkened to AA */
+  --warning-surface: #fbf0e3;
+  --danger: #a83239; /* patch 15 · red */
+  --danger-surface: #fbecec;
+  --info: #06697f; /* patch 18 · cyan, darkened to AA */
+  --info-surface: #e6f2f5;
+
+  /* Categorical chart ramp.
+     The raw ColorChecker patches FAIL as a data palette — patch 13 sits below
+     the lightness band, patches 5 and 22 read as grey, and patches 18/5 are
+     indistinguishable under protanopia (ΔE 2.6). These are the patch hues
+     re-stepped until every check passes, in this fixed order:
+
+       node scripts/validate_palette.js "#C67B1E,#3F49BE,#1E8A4E,#B563A6" --mode light
+
+     Four slots, not eight, because a fifth passing hue doesn't exist at this
+     chroma without colliding. A 5th series folds into "Other" or gets faceted.
+     Assign in order; never cycle. */
+  --chart-1: #c67b1e; /* patch 7 orange, re-stepped */
+  --chart-2: #3f49be; /* patch 13 blue, lifted into band */
+  --chart-3: #1e8a4e; /* patch 14 green, chroma raised */
+  --chart-4: #b563a6; /* patch 17 magenta, re-stepped */
+
+  /* Elevation — cool, low-opacity; hairline does most of the work */
+  --shadow-hairline: 0 0 0 1px rgb(26 26 24 / 0.06);
+  --shadow-raised: 0 1px 2px rgb(26 26 24 / 0.05), 0 4px 12px -4px rgb(26 26 24 / 0.08);
+  --shadow-float: 0 2px 4px rgb(26 26 24 / 0.04), 0 12px 32px -8px rgb(26 26 24 / 0.14);
 }
 
 .dark {
-  /* Dark · "Darkroom" */
-  --background: #0b0d10;
-  --foreground: #e7eaee;
-  --card: #12151a;
-  --card-foreground: #e7eaee;
-  --popover: #12151a;
-  --popover-foreground: #e7eaee;
-  --primary: #f2f4f7;
-  --primary-foreground: #0b0d10;
-  --secondary: #1a1f26;
-  --secondary-foreground: #e7eaee;
-  --accent: #5b7bff;
-  --accent-foreground: #0b0d10;
-  --muted: #161a20;
-  --muted-foreground: #9aa3af;
-  --border: #232a33;
-  --input: #232a33;
-  --ring: #5b7bff;
-  --verified: #2bd4a0;
-  --success: #2bd4a0;
-  --warning: #d98324;
-  --danger: #f26464;
-  --info: #5b7bff;
+  /* ── Dark · "Darkroom" (the card under safelight) ──────────────────────── */
+  --background: #121211;
+  --foreground: #ecece8;
+  --card: #1a1a18;
+  --card-foreground: #ecece8;
+  --popover: #1a1a18;
+  --popover-foreground: #ecece8;
+  --primary: #ecece8;
+  --primary-foreground: #121211;
+  --secondary: #262623;
+  --secondary-foreground: #ecece8;
+  --muted: #1f1f1d;
+  --muted-foreground: #9b9b93;
+  --border: #2e2e2a;
+  --input: #2e2e2a;
+
+  /* Patches lifted for legibility against the darkroom base */
+  --accent: #7c84e8;
+  --accent-foreground: #121211;
+  --accent-hover: #949bf0;
+  --ring: #7c84e8;
+
+  --verified: #6cbc6e;
+  --verified-surface: #1a251a;
+  --success: #6cbc6e;
+  --warning: #e0a32e; /* patch 12 · orange-yellow */
+  --warning-surface: #262013;
+  --danger: #e8767c;
+  --danger-surface: #2a1a1b;
+  --info: #4fb8d0;
+  --info-surface: #16242a;
+
+  /* Dark steps are selected against the darkroom surface, not flipped:
+     node scripts/validate_palette.js "#C4822C,#6F78DD,#35A65E,#C574B6" --mode dark */
+  --chart-1: #c4822c;
+  --chart-2: #6f78dd;
+  --chart-3: #35a65e;
+  --chart-4: #c574b6;
+
+  --shadow-hairline: 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px -4px rgb(0 0 0 / 0.5);
+  --shadow-float: 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 32px -8px rgb(0 0 0 / 0.6);
 }
 
 /* Map tokens → Tailwind theme so utilities (bg-*, text-*, border-*, ring-*) exist */
@@ -72,25 +136,40 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-hover: var(--accent-hover);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
   --color-verified: var(--verified);
+  --color-verified-surface: var(--verified-surface);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
   --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
   --color-info: var(--info);
+  --color-info-surface: var(--info-surface);
 
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+  --radius-2xl: calc(var(--radius) + 12px);
+
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  --shadow-hairline: var(--shadow-hairline);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-float: var(--shadow-float);
 }
 
 @layer base {
@@ -104,47 +183,112 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-size: 1rem;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+  /* Headlines set tight — the counterweight to the wide micro-labels below. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    line-height: 1.14;
+    text-wrap: balance;
+  }
   ::selection {
-    background-color: color-mix(in srgb, var(--color-accent) 22%, transparent);
+    background-color: color-mix(in srgb, var(--color-accent) 24%, transparent);
+  }
+  /* One focus treatment everywhere. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
   }
 }
 
 @layer utilities {
-  /* Signature motif: the subtle studio "seamless sweep" backdrop */
-  .studio-sweep {
-    background-image: radial-gradient(
-        120% 80% at 50% -10%,
-        color-mix(in srgb, var(--color-foreground) 4%, var(--color-background)),
-        var(--color-background) 60%
-      );
+  /* ── Typographic signature ────────────────────────────────────────────────
+     The system's tension is width: headlines tight and heavy, micro-labels
+     small, uppercase and widely tracked — like the legend printed along the
+     bottom edge of a calibration card. */
+  .label {
+    font-size: 0.6875rem;
+    line-height: 1.2;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
   }
-  /* Framed gallery tile: hairline + subtle inner ring so media reads as "framed" */
-  .frame {
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-foreground) 6%, transparent);
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.2;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.11em;
+  }
+  .display {
+    letter-spacing: -0.035em;
+    line-height: 1.02;
+    font-weight: 600;
   }
   .tabular {
     font-variant-numeric: tabular-nums;
   }
-  /* Subtle hover lift for interactive cards/tiles — gallery, not pillowy. */
+
+  /* ── The calibration grid ─────────────────────────────────────────────────
+     Signature motif. A patch lattice at card proportions, masked so it reads
+     as a reference surface the content sits on rather than wallpaper. */
+  .patch-grid {
+    background-image:
+      linear-gradient(
+        to right,
+        color-mix(in srgb, var(--color-foreground) 7%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--color-foreground) 7%, transparent) 1px,
+        transparent 1px
+      );
+    background-size: 72px 72px;
+  }
+  .patch-grid-fade {
+    -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 20%, transparent 75%);
+    mask-image: radial-gradient(120% 80% at 50% 0%, #000 20%, transparent 75%);
+  }
+
+  /* ── Media framing ────────────────────────────────────────────────────────
+     Every generated asset is a framed object: hairline + inner ring so photos
+     read as mounted prints against the neutral ground. */
+  .frame {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-foreground) 9%, transparent);
+  }
+  .frame-deep {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--color-foreground) 10%, transparent),
+      var(--shadow-float);
+  }
+
+  /* Interactive lift — measured, not pillowy. */
   .lift {
     transition:
-      transform 0.18s ease-out,
-      box-shadow 0.18s ease-out;
+      transform 0.16s cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 0.16s cubic-bezier(0.2, 0, 0, 1);
   }
   .lift:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px -12px color-mix(in srgb, var(--color-foreground) 22%, transparent);
+    box-shadow: var(--shadow-float);
   }
-  /* "Developing" shimmer for image-shaped loading placeholders. */
-  .shimmer {
+
+  /* ── "Developing" ─────────────────────────────────────────────────────────
+     Loading placeholders read as a print coming up in the tray, not a grey bar. */
+  .developing {
     position: relative;
     overflow: hidden;
   }
-  .shimmer::after {
+  .developing::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -152,85 +296,83 @@
     background: linear-gradient(
       90deg,
       transparent,
-      color-mix(in srgb, var(--color-foreground) 6%, transparent),
+      color-mix(in srgb, var(--color-foreground) 7%, transparent),
       transparent
     );
-    animation: shimmer 1.5s ease-in-out infinite;
+    animation: developing 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
-  @keyframes shimmer {
+  @keyframes developing {
     100% {
       transform: translateX(100%);
     }
   }
 
-  /* ── Marketing backdrops — restrained, "studio" not "loud gradient" ─────── */
-
-  /* Fine seamless-paper grid that fades out toward the edges (developer-studio feel). */
-  .bg-grid {
-    background-image:
-      linear-gradient(
-        to right,
-        color-mix(in srgb, var(--color-foreground) 5%, transparent) 1px,
-        transparent 1px
-      ),
-      linear-gradient(
-        to bottom,
-        color-mix(in srgb, var(--color-foreground) 5%, transparent) 1px,
-        transparent 1px
-      );
-    background-size: 56px 56px;
-    -webkit-mask-image: radial-gradient(110% 90% at 50% 0%, #000 35%, transparent 80%);
-    mask-image: radial-gradient(110% 90% at 50% 0%, #000 35%, transparent 80%);
-  }
-
-  /* Soft cobalt "signal" glow — the one place color blooms, kept barely-there. */
-  .glow-cobalt {
-    background: radial-gradient(
-      55% 60% at 50% -5%,
-      color-mix(in srgb, var(--color-accent) 16%, transparent),
-      transparent 70%
-    );
-  }
-  /* Per-tile studio backdrop highlight (used inside framed showcase plates). */
-  .plate-sweep {
-    background-image: radial-gradient(
-      70% 60% at 50% 15%,
-      color-mix(in srgb, var(--color-foreground) 4%, transparent),
-      transparent 70%
+  /* Hairline rule that fades at both ends — used to separate page regions. */
+  .rule-fade {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--color-border) 12%,
+      var(--color-border) 88%,
+      transparent
     );
   }
 
-  /* Emerald trust glow for provenance moments. */
-  .glow-verified {
-    background: radial-gradient(
-      50% 60% at 50% 0%,
-      color-mix(in srgb, var(--color-verified) 14%, transparent),
-      transparent 70%
-    );
+  /* ── Overlay motion ───────────────────────────────────────────────────────
+     Radix drives these off data-state, so no animation library is needed. */
+  .anim-overlay[data-state="open"] {
+    animation: fade-in 0.15s ease-out;
   }
-
-  /* Deeper framed media well for hero showcases (hairline + soft inner shade). */
-  .frame-deep {
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--color-foreground) 8%, transparent),
-      0 24px 60px -28px color-mix(in srgb, var(--color-foreground) 35%, transparent);
+  .anim-overlay[data-state="closed"] {
+    animation: fade-in 0.12s ease-in reverse;
   }
-
-  /* Gentle vertical float for hero accents (paused under reduced motion below). */
-  .float {
-    animation: float 6s ease-in-out infinite;
+  .anim-pop[data-state="open"],
+  .anim-pop[data-state="delayed-open"] {
+    animation: pop-in 0.16s cubic-bezier(0.2, 0, 0, 1);
   }
-  .float-slow {
-    animation: float 9s ease-in-out infinite;
+  .anim-pop[data-state="closed"] {
+    animation: fade-in 0.12s ease-in reverse;
   }
-  @keyframes float {
-    0%,
-    100% {
-      transform: translateY(0);
+  @keyframes fade-in {
+    from {
+      opacity: 0;
     }
-    50% {
-      transform: translateY(-8px);
+    to {
+      opacity: 1;
     }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+  /* Popovers/tooltips are positioned by Radix, so they must not inherit the
+     centering transform the dialog uses. */
+  .anim-pop-plain[data-state="open"],
+  .anim-pop-plain[data-state="delayed-open"] {
+    animation: pop-in-plain 0.14s cubic-bezier(0.2, 0, 0, 1);
+  }
+  @keyframes pop-in-plain {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Scrollbars inside data panes, kept out of the way. */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
   }
 }
 
@@ -240,6 +382,8 @@
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -3,34 +3,55 @@ import { ShieldCheck, Sparkles } from "lucide-react";
 import { cn, shortHash } from "@/lib/utils";
 
 /**
- * OriginShot's signature trust signal. Verified original = emerald + ShieldCheck;
- * AI-generated = neutral + Sparkles. Always icon + text + color, with a mono hash.
+ * The trust signal, reused wherever media appears.
+ *
+ * Verified original = patch-14 green + ShieldCheck. AI-generated = neutral ink
+ * + Sparkles. Never colour alone: the icon and the word carry the meaning for
+ * anyone who can't separate the two hues.
+ *
+ * The hash is set in mono because it is machine-true — that typographic split
+ * between "what we claim" and "what can be checked" runs through the whole app.
  */
 export function ProvenanceBadge({
   authentic,
   sha,
+  compact,
   className,
 }: {
   authentic: boolean;
   sha?: string | null;
+  /** Drops the wordmark, keeping icon + hash. For dense tile corners. */
+  compact?: boolean;
   className?: string;
 }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
-        authentic ? "border-transparent text-verified" : "border-transparent bg-secondary text-secondary-foreground",
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-medium",
+        authentic
+          ? "border-verified/25 bg-verified-surface text-verified"
+          : "border-border bg-card text-muted-foreground",
         className,
       )}
-      style={
-        authentic
-          ? { backgroundColor: "color-mix(in srgb, var(--color-verified) 12%, transparent)" }
-          : undefined
-      }
     >
-      {authentic ? <ShieldCheck className="size-3.5" /> : <Sparkles className="size-3.5" />}
-      <span>{authentic ? "Verified original" : "AI-generated"}</span>
-      <span className="font-mono text-[11px] text-muted-foreground">{shortHash(sha)}</span>
+      {authentic ? (
+        <ShieldCheck className="size-3.5 shrink-0" />
+      ) : (
+        <Sparkles className="size-3.5 shrink-0" />
+      )}
+      {!compact && (
+        <span className="truncate">{authentic ? "Verified original" : "AI-generated"}</span>
+      )}
+      {sha && (
+        <span
+          className={cn(
+            "truncate font-mono tracking-tight",
+            authentic ? "text-verified/75" : "text-muted-foreground/75",
+          )}
+        >
+          {shortHash(sha)}
+        </span>
+      )}
     </span>
   );
 }

@@ -56,7 +56,7 @@ export default function StudioPage() {
       />
 
       <FadeIn>
-        <Card className="studio-sweep">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Plus className="size-4 text-accent" /> New product

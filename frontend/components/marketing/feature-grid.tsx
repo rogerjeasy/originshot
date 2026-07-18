@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardHeading } from "@/components/ui/card";
 import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { MarketingSection } from "./section";
 
@@ -67,7 +67,7 @@ export function FeatureGrid() {
                 <span className="mb-1 inline-grid size-10 place-items-center rounded-xl bg-secondary text-secondary-foreground ring-1 ring-border">
                   <Icon className="size-5" />
                 </span>
-                <CardTitle className="text-base">{title}</CardTitle>
+                <CardHeading>{title}</CardHeading>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">{body}</p>

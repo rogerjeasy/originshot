@@ -12,7 +12,7 @@ export function PatternShowcase() {
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {/* Framed image tile */}
       <Card className="overflow-hidden">
-        <div className="studio-sweep frame relative grid aspect-square place-items-center border-b">
+        <div className="frame relative grid aspect-square place-items-center border-b">
           <ImageIcon className="size-10 text-muted-foreground" />
           <div className="absolute bottom-3 start-3">
             <ProvenanceBadge authentic={false} sha="9d8c7b6a5e4f3d2c1b0a99887766" />

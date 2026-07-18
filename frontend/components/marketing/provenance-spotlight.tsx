@@ -1,84 +1,99 @@
 import Link from "next/link";
-import { ArrowRight, FileCheck2, ShieldCheck } from "lucide-react";
+import { ArrowRight, Link2, ScanLine, ShieldCheck } from "lucide-react";
 
-import { ProvenanceBadge } from "@/components/provenance-badge";
-import { FadeIn } from "@/components/motion/fade-in";
+import { DEMO_ASSETS } from "@/lib/demo-assets";
 import { buttonVariants } from "@/components/ui/button";
-import { MarketingSection } from "./section";
+import { Section } from "./section";
 
-const ROWS = [
-  { label: "SHA-256", value: "7f3a…b1c4" },
-  { label: "Provider", value: "gmi-cloud" },
-  { label: "Model", value: "seedream-3" },
-  { label: "Derived from", value: "a1b2…8f90" },
+const CLAIMS = [
+  {
+    icon: ShieldCheck,
+    title: "Every asset is hashed",
+    body: "The SHA-256 of the bytes is recorded as the asset is written. Nothing is trusted on the strength of a filename.",
+  },
+  {
+    icon: Link2,
+    title: "Generated frames point home",
+    body: "A manifest ties each output back to the authentic original it came from, so the lineage of any image is a lookup rather than a guess.",
+  },
+  {
+    icon: ScanLine,
+    title: "Tampering shows up",
+    body: "Provenance is content-bound. Re-encode or edit the pixels and verification fails loudly instead of quietly passing.",
+  },
 ];
 
-/** Trust-layer spotlight — a verify "certificate" beside the pitch, reusing live brand atoms. */
+/**
+ * The trust argument, anchored to a real asset. The hash below belongs to an
+ * actual object in B2 and the link resolves — a visitor can check the claim
+ * before signing up, which is a far stronger version of this section than a
+ * diagram of one.
+ */
 export function ProvenanceSpotlight() {
+  const sample = DEMO_ASSETS.find((a) => a.slot === "studio-01") ?? DEMO_ASSETS[0];
+
   return (
-    <MarketingSection className="border-b">
-      <div className="grid items-center gap-10 lg:grid-cols-2">
-        <FadeIn>
-          <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-accent">
-            Trust, not vibes
-          </p>
-          <h2 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
-            Provenance you can check from the file itself
-          </h2>
-          <p className="mt-3 text-pretty text-muted-foreground">
-            OriginShot embeds a SHA-256 manifest into every generated image and video. Drop any file
-            back into Verify and we re-extract the manifest and re-hash the content — proving
-            whether it&apos;s an authentic original, an AI generation, or has been tampered with.
-          </p>
-          <ul className="mt-5 space-y-2 text-sm">
-            {[
-              "Content-bound — the hash matches the actual bytes, not just metadata",
-              "Full lineage back to the authentic source photo",
-              "Doubles as AI-disclosure compliance for marketplaces",
-            ].map((t) => (
-              <li key={t} className="flex items-start gap-2.5">
-                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-verified" />
-                <span className="text-muted-foreground">{t}</span>
+    <div className="border-y bg-card">
+      <Section
+        eyebrow="Provenance"
+        title="Buyers can tell what's real. So can marketplaces."
+        description="AI product imagery is heading for disclosure rules, and platforms already ask sellers to declare it. OriginShot answers that with a checkable record instead of a checkbox."
+      >
+        <div className="mt-12 grid gap-10 lg:grid-cols-[1fr_minmax(0,400px)] lg:gap-16">
+          <ul className="grid content-start gap-8 sm:grid-cols-3 lg:grid-cols-1 lg:gap-7">
+            {CLAIMS.map(({ icon: Icon, title, body }) => (
+              <li key={title} className="flex gap-4">
+                <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-md border bg-background text-verified">
+                  <Icon className="size-4" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+                </div>
               </li>
             ))}
           </ul>
-          <Link href="/verify" className={`${buttonVariants({ variant: "outline" })} mt-6`}>
-            Try Verify <ArrowRight />
-          </Link>
-        </FadeIn>
 
-        <FadeIn delay={0.1} y={16}>
-          <div className="relative">
-            <div aria-hidden className="glow-verified pointer-events-none absolute -inset-6 -z-10 blur-2xl" />
-            <div className="frame-deep overflow-hidden rounded-2xl border bg-card">
-              <div className="flex items-center gap-3 border-b bg-verified/5 p-4">
-                <span className="grid size-10 place-items-center rounded-xl bg-verified/15">
-                  <ShieldCheck className="size-5 text-verified" />
-                </span>
-                <div>
-                  <p className="font-semibold">Integrity verified</p>
-                  <p className="text-sm text-muted-foreground">Authentic original</p>
+          {/* A certificate, not a diagram. */}
+          <figure className="min-w-0 self-start overflow-hidden rounded-lg border bg-background shadow-raised">
+            <figcaption className="flex items-center justify-between gap-2 border-b bg-muted/60 px-4 py-2.5">
+              <span className="label-mono text-muted-foreground">Provenance record</span>
+              <span className="label-mono inline-flex items-center gap-1.5 text-verified">
+                <ShieldCheck className="size-3" />
+                Verified
+              </span>
+            </figcaption>
+
+            <dl className="divide-y font-mono text-xs">
+              {[
+                ["sha256", sample.sha],
+                ["style", sample.style],
+                ["provider", "genblaze"],
+                ["model", "gemini-3-pro-image-preview"],
+                ["dimensions", `${sample.width}×${sample.height}`],
+                ["content_bound", "true"],
+                ["disclosure", "AI-generated"],
+              ].map(([k, v]) => (
+                <div key={k} className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 px-4 py-2.5">
+                  <dt className="truncate text-muted-foreground">{k}</dt>
+                  <dd className="min-w-0 truncate text-foreground" title={v}>
+                    {v}
+                  </dd>
                 </div>
-                <span className="ms-auto inline-flex items-center gap-1.5 rounded-full bg-verified/12 px-2.5 py-1 text-xs font-medium text-verified">
-                  <FileCheck2 className="size-3.5" /> Content-bound
-                </span>
-              </div>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 p-5 text-sm">
-                {ROWS.map((r) => (
-                  <div key={r.label} className="flex flex-col gap-0.5">
-                    <dt className="text-xs text-muted-foreground">{r.label}</dt>
-                    <dd className="truncate font-mono text-xs">{r.value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <div className="flex items-center justify-between gap-2 border-t p-4">
-                <span className="text-sm font-medium">Generated studio shot</span>
-                <ProvenanceBadge authentic={false} sha="a1b2c3d4e5f60718293a4b5c6d7e8f90" />
-              </div>
+              ))}
+            </dl>
+
+            <div className="border-t bg-muted/40 p-3">
+              <Link
+                href={`/verify/${sample.sha}`}
+                className={`${buttonVariants({ variant: "outline", size: "sm" })} w-full`}
+              >
+                Check this hash yourself <ArrowRight />
+              </Link>
             </div>
-          </div>
-        </FadeIn>
-      </div>
-    </MarketingSection>
+          </figure>
+        </div>
+      </Section>
+    </div>
   );
 }

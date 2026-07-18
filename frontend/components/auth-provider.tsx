@@ -11,6 +11,7 @@ import {
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
   updateProfile,
@@ -48,6 +49,7 @@ interface AuthContextValue {
   signIn(email: string, password: string): Promise<void>;
   signUp(email: string, password: string, username: string): Promise<void>;
   signOut(): Promise<void>;
+  resetPassword(email: string): Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -93,6 +95,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async signOut() {
         const auth = getFirebaseAuth();
         if (auth) await fbSignOut(auth);
+      },
+      async resetPassword(email) {
+        const auth = getFirebaseAuth();
+        if (!auth) throw new Error("Auth is not configured");
+        await sendPasswordResetEmail(auth, email);
       },
     }),
     [user, loading, configured],

@@ -1,9 +1,24 @@
 import type { Metadata } from "next";
-import { GeistSans } from "geist/font/sans";
-import { GeistMono } from "geist/font/mono";
+import { Archivo, IBM_Plex_Mono } from "next/font/google";
 
 import { AuthProvider } from "@/components/auth-provider";
 import "./globals.css";
+
+// Archivo carries the interface: a grotesk drawn for print and screen
+// performance, set tight and heavy for headlines, wide and tracked for labels.
+const archivo = Archivo({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-archivo",
+});
+
+// Plex Mono carries everything machine-true — hashes, SKUs, models, dimensions.
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+  variable: "--font-plex-mono",
+});
 
 export const metadata: Metadata = {
   title: "OriginShot — one photo to a full product catalog",
@@ -18,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      className={`${archivo.variable} ${plexMono.variable}`}
       suppressHydrationWarning
     >
       <head>

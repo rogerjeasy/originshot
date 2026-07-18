@@ -29,7 +29,7 @@ export function AdaptiveChrome({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh">
       <PublicHeader />
-      <main className="studio-sweep min-h-[calc(100dvh-57px)]">{children}</main>
+      <main className="min-h-[calc(100dvh-57px)]">{children}</main>
     </div>
   );
 }
