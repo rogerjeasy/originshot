@@ -19,14 +19,15 @@ import { ProviderBudgetPanel } from "@/components/admin/provider-budget-panel";
 import { StoragePanel } from "@/components/admin/storage-panel";
 import { EmptyState } from "@/components/empty-state";
 import { FadeIn } from "@/components/motion/fade-in";
-import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { PageHeader } from "@/components/page-header";
 import { ProviderChart } from "@/components/provider-chart";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatGrid } from "@/components/stat-card";
 import { UsersTable } from "@/components/admin/users-table";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface AdminData {
   overview: AdminOverview;
@@ -45,10 +46,12 @@ export default function AdminPage() {
   const { isAdmin, loading: sessionLoading } = useSession();
   const [data, setData] = useState<AdminData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
+    setRefreshing(true);
     try {
       // One round of parallel reads rather than five sequential ones — the panels are
       // independent and the dashboard should settle in a single paint.
@@ -64,6 +67,7 @@ export default function AdminPage() {
       setError(e instanceof Error ? e.message : "Failed to load admin data");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -76,15 +80,23 @@ export default function AdminPage() {
     void load();
   }, [isAdmin, sessionLoading, load]);
 
+  const header = (
+    <PageHeader title="Admin" description="Platform operations, spend, and health." />
+  );
+
   if (sessionLoading || (loading && isAdmin)) {
     return (
       <div className="space-y-8">
-        <PageHeader title="Admin" description="Platform operations, spend, and health." />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-28" />
+        {header}
+        <div className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-card p-5">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="mt-3 h-7 w-16" />
+            </div>
           ))}
         </div>
+        <Skeleton className="h-64 rounded-lg" />
       </div>
     );
   }
@@ -94,7 +106,7 @@ export default function AdminPage() {
   if (!isAdmin) {
     return (
       <div className="space-y-8">
-        <PageHeader title="Admin" description="Platform operations, spend, and health." />
+        {header}
         <EmptyState
           icon={ShieldAlert}
           title="Admin access required"
@@ -107,35 +119,46 @@ export default function AdminPage() {
   if (error || !data) {
     return (
       <div className="space-y-8">
-        <PageHeader title="Admin" description="Platform operations, spend, and health." />
-        <EmptyState
-          icon={ShieldAlert}
+        {header}
+        <Alert
           title="Couldn't load the dashboard"
-          description={error ?? "No data returned."}
-        />
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={() => void load()}>
-            <RefreshCw /> Retry
-          </Button>
-        </div>
+          action={
+            <Button variant="outline" size="sm" onClick={() => void load()}>
+              <RefreshCw /> Retry
+            </Button>
+          }
+        >
+          {error ?? "No data returned."}
+        </Alert>
       </div>
     );
   }
 
   const { overview, health, users, jobs, ledger } = data;
 
-  const stats = [
-    { label: "Users", value: overview.users_total, hint: `${overview.users_active_7d} active this week` },
+  const platform = [
+    {
+      label: "Users",
+      value: overview.users_total,
+      hint: `${overview.users_active_7d} active this week`,
+    },
     { label: "Products", value: overview.skus_total },
-    { label: "Assets", value: overview.assets_total, hint: `${overview.generated_24h} generated in 24h` },
+    {
+      label: "Assets",
+      value: overview.assets_total,
+      hint: `${overview.generated_24h} generated in 24h`,
+    },
     {
       label: "Job success",
       value: overview.success_rate_pct,
       decimals: 1,
       suffix: "%",
-      accent: overview.success_rate_pct >= 95,
+      tone: overview.success_rate_pct >= 95 ? ("verified" as const) : ("warning" as const),
       hint: `${overview.jobs_succeeded} ok · ${overview.jobs_partial} partial · ${overview.jobs_failed} failed`,
     },
+  ];
+
+  const money = [
     {
       label: "Platform spend",
       value: overview.spend_total_usd,
@@ -157,98 +180,99 @@ export default function AdminPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader title="Admin" description="Platform operations, spend, and health." />
-        <Button variant="outline" size="sm" onClick={() => void load()}>
-          <RefreshCw /> Refresh
+        {header}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void load()}
+          disabled={refreshing}
+          aria-label="Refresh dashboard"
+        >
+          <RefreshCw className={refreshing ? "animate-spin" : undefined} />
+          Refresh
         </Button>
       </div>
 
-      <Stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s) => (
-          <StaggerItem key={s.label}>
-            <StatCard {...s} />
-          </StaggerItem>
-        ))}
-      </Stagger>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <FadeIn>
-          <HealthPanel health={health} />
-        </FadeIn>
-        <FadeIn delay={0.05}>
-          <StoragePanel b2={overview.b2} overview={overview} />
-        </FadeIn>
-        {overview.provider_budget && (
-          <FadeIn delay={0.08}>
-            <ProviderBudgetPanel
-              budget={overview.provider_budget}
-              onChanged={() => void load()}
-            />
-          </FadeIn>
-        )}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <FadeIn delay={0.1}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Generation latency</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Median (p50)
-                  </p>
-                  <p className="tabular text-3xl font-semibold tracking-tight">
-                    {formatMs(overview.p50_duration_ms)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Slowest 5% (p95)
-                  </p>
-                  <p className="tabular text-3xl font-semibold tracking-tight">
-                    {formatMs(overview.p95_duration_ms)}
-                  </p>
-                </div>
-              </div>
-              <p className="mt-3 text-sm text-muted-foreground">
-                Measured from when the worker picked the job up to when the last style
-                finished — queue wait is excluded.
-              </p>
-            </CardContent>
-          </Card>
-        </FadeIn>
-
-        <FadeIn delay={0.15}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Provider mix</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {Object.keys(overview.provider_mix).length ? (
-                <ProviderChart data={overview.provider_mix} />
-              ) : (
-                <p className="text-sm text-muted-foreground">No generations yet.</p>
-              )}
-            </CardContent>
-          </Card>
-        </FadeIn>
-      </div>
-
-      <FadeIn delay={0.2}>
-        <UsersTable users={users} onChanged={() => void load()} />
+      <FadeIn>
+        <StatGrid>
+          {platform.map((s) => (
+            <StatCard key={s.label} {...s} />
+          ))}
+        </StatGrid>
       </FadeIn>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <FadeIn delay={0.25}>
-          <JobsFeed jobs={jobs} />
-        </FadeIn>
-        <FadeIn delay={0.3}>
-          <LedgerFeed entries={ledger} />
-        </FadeIn>
-      </div>
+      <Tabs defaultValue="operations">
+        <TabsList>
+          <TabsTrigger value="operations">Operations</TabsTrigger>
+          <TabsTrigger value="users">Users ({users.length})</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="operations" className="mt-6 space-y-6">
+          <StatGrid>
+            {money.map((s) => (
+              <StatCard key={s.label} {...s} />
+            ))}
+          </StatGrid>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <HealthPanel health={health} />
+            <StoragePanel b2={overview.b2} overview={overview} />
+            {overview.provider_budget && (
+              <ProviderBudgetPanel
+                budget={overview.provider_budget}
+                onChanged={() => void load()}
+              />
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Generation latency</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="label text-muted-foreground">Median (p50)</p>
+                    <p className="tabular mt-1 font-mono text-[28px] font-medium leading-none tracking-tight">
+                      {formatMs(overview.p50_duration_ms)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="label text-muted-foreground">Slowest 5% (p95)</p>
+                    <p className="tabular mt-1 font-mono text-[28px] font-medium leading-none tracking-tight">
+                      {formatMs(overview.p95_duration_ms)}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Measured from when the worker picked the job up to when the last style
+                  finished — queue wait is excluded.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Provider mix</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ProviderChart data={overview.provider_mix} />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="users" className="mt-6">
+          <UsersTable users={users} onChanged={() => void load()} />
+        </TabsContent>
+
+        <TabsContent value="activity" className="mt-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <JobsFeed jobs={jobs} />
+            <LedgerFeed entries={ledger} />
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
