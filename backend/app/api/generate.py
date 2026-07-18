@@ -5,7 +5,7 @@ Dev runs the job inline via BackgroundTasks (no Redis needed). For production, s
 """
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
-from ..auth import CurrentUser, get_current_user, require_verified_email
+from ..auth import CurrentUser, get_current_user
 from ..models import GenerateRequest, JobOut
 from ..repo import get_repo
 from ..queue import enqueue_generation
@@ -19,7 +19,7 @@ async def generate(
     sku_id: str,
     body: GenerateRequest,
     background: BackgroundTasks,
-    user: CurrentUser = Depends(require_verified_email),
+    user: CurrentUser = Depends(get_current_user),
 ):
     repo = get_repo()
     sku = repo.get_sku(user.uid, sku_id)

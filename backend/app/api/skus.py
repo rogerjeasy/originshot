@@ -1,7 +1,7 @@
 """SKU (product) endpoints — all scoped to the authenticated user."""
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..auth import CurrentUser, get_current_user, require_verified_email
+from ..auth import CurrentUser, get_current_user
 from ..models import AssetOut, SkuCreate, SkuOut
 from ..repo import get_repo
 from ..util import with_presigned_url
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/skus", tags=["skus"])
 
 
 @router.post("", response_model=SkuOut, status_code=201)
-def create_sku(body: SkuCreate, user: CurrentUser = Depends(require_verified_email)):
+def create_sku(body: SkuCreate, user: CurrentUser = Depends(get_current_user)):
     return get_repo().create_sku(user.uid, body.model_dump())
 
 

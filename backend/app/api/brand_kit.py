@@ -1,7 +1,7 @@
 """Brand kit endpoints — per-user style guidance injected into generation prompts."""
 from fastapi import APIRouter, Depends
 
-from ..auth import CurrentUser, get_current_user, require_verified_email
+from ..auth import CurrentUser, get_current_user
 from ..models import BrandKit
 from ..repo import get_repo
 
@@ -14,5 +14,5 @@ def get_brand_kit(user: CurrentUser = Depends(get_current_user)):
 
 
 @router.put("", response_model=BrandKit)
-def put_brand_kit(body: BrandKit, user: CurrentUser = Depends(require_verified_email)):
+def put_brand_kit(body: BrandKit, user: CurrentUser = Depends(get_current_user)):
     return get_repo().set_brand_kit(user.uid, body.model_dump())

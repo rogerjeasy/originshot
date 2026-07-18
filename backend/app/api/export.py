@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from listsnap_pipelines.presets import preset_targets
 
-from ..auth import CurrentUser, require_verified_email
+from ..auth import CurrentUser, get_current_user
 from ..models import ExportRequest
 from ..repo import get_repo
 from ..storage import get_storage
@@ -19,7 +19,7 @@ router = APIRouter(tags=["export"])
 def export_pack(
     sku_id: str,
     body: ExportRequest | None = None,
-    user: CurrentUser = Depends(require_verified_email),
+    user: CurrentUser = Depends(get_current_user),
 ):
     repo = get_repo()
     sku = repo.get_sku(user.uid, sku_id)

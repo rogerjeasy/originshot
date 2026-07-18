@@ -1,7 +1,7 @@
 """Upload endpoint — validates the image, anchors it as the authentic original."""
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
-from ..auth import CurrentUser, require_verified_email
+from ..auth import CurrentUser, get_current_user
 from ..models import AssetOut, Modality, Style
 from ..repo import get_repo
 from ..security import validate_and_normalize_image
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/skus", tags=["uploads"])
 async def upload_original(
     sku_id: str,
     file: UploadFile = File(...),
-    user: CurrentUser = Depends(require_verified_email),
+    user: CurrentUser = Depends(get_current_user),
 ):
     repo = get_repo()
     if not repo.get_sku(user.uid, sku_id):
