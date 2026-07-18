@@ -31,12 +31,36 @@ def genblaze_available() -> bool:
         return False
 
 
-def generation_mode() -> str:
-    """"genblaze" only when the SDK, a provider key, and B2 are all configured."""
+class GenerationUnavailable(RuntimeError):
+    """Raised when real generation isn't configured and mocking isn't permitted.
+
+    Carries the specific missing pieces so an operator sees *what* to fix instead of a
+    generic failure. Surfaced as a 503 by the API layer.
+    """
+
+
+def missing_generation_requirements() -> list[str]:
+    """Which prerequisites for real generation are absent. Empty ⇒ ready to generate."""
     s = get_settings()
-    if s.gmi_api_key and s.b2_configured and genblaze_available():
+    missing = []
+    if not s.gmi_api_key:
+        missing.append("GMI_API_KEY")
+    if not s.b2_configured:
+        missing.append("B2 storage (B2_KEY_ID / B2_APP_KEY / B2_BUCKET)")
+    if not genblaze_available():
+        missing.append("genblaze-core SDK (pip install genblaze-core)")
+    return missing
+
+
+def generation_mode() -> str:
+    """What will actually run: "genblaze", "mock" (tests only), or "unconfigured".
+
+    "unconfigured" is a real, reported state rather than a silent fall-through to fake
+    output — see Settings.mock_generation_enabled for why the mock is off by default.
+    """
+    if not missing_generation_requirements():
         return "genblaze"
-    return "mock"
+    return "mock" if get_settings().mock_generation_enabled else "unconfigured"
 
 
 def brand_prompt_fragment(brand: dict | None) -> str:
@@ -56,22 +80,69 @@ def brand_tone_fragment(brand: dict | None) -> str:
     return "; ".join(parts)
 
 
-async def generate_assets(uid, sku, original, styles, *, storage, brand=None, marketplaces=None):
+class StepReporter:
+    """Callback surface for live per-step progress.
+
+    Generation is a sequence of independent provider calls that each take tens of seconds.
+    Without this the client can only see "running" for the whole run and has to fake a
+    progress bar. The worker passes an implementation that persists each event onto the job
+    document; `_NullReporter` keeps the pipelines callable without one.
+
+    Every method is best-effort by contract: a reporting failure must never fail a run that
+    the provider already billed for.
+    """
+
+    def start(self, style: Style) -> None: ...
+    def finish(self, style: Style, assets: list[dict]) -> None: ...
+    def fail(self, style: Style, error: str) -> None: ...
+    def skip(self, style: Style, reason: str) -> None: ...
+
+
+class _NullReporter(StepReporter):
+    pass
+
+
+async def generate_assets(uid, sku, original, styles, *, storage, brand=None,
+                          marketplaces=None, reporter: StepReporter | None = None):
     """Return (asset_dicts, errors). `errors` non-empty + assets present ⇒ partial."""
     wanted = [Style(s) for s in styles if Style(s) in GENERATED_STYLES]
-    if generation_mode() == "genblaze":
-        return await _run_genblaze(sku, original, wanted, storage, brand, marketplaces or [])
-    return _run_mock(sku, original, wanted), []
+    reporter = reporter or _NullReporter()
+    mode = generation_mode()
+    if mode == "genblaze":
+        return await _run_genblaze(
+            sku, original, wanted, storage, brand, marketplaces or [], reporter
+        )
+    if mode == "mock":
+        return await _run_mock(sku, original, wanted, reporter)
+    # Refuse rather than fabricate. A user must never be handed a copy of their own upload
+    # dressed up as a generated asset.
+    raise GenerationUnavailable(
+        "Generation is not configured — missing: "
+        + ", ".join(missing_generation_requirements())
+    )
 
 
 # ── Dev mock ───────────────────────────────────────────────────────────
-def _run_mock(sku, original, wanted) -> list[dict]:
+async def _run_mock(sku, original, wanted, reporter: StepReporter) -> tuple[list[dict], list[str]]:
+    import asyncio
+
+    delay = get_settings().mock_step_delay_seconds
     run_id = f"mock-{uuid.uuid4().hex[:8]}"
     out: list[dict] = []
+    errors: list[str] = []
     for style in wanted:
         if style is Style.video:  # can't fabricate a video in the mock
+            # Reported as an error, not just a skipped step, so the job settles as
+            # *partial*. A run that silently returns "done" without a style the user
+            # explicitly asked for is the job status lying about what was delivered.
+            reason = "video cannot be mocked — configure a provider"
+            reporter.skip(style, reason)
+            errors.append(f"video: {reason}")
             continue
-        out.append({
+        reporter.start(style)
+        if delay:
+            await asyncio.sleep(delay)
+        asset = {
             "sku_id": sku["id"],
             "sha256": original["sha256"],
             "b2_key": original["b2_key"],
@@ -90,12 +161,14 @@ def _run_mock(sku, original, wanted) -> list[dict]:
             "width": original.get("width"),
             "height": original.get("height"),
             "duration": None,
-        })
-    return out
+        }
+        out.append(asset)
+        reporter.finish(style, [asset])
+    return out, errors
 
 
 # ── Real Genblaze path ─────────────────────────────────────────────────
-async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces):
+async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, reporter):
     from originshot_pipelines import (
         lifestyle,
         onmodel,
@@ -121,60 +194,71 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces):
     errors: list[str] = []
     hero_url: str | None = None
 
-    if Style.studio in wanted:
-        try:
-            res = await studio.build_studio_pipeline(
-                source_uri, desc, brand_suffix=brand_tone, aspect=studio_aspect
-            ).arun(sink=sink, timeout=img_t)
-            asset = _map(sku, res, Style.studio, parent, storage)
-            # The hero image feeds the image-to-video step. After embedding we store the
-            # studio image under our own key, so presign that; else use the sink URL.
-            hero_url = (
-                storage.presigned_get(asset["b2_key"]) if asset.get("b2_key")
-                else asset.get("b2_url")
-            ) or hero_url
-            out.append(asset)
-        except Exception as e:  # noqa: BLE001
-            errors.append(f"studio: {e}")
+    # Each style is one unit of work: it reports start → finish/fail, and a failure is
+    # isolated so the remaining styles still run (that's what makes a run "partial" rather
+    # than lost). Studio must run before video, which consumes its output as the hero frame;
+    # GENERATED_STYLES fixes that order, so iterate it rather than the caller's list.
+    async def _studio() -> list[dict]:
+        nonlocal hero_url
+        res = await studio.build_studio_pipeline(
+            source_uri, desc, brand_suffix=brand_tone, aspect=studio_aspect
+        ).arun(sink=sink, timeout=img_t)
+        asset = _map(sku, res, Style.studio, parent, storage)
+        # The hero image feeds the image-to-video step. After embedding we store the
+        # studio image under our own key, so presign that; else use the sink URL.
+        hero_url = (
+            storage.presigned_get(asset["b2_key"]) if asset.get("b2_key")
+            else asset.get("b2_url")
+        ) or hero_url
+        return [asset]
 
-    if Style.lifestyle in wanted:
-        try:
-            for res in await lifestyle.run_lifestyle(source_uri, desc, sink, brand_suffix=brand_full):
-                out.append(_map(sku, res, Style.lifestyle, parent, storage))
-        except Exception as e:  # noqa: BLE001
-            errors.append(f"lifestyle: {e}")
+    async def _lifestyle() -> list[dict]:
+        results = await lifestyle.run_lifestyle(source_uri, desc, sink, brand_suffix=brand_full)
+        return [_map(sku, r, Style.lifestyle, parent, storage) for r in results]
 
-    if Style.onmodel in wanted:
-        try:
-            res = await onmodel.build_onmodel_pipeline(
-                source_uri, desc, brand_suffix=brand_full
-            ).arun(sink=sink, timeout=img_t)
-            out.append(_map(sku, res, Style.onmodel, parent, storage))
-        except Exception as e:  # noqa: BLE001
-            errors.append(f"onmodel: {e}")
+    async def _onmodel() -> list[dict]:
+        res = await onmodel.build_onmodel_pipeline(
+            source_uri, desc, brand_suffix=brand_full
+        ).arun(sink=sink, timeout=img_t)
+        return [_map(sku, res, Style.onmodel, parent, storage)]
 
-    if Style.variant in wanted:
-        try:
-            results = await variants.run_variants(
-                source_uri, desc, sink, colors=VARIANT_COLORS, angles=VARIANT_ANGLES,
-                brand_suffix=brand_full,
-            )
-            for res in results:
-                out.append(_map(sku, res, Style.variant, parent, storage))
-        except Exception as e:  # noqa: BLE001
-            errors.append(f"variant: {e}")
+    async def _variant() -> list[dict]:
+        results = await variants.run_variants(
+            source_uri, desc, sink, colors=VARIANT_COLORS, angles=VARIANT_ANGLES,
+            brand_suffix=brand_full,
+        )
+        return [_map(sku, r, Style.variant, parent, storage) for r in results]
 
-    if Style.video in wanted:
-        if hero_url:
-            try:
-                res = await video.build_hero_video(
-                    hero_url, desc, brand_suffix=brand_tone
-                ).arun(sink=sink, timeout=vid_t)
-                out.append(_map(sku, res, Style.video, parent, storage))
-            except Exception as e:  # noqa: BLE001
-                errors.append(f"video: {e}")
-        else:
-            errors.append("video: requires a studio image (include 'studio' in styles)")
+    async def _video() -> list[dict]:
+        res = await video.build_hero_video(
+            hero_url, desc, brand_suffix=brand_tone
+        ).arun(sink=sink, timeout=vid_t)
+        return [_map(sku, res, Style.video, parent, storage)]
+
+    runners = {
+        Style.studio: _studio,
+        Style.lifestyle: _lifestyle,
+        Style.onmodel: _onmodel,
+        Style.variant: _variant,
+        Style.video: _video,
+    }
+
+    for style in GENERATED_STYLES:
+        if style not in wanted:
+            continue
+        if style is Style.video and not hero_url:
+            reason = "requires a studio image (include 'studio' in styles)"
+            reporter.skip(style, reason)
+            errors.append(f"video: {reason}")
+            continue
+        reporter.start(style)
+        try:
+            produced = await runners[style]()
+            out.extend(produced)
+            reporter.finish(style, produced)
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"{style.value}: {e}")
+            reporter.fail(style, str(e))
 
     return out, errors
 
