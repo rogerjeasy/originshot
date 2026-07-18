@@ -19,6 +19,8 @@ dependencies = [
     "pillow>=10.3",
     "boto3>=1.34",
     "httpx>=0.27",
+    "fpdf2>=2.7",
+    "qrcode[pil]>=7.4",
 ]
 
 [project.optional-dependencies]
@@ -28,7 +30,14 @@ analytics = ["duckdb>=1.0", "pandas>=2.2", "pyarrow>=16.0"]
 # Genblaze SDK + the providers we use. GMI Cloud is primary (image edit + image→video);
 # google/luma ship as fallback providers. `genblaze[parquet]` (pyarrow) powers ParquetSink
 # analytics — also covered by the `analytics` extra above.
-genblaze = ["genblaze[gmicloud,video,parquet]>=0.4,<0.5"]
+#
+# Floor is 0.4.3 — the umbrella release carrying the GitHub "v0.5.0" changes (streaming
+# concurrency-safety, manifest schema_version validation, ReDoS/SSRF hardening, ParquetSink
+# partition index). The umbrella version only bumps its dependency floors, so `>=0.4` would
+# happily resolve 0.4.0 with the OLD genblaze-core/gmicloud pinned underneath and none of
+# those fixes would reach production. NOTE: the GitHub release is tagged v0.5.0 but PyPI
+# publishes it as 0.4.3 — `genblaze==0.5.0` does not exist. Verified 2026-07-19.
+genblaze = ["genblaze[gmicloud,video,parquet]>=0.4.3,<0.5"]
 
 [tool.poetry]
 packages = [

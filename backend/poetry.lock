@@ -613,7 +613,7 @@ files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
 ]
-markers = {main = "platform_system == \"Windows\"", dev = "sys_platform == \"win32\""}
+markers = {main = "platform_system == \"Windows\" or sys_platform == \"win32\"", dev = "sys_platform == \"win32\""}
 
 [[package]]
 name = "cryptography"
@@ -702,6 +702,18 @@ websockets = ">=15.0.1"
 [package.extras]
 dev = ["black (>=23.0.0)", "mypy (>=1.0.0)", "pytest (>=7.0.0)", "pytest-asyncio (>=0.21.0)", "pytest-cov (>=4.0.0)", "ruff (>=0.1.0)"]
 realtime = ["livekit (>=1.0.0)", "tenacity (>=8.0.0)"]
+
+[[package]]
+name = "defusedxml"
+version = "0.7.1"
+description = "XML bomb protection for Python stdlib modules"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+groups = ["main"]
+files = [
+    {file = "defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61"},
+    {file = "defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69"},
+]
 
 [[package]]
 name = "deprecated"
@@ -827,6 +839,101 @@ google-cloud-firestore = {version = ">=2.21.0", markers = "platform_python_imple
 google-cloud-storage = ">=3.1.1"
 httpx = {version = "0.28.1", extras = ["http2"]}
 pyjwt = {version = ">=2.10.1", extras = ["crypto"]}
+
+[[package]]
+name = "fonttools"
+version = "4.63.0"
+description = "Tools to manipulate font files"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "fonttools-4.63.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:e3297a6a4059b4acc3a1e9a8b04741f240a80044eef08ebd32e8b5bcdddce75b"},
+    {file = "fonttools-4.63.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:b1cd75a03ad8cb5bc40c90bfde68c0c47de423aa19e5c0f362b43520645eea94"},
+    {file = "fonttools-4.63.0-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c0425b277a59cff3d80ca42162a8de360f318438a2ac83570842a678d826d579"},
+    {file = "fonttools-4.63.0-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d7e5c9973aa04c95650c96e5f5ad865fbf42d62079163ecfab1e01cbc2504c22"},
+    {file = "fonttools-4.63.0-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:cb014d58140a38135f16064c74c652ed57aa0b75cbf8bb59cac821f7edb5334e"},
+    {file = "fonttools-4.63.0-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:032038247a96c1690f9f31e377c389383c902531b085aa4e4dabd6f57f870e69"},
+    {file = "fonttools-4.63.0-cp310-cp310-win32.whl", hash = "sha256:a8b33a82979e0a6a34ff435cc81317be1f95ec1ebb7a3a2d1c8a6a54f02ae44e"},
+    {file = "fonttools-4.63.0-cp310-cp310-win_amd64.whl", hash = "sha256:0c18358a155d75034911c5ee397a5b44cd19dd325dbb8b35fb60bf421d6a72ac"},
+    {file = "fonttools-4.63.0-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:2b8ae05d9eacf6081414d759c0a352769ac28ce31280d6bb8e77b03f9e3c449f"},
+    {file = "fonttools-4.63.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:79cdc9f567aec74a72918fd060283911406750cbc9fd28c1316023deb6ce31a9"},
+    {file = "fonttools-4.63.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:2c14b4fd138c4bafcca294765c547914e1aa431ae1ca94ab99d8db08c958bd3b"},
+    {file = "fonttools-4.63.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d76ac49f929aecaf82d83250b8347e099d7aecba0f4726c1d9b6df3b8bb5fe18"},
+    {file = "fonttools-4.63.0-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:dcf076a4474fe0d7367e5bbf5b052c7284fa1feca729c04176ce513521afd8a0"},
+    {file = "fonttools-4.63.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:7dd683fef0663e9f0f45cf541d788d24caa3ec9db50796b588e1757d8b3bc007"},
+    {file = "fonttools-4.63.0-cp311-cp311-win32.whl", hash = "sha256:afefc1ed0a59785a7fb06ea7e1678e849c193e1e387db783579bc7b3056fcfcb"},
+    {file = "fonttools-4.63.0-cp311-cp311-win_amd64.whl", hash = "sha256:063e08bd17bd5a90127a14123de0d6a952dbc847695fd98b63c043d58057f90c"},
+    {file = "fonttools-4.63.0-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:37dd23e621e3b0aef1baa70a303b80aaf38449632cfc8fd2a55fb285bbccfc02"},
+    {file = "fonttools-4.63.0-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:a9faff9e0c1f76f9fd55899d2ce785832efebab37eb8ae13995853aef178bef0"},
+    {file = "fonttools-4.63.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:ef3048ef05dbb552b89817713d9cac912e00d0fde4a3105c00d29e52e10c89af"},
+    {file = "fonttools-4.63.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:58dc6bb86a78d782f00f9190ca02c119cf5bbe2807536e361e18d42019f877d8"},
+    {file = "fonttools-4.63.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:ee08ebfa58f6e1aeff5697ab9582105bb620008c1caafb681e4c557e7483027b"},
+    {file = "fonttools-4.63.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:27fdc65af8da6f88b9c6121c47a464cbe359fcfff7ff6fc2d37a1f395d755b78"},
+    {file = "fonttools-4.63.0-cp312-cp312-win32.whl", hash = "sha256:af2fd1664d00a397d75f806985ddb36282091c2131a73a6485c23b4a34722263"},
+    {file = "fonttools-4.63.0-cp312-cp312-win_amd64.whl", hash = "sha256:59ac449f8cca9b4ffa08d2e7bbadad87ce710d69d1eda5c3c1ce579baa987272"},
+    {file = "fonttools-4.63.0-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:cd7e9857e5e63738b9d9fd707bc1f59c8b09e5177726d23664db393c59bb08bd"},
+    {file = "fonttools-4.63.0-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:c2a2a42198b696a6f48fad91709afb55176e66a5e566131219dba372fb7f8c59"},
+    {file = "fonttools-4.63.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1e874792a8212b44583ea02189d9e693906b2f78b261f372f95d6c563210ac1d"},
+    {file = "fonttools-4.63.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:22135da48a348785c5e2d5d2d9d6bec5ed44adacbaeb9db12d9493bf6c6bfa68"},
+    {file = "fonttools-4.63.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:ccf41f2efdf56994d22d73bef4ced1052161958169428d06ba9724ea9e9a64be"},
+    {file = "fonttools-4.63.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:9ced0bd02ac751dd6319b0da88aaef24414e3b0dbc32bb4f24944821a3741a27"},
+    {file = "fonttools-4.63.0-cp313-cp313-win32.whl", hash = "sha256:85be818f5506e8a7753153def2c9550178f0ecae6a47b5e0e8dbb23f7cc90380"},
+    {file = "fonttools-4.63.0-cp313-cp313-win_amd64.whl", hash = "sha256:ba04cb5891d4c0c21b6da95eda8d7b090021508a294fff33464fc7d241e0856b"},
+    {file = "fonttools-4.63.0-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:fd1e3094f42d806d3d7c79162fc59e5910fcbe3a7360c385b8da969bc4493745"},
+    {file = "fonttools-4.63.0-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:6e528da43bc3791085f8cb6141b1d13e459226790240340fcbb4625649238b03"},
+    {file = "fonttools-4.63.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:6b2248c5decb223562f7902ff6325077a073f608ee8e33e88ad88db734eb9f49"},
+    {file = "fonttools-4.63.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:308f957cdeaf8abe4e5f2f124902ef405448af92c90f80e302a3b771c2e6116b"},
+    {file = "fonttools-4.63.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:bf00f21eb5fb721dbaf73d1e9da6d02a1af7768f2ebcf9798be98beab8ba90f6"},
+    {file = "fonttools-4.63.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:c1aaa4b9c75798400ac043ce04d74e7830376c85095a5a6ed7cba2f17a266bf4"},
+    {file = "fonttools-4.63.0-cp314-cp314-win32.whl", hash = "sha256:22693918177bd9ceabec4736d338045f357769416fc6b0b2508eefef75b08616"},
+    {file = "fonttools-4.63.0-cp314-cp314-win_amd64.whl", hash = "sha256:7d782fac32985914c351556f68ac0855391572bcd87de50e05970d3cd4c96fc5"},
+    {file = "fonttools-4.63.0-cp314-cp314t-macosx_10_15_universal2.whl", hash = "sha256:6db5140a60a5d731d21ec076745b40a310607731b0a565b50776393188649001"},
+    {file = "fonttools-4.63.0-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:7d76edbff9014094dbf03bd2d074709dfa6ec7aba13d838c937a2b33d2d6a86e"},
+    {file = "fonttools-4.63.0-cp314-cp314t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:0eac00b9118c3c2f87d272e45341871c5b3066baa3c86897fa634a7c3fb59096"},
+    {file = "fonttools-4.63.0-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:51394295f1a51de8b5f30bdb1e1b9a4231536c7064ef5c6e211eec19fa36036f"},
+    {file = "fonttools-4.63.0-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:9e12f105d2b6342c559c298afb674006bb2893afc7102dcf8a1b55b0486b4e40"},
+    {file = "fonttools-4.63.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:796f27556dbe094c4824f75ca85267e4df776c79036c8441469a4df37038c196"},
+    {file = "fonttools-4.63.0-cp314-cp314t-win32.whl", hash = "sha256:948428a275741f0b64b113c955425a953314f4b9ab9997f73a72c83e68e569c8"},
+    {file = "fonttools-4.63.0-cp314-cp314t-win_amd64.whl", hash = "sha256:6d4741eb179121cab9eea4cb2393d24492373a260d7945006358c08cfbf45419"},
+    {file = "fonttools-4.63.0-py3-none-any.whl", hash = "sha256:445af2eab030a16b9171ea8bdda7ebf7d96bda2df88ee182a464252f6e05e20d"},
+    {file = "fonttools-4.63.0.tar.gz", hash = "sha256:caeb583deeb5168e694b65cda8b4ee62abedfa66cf88488734466f2366b9c4e0"},
+]
+
+[package.extras]
+all = ["brotli (>=1.0.1) ; platform_python_implementation == \"CPython\"", "brotlicffi (>=0.8.0) ; platform_python_implementation != \"CPython\"", "lxml (>=4.0)", "lz4 (>=1.7.4.2)", "matplotlib", "munkres ; platform_python_implementation == \"PyPy\"", "pycairo", "scipy ; platform_python_implementation != \"PyPy\"", "skia-pathops (>=0.5.0)", "sympy", "uharfbuzz (>=0.45.0)", "unicodedata2 (>=17.0.0) ; python_version <= \"3.14\"", "xattr ; sys_platform == \"darwin\"", "zopfli (>=0.1.4)"]
+graphite = ["lz4 (>=1.7.4.2)"]
+interpolatable = ["munkres ; platform_python_implementation == \"PyPy\"", "pycairo", "scipy ; platform_python_implementation != \"PyPy\""]
+lxml = ["lxml (>=4.0)"]
+pathops = ["skia-pathops (>=0.5.0)"]
+plot = ["matplotlib"]
+repacker = ["uharfbuzz (>=0.45.0)"]
+symfont = ["sympy"]
+type1 = ["xattr ; sys_platform == \"darwin\""]
+unicode = ["unicodedata2 (>=17.0.0) ; python_version <= \"3.14\""]
+woff = ["brotli (>=1.0.1) ; platform_python_implementation == \"CPython\"", "brotlicffi (>=0.8.0) ; platform_python_implementation != \"CPython\"", "zopfli (>=0.1.4)"]
+
+[[package]]
+name = "fpdf2"
+version = "2.8.7"
+description = "Simple & fast PDF generation for Python"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "fpdf2-2.8.7-py3-none-any.whl", hash = "sha256:d391fc508a3ce02fc43a577c830cda4fe6f37646f2d143d489839940932fbc19"},
+    {file = "fpdf2-2.8.7.tar.gz", hash = "sha256:7060ccee5a9c7ab0a271fb765a36a23639f83ef8996c34e3d46af0a17ede57f9"},
+]
+
+[package.dependencies]
+defusedxml = "*"
+fonttools = ">=4.34.0"
+Pillow = ">=8.3.2,<9.2.dev0 || >=9.3.dev0"
+
+[package.extras]
+dev = ["bandit", "black", "mypy", "pre-commit", "pylint", "pyright", "semgrep", "zizmor"]
+docs = ["lxml", "mkdocs", "mkdocs-git-revision-date-localized-plugin", "mkdocs-include-markdown-plugin", "mkdocs-macros-plugin", "mkdocs-material", "mkdocs-minify-plugin", "mkdocs-redirects", "mkdocs-with-pdf", "mknotebooks", "pdoc3"]
+test = ["brotli", "camelot-py[base]", "endesive[full]", "pytest", "pytest-cov", "qrcode", "tabula-py", "uharfbuzz"]
 
 [[package]]
 name = "frozenlist"
@@ -971,103 +1078,110 @@ files = [
 
 [[package]]
 name = "genblaze"
-version = "0.4.0"
+version = "0.4.3"
 description = "Umbrella package for genblaze — installs genblaze-core + genblaze-s3 and re-exports the core API; use extras for provider bundles"
 optional = true
 python-versions = ">=3.11"
 groups = ["main"]
 markers = "extra == \"genblaze\""
 files = [
-    {file = "genblaze-0.4.0-py3-none-any.whl", hash = "sha256:ac0cd6c2209a5af3be3bc573bb1dc9d0522727e0556b4efe27036533c53556f8"},
-    {file = "genblaze-0.4.0.tar.gz", hash = "sha256:2eddb517911b61344b40dec205722fd276f1341b99bbf95f023ec6ebfab0342c"},
+    {file = "genblaze-0.4.3-py3-none-any.whl", hash = "sha256:7e92255947a7d1244326f587e3bea733fb9b66d22b83f1f20d2ed68e00c955c0"},
+    {file = "genblaze-0.4.3.tar.gz", hash = "sha256:14cc90e58728d8ac4a2d71875d58893910c007a0efc2c068cfb12afc7963afc2"},
 ]
 
 [package.dependencies]
-genblaze-core = ">=0.3.0,<0.4"
-genblaze-decart = {version = ">=0.3.0,<0.4", optional = true, markers = "extra == \"video\""}
-genblaze-gmicloud = {version = ">=0.3.0,<0.4", optional = true, markers = "extra == \"gmicloud\" or extra == \"video\""}
-genblaze-google = {version = ">=0.3.0,<0.4", optional = true, markers = "extra == \"video\""}
-genblaze-luma = {version = ">=0.3.0,<0.4", optional = true, markers = "extra == \"video\""}
-genblaze-nvidia = {version = ">=0.3.0,<0.4", optional = true, markers = "extra == \"video\""}
-genblaze-runway = {version = ">=0.3.0,<0.4", optional = true, markers = "extra == \"video\""}
-genblaze-s3 = ">=0.2.3,<0.4"
+genblaze-core = ">=0.3.6,<0.4"
+genblaze-decart = {version = ">=0.3.1,<0.4", optional = true, markers = "extra == \"video\""}
+genblaze-gmicloud = {version = ">=0.3.3,<0.4", optional = true, markers = "extra == \"gmicloud\" or extra == \"video\""}
+genblaze-google = {version = ">=0.3.2,<0.4", optional = true, markers = "extra == \"video\""}
+genblaze-luma = {version = ">=0.3.1,<0.4", optional = true, markers = "extra == \"video\""}
+genblaze-nvidia = {version = ">=0.3.1,<0.4", optional = true, markers = "extra == \"video\""}
+genblaze-runway = {version = ">=0.3.1,<0.4", optional = true, markers = "extra == \"video\""}
+genblaze-s3 = ">=0.3.5,<0.4"
 
 [package.extras]
-all = ["genblaze-decart (>=0.3.0,<0.4)", "genblaze-elevenlabs (>=0.3.0,<0.4)", "genblaze-gmicloud (>=0.3.0,<0.4)", "genblaze-google (>=0.3.0,<0.4)", "genblaze-langsmith (>=0.2.1,<0.4)", "genblaze-lmnt (>=0.3.0,<0.4)", "genblaze-luma (>=0.3.0,<0.4)", "genblaze-nvidia (>=0.3.0,<0.4)", "genblaze-openai (>=0.3.0,<0.4)", "genblaze-replicate (>=0.3.0,<0.4)", "genblaze-runway (>=0.3.0,<0.4)", "genblaze-stability-audio (>=0.3.0,<0.4)"]
-audio = ["genblaze-elevenlabs (>=0.3.0,<0.4)", "genblaze-gmicloud (>=0.3.0,<0.4)", "genblaze-lmnt (>=0.3.0,<0.4)", "genblaze-nvidia (>=0.3.0,<0.4)", "genblaze-stability-audio (>=0.3.0,<0.4)"]
-decart = ["genblaze-decart (>=0.3.0,<0.4)"]
+all = ["genblaze-assemblyai (>=0.3.0,<0.4)", "genblaze-decart (>=0.3.1,<0.4)", "genblaze-elevenlabs (>=0.3.1,<0.4)", "genblaze-gmicloud (>=0.3.3,<0.4)", "genblaze-google (>=0.3.2,<0.4)", "genblaze-hume (>=0.3.1,<0.4)", "genblaze-langsmith (>=0.3.1,<0.4)", "genblaze-lmnt (>=0.3.1,<0.4)", "genblaze-luma (>=0.3.1,<0.4)", "genblaze-nvidia (>=0.3.1,<0.4)", "genblaze-openai (>=0.3.2,<0.4)", "genblaze-replicate (>=0.3.3,<0.4)", "genblaze-runway (>=0.3.1,<0.4)", "genblaze-stability-audio (>=0.3.1,<0.4)"]
+assemblyai = ["genblaze-assemblyai (>=0.3.0,<0.4)"]
+audio = ["genblaze-elevenlabs (>=0.3.1,<0.4)", "genblaze-gmicloud (>=0.3.3,<0.4)", "genblaze-hume (>=0.3.1,<0.4)", "genblaze-lmnt (>=0.3.1,<0.4)", "genblaze-nvidia (>=0.3.1,<0.4)", "genblaze-stability-audio (>=0.3.1,<0.4)"]
+decart = ["genblaze-decart (>=0.3.1,<0.4)"]
 dev = ["pytest (>=7.0)"]
-elevenlabs = ["genblaze-elevenlabs (>=0.3.0,<0.4)"]
-gmicloud = ["genblaze-gmicloud (>=0.3.0,<0.4)"]
-google = ["genblaze-google (>=0.3.0,<0.4)"]
-image = ["genblaze-gmicloud (>=0.3.0,<0.4)", "genblaze-google (>=0.3.0,<0.4)", "genblaze-nvidia (>=0.3.0,<0.4)", "genblaze-openai (>=0.3.0,<0.4)"]
-langsmith = ["genblaze-langsmith (>=0.2.1,<0.4)"]
-lmnt = ["genblaze-lmnt (>=0.3.0,<0.4)"]
-luma = ["genblaze-luma (>=0.3.0,<0.4)"]
-nvidia = ["genblaze-nvidia (>=0.3.0,<0.4)"]
-openai = ["genblaze-openai (>=0.3.0,<0.4)"]
-replicate = ["genblaze-replicate (>=0.3.0,<0.4)"]
-runway = ["genblaze-runway (>=0.3.0,<0.4)"]
-stability-audio = ["genblaze-stability-audio (>=0.3.0,<0.4)"]
-video = ["genblaze-decart (>=0.3.0,<0.4)", "genblaze-gmicloud (>=0.3.0,<0.4)", "genblaze-google (>=0.3.0,<0.4)", "genblaze-luma (>=0.3.0,<0.4)", "genblaze-nvidia (>=0.3.0,<0.4)", "genblaze-runway (>=0.3.0,<0.4)"]
+elevenlabs = ["genblaze-elevenlabs (>=0.3.1,<0.4)"]
+gmicloud = ["genblaze-gmicloud (>=0.3.3,<0.4)"]
+google = ["genblaze-google (>=0.3.2,<0.4)"]
+hume = ["genblaze-hume (>=0.3.1,<0.4)"]
+image = ["genblaze-gmicloud (>=0.3.3,<0.4)", "genblaze-google (>=0.3.2,<0.4)", "genblaze-nvidia (>=0.3.1,<0.4)", "genblaze-openai (>=0.3.2,<0.4)"]
+langsmith = ["genblaze-langsmith (>=0.3.1,<0.4)"]
+lmnt = ["genblaze-lmnt (>=0.3.1,<0.4)"]
+luma = ["genblaze-luma (>=0.3.1,<0.4)"]
+nvidia = ["genblaze-nvidia (>=0.3.1,<0.4)"]
+openai = ["genblaze-openai (>=0.3.2,<0.4)"]
+replicate = ["genblaze-replicate (>=0.3.3,<0.4)"]
+runway = ["genblaze-runway (>=0.3.1,<0.4)"]
+stability-audio = ["genblaze-stability-audio (>=0.3.1,<0.4)"]
+video = ["genblaze-decart (>=0.3.1,<0.4)", "genblaze-gmicloud (>=0.3.3,<0.4)", "genblaze-google (>=0.3.2,<0.4)", "genblaze-luma (>=0.3.1,<0.4)", "genblaze-nvidia (>=0.3.1,<0.4)", "genblaze-runway (>=0.3.1,<0.4)"]
 
 [[package]]
 name = "genblaze-core"
-version = "0.3.2"
+version = "0.3.6"
 description = "Core SDK for genblaze media generation orchestration"
 optional = true
 python-versions = ">=3.11"
 groups = ["main"]
 markers = "extra == \"genblaze\""
 files = [
-    {file = "genblaze_core-0.3.2-py3-none-any.whl", hash = "sha256:08827906115caa681bb5ecf7a43e8fc30353eda8f031c00d9f3afcb272d45679"},
-    {file = "genblaze_core-0.3.2.tar.gz", hash = "sha256:56fb37f2f30fb3f911d3537abed0222e6e0b77413dbddebc13a758df73b7f5fa"},
+    {file = "genblaze_core-0.3.6-py3-none-any.whl", hash = "sha256:aef6ae21d09dfa9b572a26b5bcec210c6523f96a132674fe53bc36215fe30b48"},
+    {file = "genblaze_core-0.3.6.tar.gz", hash = "sha256:0b185da3df1e46daf9dcb29122a7db4f632033f3ee4b74ae41d13badd6a851e4"},
 ]
 
 [package.dependencies]
 pillow = ">=10.0"
 pydantic = ">=2.0,<3"
+urllib3 = ">=1.26,<3"
 
 [package.extras]
-audio = ["mutagen (>=1.47)"]
-dev = ["hypothesis (>=6.0)", "jsonschema (>=4.0)", "mutagen (>=1.47)", "mypy (>=1.8)", "pyarrow (>=14.0)", "pytest (>=7.0)", "pytest-asyncio (>=0.21)", "pytest-cov (>=4.0)", "ruff (>=0.4)"]
+audio = ["mutagen (>=1.47,<1.49)"]
+dev = ["deptry (>=0.23)", "google-re2 (>=1.0)", "httpx (>=0.24)", "hypothesis (>=6.0)", "jsonschema (>=4.0)", "mutagen (>=1.47,<1.49)", "mypy (>=1.8)", "opentelemetry-api (>=1.20)", "pyarrow (>=14.0)", "pytest (>=7.0)", "pytest-asyncio (>=0.21)", "pytest-cov (>=4.0)", "ruff (>=0.4)"]
+http = ["httpx (>=0.24)"]
+otel = ["opentelemetry-api (>=1.20)"]
 parquet = ["pyarrow (>=14.0)"]
+re2 = ["google-re2 (>=1.0)"]
+testing = ["pytest (>=7.0)"]
 
 [[package]]
 name = "genblaze-decart"
-version = "0.3.0"
+version = "0.3.1"
 description = "Decart Lucy video/image provider adapter for genblaze"
 optional = true
 python-versions = ">=3.11"
 groups = ["main"]
 markers = "extra == \"genblaze\""
 files = [
-    {file = "genblaze_decart-0.3.0-py3-none-any.whl", hash = "sha256:55065922e78b3b83081f4e90fc25955aa607555a84e8fc0f3d3084b212d7d697"},
-    {file = "genblaze_decart-0.3.0.tar.gz", hash = "sha256:9e3599b42302b557a85324e1e5140d5d55d627ff11f633a70efc880bb13b7a7b"},
+    {file = "genblaze_decart-0.3.1-py3-none-any.whl", hash = "sha256:5bf9bca0f636197189a9763f7a7addfe0bad0ae7aaea030f3c18e434c105bca2"},
+    {file = "genblaze_decart-0.3.1.tar.gz", hash = "sha256:332784039408b94b24a4226cdae6a28348f9510da6c4ab5ee21e23b4986bd350"},
 ]
 
 [package.dependencies]
 decart = ">=0.0.28"
-genblaze-core = ">=0.3.0,<0.4"
+genblaze-core = ">=0.3.4,<0.4"
 
 [package.extras]
 dev = ["pytest (>=7.0)", "pytest-asyncio (>=0.21)"]
 
 [[package]]
 name = "genblaze-gmicloud"
-version = "0.3.1"
+version = "0.3.3"
 description = "GMICloud media provider adapters for genblaze (video, image, audio)"
 optional = true
 python-versions = ">=3.11"
 groups = ["main"]
 markers = "extra == \"genblaze\""
 files = [
-    {file = "genblaze_gmicloud-0.3.1-py3-none-any.whl", hash = "sha256:983028bfb9bd648c3a9dd70dac69ad34aa2beb91bbeb09ba9c8fecb3c41df8c5"},
-    {file = "genblaze_gmicloud-0.3.1.tar.gz", hash = "sha256:37509805b89933a474a81526d0e3d677d132c8ca5ec777ff4735ce6b5cd9fd46"},
+    {file = "genblaze_gmicloud-0.3.3-py3-none-any.whl", hash = "sha256:f4dc32550f75621433ce6c16e74f9169e183b3f8fc71800a9c7c957846ed0577"},
+    {file = "genblaze_gmicloud-0.3.3.tar.gz", hash = "sha256:0af5d750f7712e9cc4afb95ea11ac4b71c1aaf2d439c837c5364ecedccf5955f"},
 ]
 
 [package.dependencies]
-genblaze-core = ">=0.3.2,<0.4"
+genblaze-core = ">=0.3.4,<0.4"
 httpx = ">=0.24"
 
 [package.extras]
@@ -1075,19 +1189,19 @@ dev = ["pytest (>=7.0)"]
 
 [[package]]
 name = "genblaze-google"
-version = "0.3.0"
+version = "0.3.2"
 description = "Google provider adapters for genblaze (Veo video, Imagen image)"
 optional = true
 python-versions = ">=3.11"
 groups = ["main"]
 markers = "extra == \"genblaze\""
 files = [
-    {file = "genblaze_google-0.3.0-py3-none-any.whl", hash = "sha256:d0a033634985bd379d05a340dcc70461b06b45f6e247de540d8935d5f071cef3"},
-    {file = "genblaze_google-0.3.0.tar.gz", hash = "sha256:154a9ce0000ee61c34370aa95a52436443b787a66d7f5b8dcdb34d0d3dc020f1"},
+    {file = "genblaze_google-0.3.2-py3-none-any.whl", hash = "sha256:9f31496e2fcc63e19f53d3202ee77f95bb322d81918c79ec4e2198f152fe0d8b"},
+    {file = "genblaze_google-0.3.2.tar.gz", hash = "sha256:97a97faa99fad108980dbccf9d33ef00dbf8d98abce50951372d3ff562c4d274"},
 ]
 
 [package.dependencies]
-genblaze-core = ">=0.3.0,<0.4"
+genblaze-core = ">=0.3.4,<0.4"
 google-genai = ">=1.0"
 
 [package.extras]
@@ -1095,19 +1209,19 @@ dev = ["pytest (>=7.0)"]
 
 [[package]]
 name = "genblaze-luma"
-version = "0.3.0"
+version = "0.3.1"
 description = "Luma Dream Machine video provider adapter for genblaze"
 optional = true
 python-versions = ">=3.11"
 groups = ["main"]
 markers = "extra == \"genblaze\""
 files = [
-    {file = "genblaze_luma-0.3.0-py3-none-any.whl", hash = "sha256:194783e179971b49b4659fc8591432e29acfc7fe4716eec0f2cbc2de8894f167"},
-    {file = "genblaze_luma-0.3.0.tar.gz", hash = "sha256:ff75eb05107e3495edb65aab2253b7107d5fdafebec33dc0240af7f72a0bd1bd"},
+    {file = "genblaze_luma-0.3.1-py3-none-any.whl", hash = "sha256:2c0eed23773f3b018630996d2739f416bfa61a2b440075067659543c08a3b7d6"},
+    {file = "genblaze_luma-0.3.1.tar.gz", hash = "sha256:2beb2e4bad25d51cd1ba34eb46f434ebd607ee6a3f30e25d796307925cd08fa6"},
 ]
 
 [package.dependencies]
-genblaze-core = ">=0.3.0,<0.4"
+genblaze-core = ">=0.3.4,<0.4"
 lumaai = ">=1.0"
 
 [package.extras]
@@ -1115,19 +1229,19 @@ dev = ["pytest (>=7.0)"]
 
 [[package]]
 name = "genblaze-nvidia"
-version = "0.3.0"
+version = "0.3.1"
 description = "NVIDIA NIM / build.nvidia.com media provider adapters for genblaze (video, image, audio, chat)"
 optional = true
 python-versions = ">=3.11"
 groups = ["main"]
 markers = "extra == \"genblaze\""
 files = [
-    {file = "genblaze_nvidia-0.3.0-py3-none-any.whl", hash = "sha256:98c59abc794ff2a24e289a6a296297b1ea825b20f62a4844a7bdf688fb80fd15"},
-    {file = "genblaze_nvidia-0.3.0.tar.gz", hash = "sha256:7f60a08573a58aaff1dc119d777f12317c33d878042c7000eeb95cce7150f461"},
+    {file = "genblaze_nvidia-0.3.1-py3-none-any.whl", hash = "sha256:4e182a9ee19848ba8ee31f0e7b6fbf292473f277dd23e7bda13e1343fac4eb22"},
+    {file = "genblaze_nvidia-0.3.1.tar.gz", hash = "sha256:a1990436ce92a80a5dbbbc2f6799fb057b4aeea392d3140d38a743f03cacd4e5"},
 ]
 
 [package.dependencies]
-genblaze-core = ">=0.3.0,<0.4"
+genblaze-core = ">=0.3.4,<0.4"
 httpx = ">=0.24"
 
 [package.extras]
@@ -1136,19 +1250,19 @@ dev = ["pytest (>=7.0)"]
 
 [[package]]
 name = "genblaze-runway"
-version = "0.3.0"
+version = "0.3.1"
 description = "Runway Gen video provider adapter for genblaze"
 optional = true
 python-versions = ">=3.11"
 groups = ["main"]
 markers = "extra == \"genblaze\""
 files = [
-    {file = "genblaze_runway-0.3.0-py3-none-any.whl", hash = "sha256:5a51958a63319bfffe62fa1a9e1781fd3c38536e89e015d2775bea8f012d7bdc"},
-    {file = "genblaze_runway-0.3.0.tar.gz", hash = "sha256:0240a87b8b2461652da94209306a1504295043ddcd111591c92347cf7c1e5360"},
+    {file = "genblaze_runway-0.3.1-py3-none-any.whl", hash = "sha256:7c84b2e202a8a60099c0110e36ce448fb0e5f290abdd4ca653ca3c23645a0c07"},
+    {file = "genblaze_runway-0.3.1.tar.gz", hash = "sha256:e4ec218d492922b8c5827bba0814039c2d02a92356bb4ccf7cf1aaf94558253c"},
 ]
 
 [package.dependencies]
-genblaze-core = ">=0.3.0,<0.4"
+genblaze-core = ">=0.3.4,<0.4"
 runwayml = ">=0.6"
 
 [package.extras]
@@ -1156,23 +1270,24 @@ dev = ["pytest (>=7.0)"]
 
 [[package]]
 name = "genblaze-s3"
-version = "0.3.2"
+version = "0.3.5"
 description = "S3-compatible storage backend for genblaze (B2, R2, MinIO, AWS)"
 optional = true
 python-versions = ">=3.11"
 groups = ["main"]
 markers = "extra == \"genblaze\""
 files = [
-    {file = "genblaze_s3-0.3.2-py3-none-any.whl", hash = "sha256:c40c39f1e03190b986ce343215b84942707a7251e6fc678d812852b6fa390109"},
-    {file = "genblaze_s3-0.3.2.tar.gz", hash = "sha256:a5bb7d4ccd2c803eaf915b690423cdafb699432070806a21122e4b8ce19c92bd"},
+    {file = "genblaze_s3-0.3.5-py3-none-any.whl", hash = "sha256:d74a4536ccf6a73fd7630da1ab819bd9b23514df1b890cbbb83c6aec5c3d2887"},
+    {file = "genblaze_s3-0.3.5.tar.gz", hash = "sha256:26bbd4f52fe8ec9a474ac3b29623654f711528191ffa9abadb33525f0e7a0909"},
 ]
 
 [package.dependencies]
 boto3 = ">=1.28"
-genblaze-core = ">=0.3.2,<0.4"
+botocore = ">=1.31"
+genblaze-core = ">=0.3.4,<0.4"
 
 [package.extras]
-async = ["aioboto3 (>=12,<13)"]
+async = ["aioboto3 (>=12,<16)", "aiobotocore (>=2.7)"]
 dev = ["pytest (>=7.0)"]
 
 [[package]]
@@ -3013,6 +3128,27 @@ files = [
 ]
 
 [[package]]
+name = "qrcode"
+version = "8.2"
+description = "QR Code image generator"
+optional = false
+python-versions = "<4.0,>=3.9"
+groups = ["main"]
+files = [
+    {file = "qrcode-8.2-py3-none-any.whl", hash = "sha256:16e64e0716c14960108e85d853062c9e8bba5ca8252c0b4d0231b9df4060ff4f"},
+    {file = "qrcode-8.2.tar.gz", hash = "sha256:35c3f2a4172b33136ab9f6b3ef1c00260dd2f66f858f24d88418a015f446506c"},
+]
+
+[package.dependencies]
+colorama = {version = "*", markers = "sys_platform == \"win32\""}
+pillow = {version = ">=9.1.0", optional = true, markers = "extra == \"pil\" or extra == \"all\""}
+
+[package.extras]
+all = ["pillow (>=9.1.0)", "pypng"]
+pil = ["pillow (>=9.1.0)"]
+png = ["pypng"]
+
+[[package]]
 name = "redis"
 version = "5.3.1"
 description = "Python client for Redis database and key-value store"
@@ -3588,4 +3724,4 @@ worker = ["arq", "redis"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "785dde9a120fa9dd3d876ae5ff91a7b3535e1499bc8caea04a7f7b4cb6dd71f5"
+content-hash = "0eae03dc57d8a0348d9011309457e9311bda22d8e4b53737018775f4c45ba9d5"
