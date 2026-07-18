@@ -28,7 +28,7 @@ def build_hero_video(hero_image_uri: str, product_desc: str, *, provider=None, b
         "fallback_models": VIDEO_FALLBACKS,
         REFERENCE_IMAGE_KWARG: hero_image_uri,
     }
-    return Pipeline("listsnap-hero-video").step(provider, **step_kwargs)
+    return Pipeline("originshot-hero-video").step(provider, **step_kwargs)
 
 
 def build_text_to_video(product_desc: str):
@@ -44,7 +44,7 @@ def build_text_to_video(product_desc: str):
 
     from .registry import TEXT2VIDEO_MODEL
 
-    return Pipeline("listsnap-text-to-video").step(
+    return Pipeline("originshot-text-to-video").step(
         GMICloudVideoProvider(),
         model=TEXT2VIDEO_MODEL,
         prompt=f"{product_desc}, premium product reveal, slow turntable, clean background",
