@@ -16,7 +16,7 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <Card className="studio-sweep">
+    <Card>
       <CardContent className="flex flex-col items-center gap-4 py-14 text-center">
         <span className="grid size-12 place-items-center rounded-2xl bg-secondary text-muted-foreground">
           <Icon className="size-6" />

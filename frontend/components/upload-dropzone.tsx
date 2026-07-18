@@ -50,7 +50,7 @@ export function UploadDropzone({
         pick(e.dataTransfer.files?.[0]);
       }}
       className={cn(
-        "studio-sweep frame flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-10 text-center transition-colors",
+        "frame flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-10 text-center transition-colors",
         drag && "border-accent",
       )}
     >

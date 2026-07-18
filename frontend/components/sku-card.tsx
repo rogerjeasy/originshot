@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Check, ImageOff } from "lucide-react";
 
 import type { Sku } from "@/lib/types";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent, CardHeader, CardHeading } from "./ui/card";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -18,7 +18,7 @@ export function SkuCard({ sku }: { sku: Sku }) {
     <Link href={`/studio/${sku.id}`} className="block h-full">
       <Card className="lift h-full">
         <CardHeader>
-          <CardTitle className="truncate">{sku.title}</CardTitle>
+          <CardHeading className="truncate">{sku.title}</CardHeading>
           {sku.category && (
             <p className="truncate text-sm text-muted-foreground">{sku.category}</p>
           )}
