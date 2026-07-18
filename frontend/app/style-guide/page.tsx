@@ -5,6 +5,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { BadgeGallery } from "@/components/style-guide/badge-gallery";
 import { ButtonGallery } from "@/components/style-guide/button-gallery";
 import { ColorSwatches } from "@/components/style-guide/color-swatches";
+import { DataDisplay } from "@/components/style-guide/data-display";
+import { FormGallery } from "@/components/style-guide/form-gallery";
 import { PatternShowcase } from "@/components/style-guide/pattern-showcase";
 import { SgSection } from "@/components/style-guide/sg-section";
 import { TypeScale } from "@/components/style-guide/type-scale";
@@ -41,6 +43,14 @@ export default function StyleGuidePage() {
 
         <SgSection title="Badges & provenance">
           <BadgeGallery />
+        </SgSection>
+
+        <SgSection title="Forms">
+          <FormGallery />
+        </SgSection>
+
+        <SgSection title="Data display">
+          <DataDisplay />
         </SgSection>
 
         <SgSection title="Patterns">
