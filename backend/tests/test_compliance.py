@@ -87,6 +87,41 @@ def test_compliance_endpoint(client, png_bytes):
     assert all("checks" in i for i in body["items"])
 
 
+def test_compliance_reads_legacy_assets_with_only_a_url(client, png_bytes):
+    """An asset carrying only a sink URL (no b2_key) must still be measurable.
+
+    Assets generated before manifest embedding was wired store `b2_url` and leave `b2_key`
+    unset. Requiring `b2_key` made this endpoint 400 on SKUs whose studio page rendered
+    perfectly — the export path already handled both, and this one has to agree.
+    """
+    from app.repo import get_repo
+
+    sku = client.post("/api/skus", json={"title": "Legacy"}).json()
+    client.post(f"/api/skus/{sku['id']}/upload",
+                files={"file": ("p.png", png_bytes((900, 900)), "image/png")})
+
+    repo = get_repo()
+    original = repo.list_assets("dev-user", sku["id"])[0]
+    # A newer studio asset that only knows its URL — the preferred candidate, unreadable.
+    repo.add_asset("dev-user", {
+        "sku_id": sku["id"], "sha256": "f" * 64,
+        "b2_key": None, "b2_url": "https://example.invalid/off-bucket.png",
+        "modality": "image", "style": "studio", "is_authentic": False,
+        "parent_sha256": original["sha256"],
+    })
+
+    r = client.get(f"/api/skus/{sku['id']}/compliance")
+    assert r.status_code == 200, r.text
+    # Falls through to the authentic original rather than refusing, and says so.
+    assert r.json()["source_style"] == "original"
+    assert len(r.json()["items"]) == 5
+
+
+def test_compliance_400_only_when_nothing_is_readable(client):
+    sku = client.post("/api/skus", json={"title": "Empty"}).json()
+    assert client.get(f"/api/skus/{sku['id']}/compliance").status_code == 400
+
+
 def test_export_pack_json_carries_compliance(client, png_bytes):
     sku = client.post("/api/skus", json={"title": "Mug"}).json()
     client.post(f"/api/skus/{sku['id']}/upload",
