@@ -1,3 +1,3 @@
-"""ListSnap backend application package."""
+"""OriginShot backend application package."""
 
 __version__ = "0.1.0"

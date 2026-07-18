@@ -18,10 +18,10 @@ from .security import SecurityHeadersMiddleware, limiter
 
 settings = get_settings()
 logging.basicConfig(level=settings.log_level.upper())
-log = logging.getLogger("listsnap")
+log = logging.getLogger("originshot")
 
 app = FastAPI(
-    title="ListSnap API",
+    title="OriginShot API",
     version="0.1.0",
     description="Turn one photo into a marketplace-ready, provenance-verified product pack.",
 )
