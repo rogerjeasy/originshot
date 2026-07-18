@@ -45,6 +45,11 @@ for _k in (
 os.environ["MOCK_GENERATION_ENABLED"] = "true"
 os.environ["MOCK_STEP_DELAY_SECONDS"] = "0"
 
+# Post-generation QA is pinned OFF for the integration flows: their fixture "media" is fake
+# bytes that no image decoder accepts, so QA would fail everything and retry every style,
+# distorting put/call counts. QA logic itself is covered hermetically in tests/test_qa.py.
+os.environ["QA_ENABLED"] = "false"
+
 
 @pytest.fixture
 def client():

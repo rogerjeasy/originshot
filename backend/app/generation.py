@@ -243,6 +243,14 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
         Style.video: _video,
     }
 
+    vlm_call = _make_vlm_call(settings)
+    ref_bytes: bytes | None = None
+    if settings.qa_enabled and vlm_call is not None:
+        try:
+            ref_bytes = _fetch_bytes(source_uri)
+        except Exception as e:  # noqa: BLE001 — QA degrades, generation proceeds
+            log.warning("QA reference fetch failed (%s); VLM tier disabled for this run", e)
+
     for style in GENERATED_STYLES:
         if style not in wanted:
             continue
@@ -254,6 +262,21 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
         reporter.start(style)
         try:
             produced = await runners[style]()
+            if settings.qa_enabled and style is not Style.video:
+                produced = await _qa_and_maybe_retry(
+                    style, runners[style], produced, storage,
+                    reference=ref_bytes, vlm_call=vlm_call,
+                    retry=settings.qa_retry_enabled,
+                )
+                # A studio retry re-ran _studio(), which repointed hero_url at the retry's
+                # asset — repoint it at the batch QA actually kept, so the video step is
+                # always derived from the delivered hero frame.
+                if style is Style.studio and produced:
+                    kept = produced[0]
+                    hero_url = (
+                        storage.presigned_get(kept["b2_key"]) if kept.get("b2_key")
+                        else kept.get("b2_url")
+                    ) or hero_url
             out.extend(produced)
             reporter.finish(style, produced)
         except Exception as e:  # noqa: BLE001
@@ -261,6 +284,88 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
             reporter.fail(style, str(e))
 
     return out, errors
+
+
+def _make_vlm_call(settings):
+    """The injected VLM transport for qa.evaluate_image, or None when unavailable."""
+    if not (settings.qa_enabled and settings.qa_vlm_enabled and settings.gmi_api_key):
+        return None
+    from functools import partial
+
+    from originshot_pipelines import qa
+    from originshot_pipelines.registry import GMI_CHAT_BASE_URL, QA_VISION_MODEL
+
+    return partial(
+        qa.vlm_product_match,
+        api_key=settings.gmi_api_key,
+        base_url=GMI_CHAT_BASE_URL,
+        model=QA_VISION_MODEL,
+        timeout=settings.qa_vlm_timeout_seconds,
+    )
+
+
+def _asset_bytes(asset: dict, storage) -> bytes | None:
+    """Best-effort download of a just-generated asset's media for QA scoring."""
+    try:
+        url = (storage.presigned_get(asset["b2_key"]) if asset.get("b2_key")
+               else asset.get("b2_url"))
+        return _fetch_bytes(url) if url else None
+    except Exception as e:  # noqa: BLE001
+        log.warning("QA byte fetch failed for %s: %s", asset.get("sha256"), e)
+        return None
+
+
+def _score_batch(style: Style, produced: list[dict], storage, *, reference, vlm_call,
+                 attempt: int) -> int:
+    """Attach a QA report to every asset in the batch; return how many passed.
+
+    An asset whose bytes can't be fetched gets no report (`qa: None`) and counts as
+    passed — QA must never punish an asset for our own download hiccup.
+    """
+    from originshot_pipelines import qa
+
+    passed = 0
+    for asset in produced:
+        data = _asset_bytes(asset, storage)
+        if data is None:
+            asset["qa"] = None
+            passed += 1
+            continue
+        report = qa.evaluate_image(data, style.value, reference=reference, vlm_call=vlm_call)
+        report["attempt"] = attempt
+        asset["qa"] = report
+        if report["passed"]:
+            passed += 1
+    return passed
+
+
+async def _qa_and_maybe_retry(style: Style, runner, produced: list[dict], storage, *,
+                              reference, vlm_call, retry: bool) -> list[dict]:
+    """Evaluate a style's output; regenerate once if it failed; keep the better attempt.
+
+    Retry is at style granularity because that is the provider-call granularity. When both
+    attempts ran, the batch with more passing assets wins (ties → the first attempt, so a
+    no-better retry doesn't churn the delivered assets). The losing batch's media stays on
+    B2 (content-addressed, negligible) but is never registered as an asset document.
+    """
+    ok1 = _score_batch(style, produced, storage,
+                       reference=reference, vlm_call=vlm_call, attempt=1)
+    if ok1 == len(produced) or not retry:
+        return produced
+
+    log.info("QA: %s failed (%d/%d passed) — retrying once", style.value, ok1, len(produced))
+    try:
+        second = await runner()
+    except Exception as e:  # noqa: BLE001 — keep the flagged first batch over a hard fail
+        log.warning("QA retry for %s failed to run: %s", style.value, e)
+        return produced
+    ok2 = _score_batch(style, second, storage,
+                       reference=reference, vlm_call=vlm_call, attempt=2)
+    winner = second if ok2 > ok1 else produced
+    for asset in winner:
+        if asset.get("qa") is not None:
+            asset["qa"]["attempts"] = 2
+    return winner
 
 
 def _map(sku, result, style: Style, parent: str, storage) -> dict:
@@ -271,8 +376,12 @@ def _map(sku, result, style: Style, parent: str, storage) -> dict:
     #   * Manifest exposes `canonical_hash`, `manifest_uri`, `verify()`.
     step = result.run.steps[0]
     # In genblaze-core 0.3.2 a failed step (provider error, moderation block, or all
-    # fallbacks exhausted) is *returned* with empty `assets` rather than raised. Surface the
-    # provider's real reason instead of a downstream IndexError. (0.4.0 will raise instead.)
+    # fallbacks exhausted) was *returned* with empty `assets` rather than raised, so the
+    # caller hit a downstream IndexError instead of the provider's reason.
+    # ✅ Fixed upstream as of 0.3.6 (verified 2026-07-19): a failed step now carries
+    # status=failed + a populated `error`, and `arun(raise_on_failure=True)` raises
+    # PipelineError with the real cause. This guard is kept as belt-and-braces — it is the
+    # one place a silent empty-asset result would become a confusing 500.
     if not step.assets:
         reason = getattr(step, "error", None) or getattr(step, "status", None) or "no asset produced"
         raise RuntimeError(str(reason))
