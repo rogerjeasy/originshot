@@ -1,68 +1,74 @@
 import Link from "next/link";
-import { ArrowRight, ShieldCheck, Wand2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { FadeIn } from "@/components/motion/fade-in";
-import { PackShowcase } from "./pack-showcase";
+import { ContactSheet } from "./contact-sheet";
 
-const FIGURES = [
-  { value: "1", label: "phone photo in" },
-  { value: "12+", label: "assets out" },
-  { value: "SHA-256", label: "verified" },
-];
-
-/** Marketing hero: editorial headline + the live gallery showcase, on the seamless sweep. */
+/**
+ * The hero leads with the proof rather than a promise: the contact sheet is a
+ * real run, so the page's first impression is the product's actual output.
+ */
 export function Hero() {
   return (
     <section className="relative overflow-hidden border-b">
-      <div aria-hidden className="bg-grid absolute inset-0 -z-10" />
-      <div aria-hidden className="glow-cobalt absolute inset-x-0 top-0 -z-10 h-[460px]" />
+      <div aria-hidden className="patch-grid patch-grid-fade absolute inset-0 -z-10" />
 
-      <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-2 lg:px-8 lg:py-24">
-        <FadeIn>
-          <Badge variant="verified" className="mb-5 border border-verified/25 bg-verified/10 px-3 py-1">
-            <ShieldCheck /> Provenance-verified by design
-          </Badge>
-          <h1 className="text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-            One photo in.
-            <br />
-            <span className="text-muted-foreground">A full product catalog out.</span>
-          </h1>
-          <p className="mt-5 max-w-xl text-pretty text-base text-muted-foreground sm:text-lg">
-            Snap a single phone photo and OriginShot generates studio shots, lifestyle scenes, color
-            and angle variants, and a short product video — each carrying a verifiable provenance
-            manifest, so buyers can tell what&apos;s authentic from what&apos;s AI.
-          </p>
+      <div className="mx-auto max-w-[1400px] px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
+        <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)] lg:gap-14">
+          <FadeIn className="min-w-0">
+            <p className="label text-muted-foreground">Product photography, calibrated</p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/studio"
-              className={`${buttonVariants({ variant: "accent", size: "lg" })} w-full sm:w-auto`}
-            >
-              <Wand2 /> Generate your first pack
-            </Link>
-            <Link
-              href="/how-it-works"
-              className={`${buttonVariants({ variant: "outline", size: "lg" })} w-full sm:w-auto`}
-            >
-              See how it works <ArrowRight />
-            </Link>
-          </div>
+            <h1 className="display mt-4 text-[2.5rem] sm:text-6xl lg:text-[4.25rem]">
+              One photo in.
+              <br />
+              <span className="text-muted-foreground">A whole catalog out.</span>
+            </h1>
 
-          <dl className="mt-10 grid max-w-md grid-cols-3 gap-4 border-t pt-6">
-            {FIGURES.map((f) => (
-              <div key={f.label}>
-                <dt className="tabular text-2xl font-semibold tracking-tight">{f.value}</dt>
-                <dd className="mt-0.5 text-xs text-muted-foreground">{f.label}</dd>
-              </div>
-            ))}
-          </dl>
-        </FadeIn>
+            <p className="mt-6 max-w-xl text-pretty text-base text-muted-foreground sm:text-lg">
+              Photograph your product once, on your phone. OriginShot returns studio shots,
+              lifestyle scenes, colour and angle variants, and a short product video — each one
+              carrying a provenance manifest a buyer can check.
+            </p>
 
-        <FadeIn delay={0.12} y={16}>
-          <PackShowcase />
-        </FadeIn>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/studio"
+                className={`${buttonVariants({ variant: "accent", size: "lg" })} w-full sm:w-auto`}
+              >
+                Generate your first pack
+              </Link>
+              <Link
+                href="/how-it-works"
+                className={`${buttonVariants({ variant: "outline", size: "lg" })} w-full sm:w-auto`}
+              >
+                See how it works <ArrowRight />
+              </Link>
+            </div>
+
+            {/* Numbers are taken from backend/app/pricing.py — a full pack is
+                studio 1 + lifestyle 2 + on-model 1 + variants 2 + video 1. Keep
+                them in step with _OUTPUTS if the pipeline changes. */}
+            <dl className="mt-10 grid max-w-lg grid-cols-3 gap-6 border-t pt-6">
+              {[
+                { v: "7", l: "assets per pack" },
+                { v: "5", l: "marketplace presets" },
+                { v: "100%", l: "hash-verifiable" },
+              ].map((f) => (
+                <div key={f.l} className="min-w-0">
+                  <dt className="tabular text-2xl font-semibold tracking-tight sm:text-3xl">
+                    {f.v}
+                  </dt>
+                  <dd className="mt-1 text-xs text-muted-foreground">{f.l}</dd>
+                </div>
+              ))}
+            </dl>
+          </FadeIn>
+
+          <FadeIn delay={0.1} y={16} className="min-w-0">
+            <ContactSheet />
+          </FadeIn>
+        </div>
       </div>
     </section>
   );
