@@ -14,7 +14,10 @@ import { ImageTile } from "@/components/image-tile";
 import { Lightbox } from "@/components/lightbox";
 import { AssetWorkbench } from "@/components/studio/asset-workbench";
 import { JobProgress } from "@/components/studio/job-progress";
+import { CompliancePanel } from "@/components/studio/compliance-panel";
 import { GeneratePanel } from "@/components/studio/generate-panel";
+import { LineageGraph } from "@/components/studio/lineage-graph";
+import { ListingPanel } from "@/components/studio/listing-panel";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -201,9 +204,21 @@ export default function SkuWorkspace() {
               onSelect={setActive}
             />
           )}
+
+          {assets && assets.length > 1 && (
+            <FadeIn>
+              <LineageGraph assets={assets} />
+            </FadeIn>
+          )}
+
+          {sku && (
+            <FadeIn>
+              <ListingPanel skuId={skuId} marketplaces={marketplaces} />
+            </FadeIn>
+          )}
         </div>
 
-        <FadeIn delay={0.08} className="lg:sticky lg:top-20 lg:self-start">
+        <FadeIn delay={0.08} className="space-y-6 lg:sticky lg:top-20 lg:self-start">
           <GeneratePanel
             styles={styles}
             onStylesChange={setStyles}
@@ -217,6 +232,9 @@ export default function SkuWorkspace() {
             exporting={exporting}
             job={job}
           />
+          {original && !busyJob && (
+            <CompliancePanel skuId={skuId} refreshKey={assets?.length ?? 0} />
+          )}
         </FadeIn>
       </div>
 
