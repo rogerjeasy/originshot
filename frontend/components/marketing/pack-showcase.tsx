@@ -1,118 +1,148 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
-import { Boxes, Film, ImageIcon, Palette, Play } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
 
 import { cn } from "@/lib/utils";
-import { ProvenanceBadge } from "@/components/provenance-badge";
-import { Stagger, StaggerItem } from "@/components/motion/stagger";
-
-interface Plate {
-  label: string;
-  icon: LucideIcon;
-  aspect: string;
-  authentic?: boolean;
-  sha: string;
-  video?: boolean;
-}
+import { DEMO_ASSETS } from "@/lib/demo-assets";
+import { Section } from "./section";
 
 /**
- * The hero centerpiece: a framed studio "wall" of the generated pack. Every tile
- * is a gallery-framed object carrying a provenance pill — the product's image-first,
- * trust-by-design story rendered without needing real raster assets.
+ * What actually comes back from a run, grouped the way a seller thinks about it:
+ * by where the picture is going to be used. Switching a tab swaps real frames
+ * from the same source photo, which is the point — one object, many contexts.
  */
-const PLATES: Plate[] = [
+const GROUPS = [
   {
-    label: "Original",
-    icon: ImageIcon,
-    aspect: "aspect-square",
-    authentic: true,
-    sha: "7f3a9c2e1b4d5a6f8c0e2d4b6a8c0e1f",
+    id: "studio",
+    label: "Studio",
+    blurb:
+      "Clean white-background shots that satisfy Amazon and eBay's main-image rules without a lightbox or a tripod.",
+    slots: ["studio-01", "studio-02", "studio-03", "studio-04"],
   },
-  { label: "Studio", icon: ImageIcon, aspect: "aspect-square", sha: "a1b2c3d4e5f60718293a4b5c6d7e8f90" },
-  { label: "Lifestyle", icon: Boxes, aspect: "aspect-[4/5]", sha: "b2c3d4e5f6a7081928374655a4b3c2d1" },
-  { label: "Variant", icon: Palette, aspect: "aspect-square", sha: "c3d4e5f6a7b80192837465540312a9f8" },
   {
-    label: "Product video",
-    icon: Film,
-    aspect: "aspect-video",
-    sha: "d4e5f6a7b8c90123456789abcdef0123",
-    video: true,
+    id: "lifestyle",
+    label: "Lifestyle",
+    blurb:
+      "The product in a room someone recognises. This is what earns the click on Etsy and Instagram.",
+    slots: ["lifestyle-02", "lifestyle-05", "lifestyle-04", "lifestyle-01"],
   },
-];
+  {
+    id: "scene",
+    label: "In context",
+    blurb:
+      "Desk, café, and kitchen scenes for listing galleries, where a buyer is working out how big the thing actually is.",
+    slots: ["scene-01", "scene-02", "lifestyle-03", "lifestyle-06"],
+  },
+  {
+    id: "motion",
+    label: "Motion",
+    blurb:
+      "A five-second turntable generated from the same photo — the clip marketplaces now push hardest in search.",
+    slots: ["video-01"],
+  },
+] as const;
 
-function Plate({ plate }: { plate: Plate }) {
-  const Icon = plate.icon;
+export function PackShowcase() {
+  const [active, setActive] = useState<string>(GROUPS[0].id);
+  const group = GROUPS.find((g) => g.id === active) ?? GROUPS[0];
+  const frames = group.slots
+    .map((slot) => DEMO_ASSETS.find((a) => a.slot === slot))
+    .filter((a): a is (typeof DEMO_ASSETS)[number] => Boolean(a));
+
   return (
-    <div
-      className={cn(
-        "group relative w-full overflow-hidden rounded-xl border bg-card studio-sweep frame",
-        plate.aspect,
-      )}
+    <Section
+      eyebrow="One source photo"
+      title="Every frame below came from the same mug"
+      description="No second shoot, no reshoot for each marketplace. The object stays consistent because the pipeline reads it once and holds onto it."
     >
-      {/* faint studio backdrop highlight */}
-      <div className="plate-sweep pointer-events-none absolute inset-0" />
-      {/* large watermark glyph stands in for the framed media */}
-      <Icon
+      <div className="mt-10 flex flex-wrap gap-2" role="tablist" aria-label="Pack contents">
+        {GROUPS.map((g) => {
+          const on = g.id === active;
+          return (
+            <button
+              key={g.id}
+              role="tab"
+              aria-selected={on}
+              onClick={() => setActive(g.id)}
+              className={cn(
+                "rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
+                on
+                  ? "border-transparent bg-primary text-primary-foreground"
+                  : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground",
+              )}
+            >
+              {g.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="mt-5 max-w-xl text-sm text-muted-foreground">{group.blurb}</p>
+
+      <div
         className={cn(
-          "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-10 text-muted-foreground/40 transition-transform duration-300 group-hover:scale-110",
-          plate.authentic && "text-verified/40",
+          "mt-6 grid gap-3 sm:gap-4",
+          // The clip stands alone rather than being squeezed into a four-up.
+          group.id === "motion"
+            ? "max-w-md grid-cols-1"
+            : "grid-cols-2 lg:grid-cols-4",
         )}
-        strokeWidth={1.25}
-      />
-      {plate.video && (
-        <span className="absolute left-1/2 top-1/2 grid size-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border bg-background/80 backdrop-blur">
-          <Play className="size-4 fill-current" />
-        </span>
+      >
+        {frames.map((a) =>
+          a.style === "video" ? (
+            <figure key={a.slot} className="frame min-w-0 overflow-hidden rounded-md border bg-muted">
+              <div className="aspect-square">
+                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                <video
+                  src={a.src}
+                  className="size-full object-cover"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="none"
+                  aria-label="Five-second product turntable generated by OriginShot"
+                />
+              </div>
+            </figure>
+          ) : (
+            <figure
+              key={a.slot}
+              className="frame min-w-0 overflow-hidden rounded-md border bg-muted"
+            >
+              <div className={cn(a.style === "studio" ? "aspect-square" : "aspect-[4/5]")}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={a.src}
+                  alt={`${group.label} frame generated by OriginShot`}
+                  width={a.width}
+                  height={a.height}
+                  className="size-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+            </figure>
+          ),
+        )}
+      </div>
+
+      {group.id === "motion" && (
+        // The provenance point lands hardest here: a 4MB MP4 that still passes
+        // byte-level verification is the least expected part of the demo.
+        <p className="mt-4 max-w-md text-xs text-muted-foreground">
+          Produced by{" "}
+          <span className="font-mono">Kling-Image2Video-V2.1-Master</span> in 4m 14s. The file
+          carries an embedded manifest and still verifies byte-for-byte —{" "}
+          <Link
+            href={`/verify/${frames[0]?.sha ?? ""}`}
+            className="text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
+          >
+            check it
+          </Link>
+          .
+        </p>
       )}
-      <div className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-2">
-        <span className="rounded-md bg-background/75 px-1.5 py-0.5 text-[11px] font-medium backdrop-blur">
-          {plate.label}
-        </span>
-        <ProvenanceBadge
-          authentic={Boolean(plate.authentic)}
-          sha={plate.sha}
-          className="bg-background/75 backdrop-blur [&>span:nth-child(2)]:hidden sm:[&>span:nth-child(2)]:inline"
-        />
-      </div>
-    </div>
-  );
-}
-
-export function PackShowcase({ className }: { className?: string }) {
-  return (
-    <div className={cn("relative", className)}>
-      {/* ambient glow behind the well */}
-      <div className="glow-cobalt pointer-events-none absolute -inset-6 -z-10 blur-2xl" />
-      <div className="frame-deep rounded-2xl border bg-card/60 p-3 backdrop-blur-sm sm:p-4">
-        {/* studio caption bar */}
-        <div className="mb-3 flex items-center justify-between gap-2 px-1">
-          <div className="flex items-center gap-1.5">
-            <span className="size-2.5 rounded-full bg-danger/70" />
-            <span className="size-2.5 rounded-full bg-warning/70" />
-            <span className="size-2.5 rounded-full bg-verified/70" />
-          </div>
-          <span className="font-mono text-[11px] text-muted-foreground">
-            studio-pack · 12 assets · all verified
-          </span>
-        </div>
-
-        <Stagger className="grid grid-cols-2 items-start gap-3">
-          <StaggerItem>
-            <Plate plate={PLATES[0]} />
-          </StaggerItem>
-          <StaggerItem>
-            <Plate plate={PLATES[1]} />
-          </StaggerItem>
-          <StaggerItem className="col-span-1">
-            <Plate plate={PLATES[2]} />
-          </StaggerItem>
-          <StaggerItem className="flex flex-col gap-3">
-            <Plate plate={PLATES[3]} />
-            <Plate plate={PLATES[4]} />
-          </StaggerItem>
-        </Stagger>
-      </div>
-    </div>
+    </Section>
   );
 }
