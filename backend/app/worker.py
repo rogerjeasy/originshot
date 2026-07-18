@@ -16,7 +16,7 @@ from .models import JobStatus, utcnow
 from .repo import get_repo
 from .storage import get_storage
 
-log = logging.getLogger("listsnap.worker")
+log = logging.getLogger("originshot.worker")
 
 
 async def process_generation(uid: str, job_id: str, sku_id: str, styles: list[str]) -> None:

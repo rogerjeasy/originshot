@@ -8,7 +8,7 @@ from fastapi import BackgroundTasks
 from .config import get_settings
 from .worker import process_generation
 
-log = logging.getLogger("listsnap.queue")
+log = logging.getLogger("originshot.queue")
 
 
 async def enqueue_generation(
