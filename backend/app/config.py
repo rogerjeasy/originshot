@@ -59,10 +59,35 @@ class Settings(BaseSettings):
     presigned_url_ttl_seconds: int = 900
     rate_limit_per_minute: int = 60
 
+    # Credits (USD). The daily quota above bounds *request volume*; credits bound *spend* —
+    # a single video pack costs 10x an image pack, so a request count alone can't cap cost.
+    signup_credit_grant: float = 5.0
+    low_balance_threshold: float = 1.0
+
+    # Admin bootstrap: comma-separated emails that are treated as admins on sight and have
+    # the role written back to their user document on first authenticated request. Without
+    # this there is no way to mint the first admin — every grant path already requires one.
+    # Roles in Firestore remain the source of truth; this only seeds them.
+    admin_emails: str = ""
+
     # How generation jobs run: "inline" (BackgroundTasks) or "arq" (Redis worker).
     job_queue: str = "inline"
     image_timeout_seconds: int = 300
     video_timeout_seconds: int = 600
+
+    # ── Mock generation: TESTS ONLY ───────────────────────────────────
+    # The mock fabricates assets by copying the uploaded original and labelling them
+    # `provider="mock-dev"`. That is useful in the suite (real provider calls cost money and
+    # would make `pytest` billable) and actively harmful anywhere else: fabricated assets
+    # flow into analytics, the admin dashboard, provider-mix charts and the credit ledger,
+    # where they are indistinguishable from real generations at a glance.
+    #
+    # So it is OFF by default and must be switched on explicitly. When generation isn't
+    # configured, the API refuses the request with an actionable 503 rather than quietly
+    # serving fake media. Only `tests/conftest.py` sets this.
+    mock_generation_enabled: bool = False
+    # Per-style pause in the mock, so the live progress UI is demonstrable. Tests set 0.
+    mock_step_delay_seconds: float = 0.0
 
     # Manifest embedding into generated media (provenance):
     #   "full"    — embed the complete, self-contained verifiable manifest (prompts included);
@@ -80,6 +105,11 @@ class Settings(BaseSettings):
     @property
     def is_dev(self) -> bool:
         return self.app_env.lower() in {"dev", "development", "local"}
+
+    @property
+    def admin_email_set(self) -> set[str]:
+        """Lowercased for comparison — email case must not decide an authorization outcome."""
+        return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
 
     @property
     def b2_endpoint(self) -> str:
