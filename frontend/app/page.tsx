@@ -5,7 +5,7 @@ import { HowItWorks } from "@/components/marketing/how-it-works";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { ProvenanceSpotlight } from "@/components/marketing/provenance-spotlight";
 import { TrustStrip } from "@/components/marketing/trust-strip";
-import { WhyListSnap } from "@/components/marketing/why-listsnap";
+import { WhyOriginShot } from "@/components/marketing/why-originshot";
 import { FadeIn } from "@/components/motion/fade-in";
 import { SiteFooter } from "@/components/site-footer";
 
@@ -23,7 +23,7 @@ export default function Home() {
         <HowItWorks />
         <FeatureGrid />
         <ProvenanceSpotlight />
-        <WhyListSnap />
+        <WhyOriginShot />
         <CtaBand />
       </main>
       <SiteFooter />
