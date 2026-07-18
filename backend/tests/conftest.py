@@ -39,6 +39,12 @@ for _k in (
 ):
     os.environ[_k] = ""
 
+# Mock generation is OFF by default in the app (app/config.py explains why) — the suite is
+# the one place it is legitimate, because calling real providers would make `pytest` cost
+# money on every run. Enabled here and nowhere else, at full speed (no step pacing).
+os.environ["MOCK_GENERATION_ENABLED"] = "true"
+os.environ["MOCK_STEP_DELAY_SECONDS"] = "0"
+
 
 @pytest.fixture
 def client():

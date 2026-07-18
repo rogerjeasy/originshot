@@ -192,7 +192,9 @@ async def test_mock_mode_skips_video(monkeypatch):
     assets, errors = await generation.generate_assets(
         "u", sku, original, ["studio", "video"], storage=None
     )
-    assert errors == []
     styles = {a["style"] for a in assets}
     assert "studio" in styles and "video" not in styles
     assert assets[0]["provider"] == "mock-dev"
+    # The skip is reported rather than swallowed, so the job settles as `partial` — a
+    # requested style that wasn't delivered must not be reported as a complete run.
+    assert any("video" in e for e in errors)
