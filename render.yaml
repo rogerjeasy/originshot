@@ -9,6 +9,11 @@
 # for an always-on, demo-reliable service.
 services:
   - type: web
+    # PINNED to the existing live service (https://listsnap-api.onrender.com) during the
+    # OriginShot rebrand. Renaming this key makes Render provision a BRAND-NEW service with a
+    # new URL and no `sync: false` secrets, taking the demo API offline. To migrate: create
+    # the new service, set its secrets, repoint NEXT_PUBLIC_API_BASE_URL + ALLOWED_ORIGINS,
+    # verify /healthz, then retire the old one.
     name: listsnap-api
     runtime: docker
     dockerfilePath: ./infra/Dockerfile.backend
@@ -38,9 +43,10 @@ services:
       - key: B2_REGION
         value: eu-central-003
       # ── Set these in the dashboard (Environment) ──
-      - key: PUBLIC_BASE_URL        # e.g. https://listsnap-api.onrender.com
+      # Current live values (update if/when the services are renamed to originshot-*).
+      - key: PUBLIC_BASE_URL        # https://listsnap-api.onrender.com
         sync: false
-      - key: ALLOWED_ORIGINS        # your Vercel URL, e.g. https://listsnap.vercel.app
+      - key: ALLOWED_ORIGINS        # the Vercel URL, e.g. https://listsnap-smoky.vercel.app
         sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
