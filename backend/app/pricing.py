@@ -23,9 +23,10 @@ from .models import Style
 
 ESTIMATE_ONLY = "estimated from list prices; actual cost is read from the provider's Step.cost_usd"
 
-# USD per generated output.
-_IMAGE_UNIT = 0.04
-_VIDEO_UNIT = 0.50
+# USD per generated output. Public because analytics derives its labeled estimate from the
+# same list prices the quote uses — two cost tables would drift apart.
+IMAGE_UNIT_USD = 0.04
+VIDEO_UNIT_USD = 0.50
 
 # How many outputs each style produces. Must track originshot_pipelines: lifestyle runs a
 # scene set, variants sweeps VARIANT_COLORS x VARIANT_ANGLES.
@@ -38,11 +39,11 @@ _OUTPUTS: dict[Style, int] = {
 }
 
 _UNIT: dict[Style, float] = {
-    Style.studio: _IMAGE_UNIT,
-    Style.lifestyle: _IMAGE_UNIT,
-    Style.onmodel: _IMAGE_UNIT,
-    Style.variant: _IMAGE_UNIT,
-    Style.video: _VIDEO_UNIT,
+    Style.studio: IMAGE_UNIT_USD,
+    Style.lifestyle: IMAGE_UNIT_USD,
+    Style.onmodel: IMAGE_UNIT_USD,
+    Style.variant: IMAGE_UNIT_USD,
+    Style.video: VIDEO_UNIT_USD,
 }
 
 # Rough wall-clock seconds per style, used only to show an ETA next to the live timer.
@@ -58,7 +59,7 @@ _ETA_SECONDS: dict[Style, int] = {
 
 def estimate_style(style: Style) -> float:
     """Ceiling cost for one style, in USD."""
-    return round(_OUTPUTS.get(style, 1) * _UNIT.get(style, _IMAGE_UNIT), 4)
+    return round(_OUTPUTS.get(style, 1) * _UNIT.get(style, IMAGE_UNIT_USD), 4)
 
 
 def estimate_styles(styles: list[Style] | list[str]) -> float:

@@ -34,10 +34,11 @@ export default function AnalyticsPage() {
           hint: "duplicate bytes never written",
         },
         {
-          label: "Generation cost",
-          value: data.estimated_cost_usd,
+          label: "Generation spend",
+          value: data.actual_cost_usd,
           decimals: 2,
           prefix: "$",
+          hint: "provider-billed, ledger-settled",
         },
       ]
     : [];
@@ -55,8 +56,11 @@ export default function AnalyticsPage() {
           hint: "primary model failed, fallback succeeded",
         },
         {
-          label: "Providers used",
-          value: Object.keys(data.provider_mix).length,
+          label: "Est. at list prices",
+          value: data.estimated_cost_usd,
+          decimals: 2,
+          prefix: "$",
+          hint: "what this catalog would quote today",
         },
       ]
     : [];
