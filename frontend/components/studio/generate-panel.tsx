@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="label text-muted-foreground">{label}</p>
       {children}
     </div>
   );
@@ -90,21 +90,26 @@ export function GeneratePanel({
         )}
 
         {/* The quote is a ceiling: the run is held against it and refunded down to the
-            provider's actual cost, so it can only ever come in at or under this. */}
+            provider's actual cost, so it can only ever come in at or under this. Values
+            are machine-true, so they sit in mono on hairline-divided rows. */}
         {quote && (
-          <div className="rounded-lg border bg-secondary/40 p-3">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Estimated cost
-              </span>
+          <div className="rounded-md border">
+            <div className="flex items-baseline justify-between gap-2 px-3 py-2">
+              <span className="label text-muted-foreground">Estimated cost</span>
               <span className="tabular font-mono text-sm font-semibold">
                 ${quote.total_estimate_usd.toFixed(2)}
               </span>
             </div>
-            <div className="mt-1 flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-              <span>~{Math.round(quote.eta_seconds / 6) / 10} min</span>
-              <span className="tabular font-mono">
-                balance ${quote.balance_usd.toFixed(2)}
+            <div className="flex items-baseline justify-between gap-2 border-t px-3 py-2">
+              <span className="label text-muted-foreground">Est. time</span>
+              <span className="tabular font-mono text-xs text-muted-foreground">
+                ~{Math.round(quote.eta_seconds / 6) / 10} min
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between gap-2 border-t px-3 py-2">
+              <span className="label text-muted-foreground">Balance</span>
+              <span className="tabular font-mono text-xs text-muted-foreground">
+                ${quote.balance_usd.toFixed(2)}
               </span>
             </div>
           </div>
