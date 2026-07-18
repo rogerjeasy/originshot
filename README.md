@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Backblaze Generative Media Hackathon](https://img.shields.io/badge/Backblaze-Generative%20Media%20Hackathon-E21E29)](https://backblaze-genblaze.devpost.com)
 [![Storage: Backblaze B2](https://img.shields.io/badge/Storage-Backblaze%20B2-E21E29)](https://www.backblaze.com/cloud-storage)
-[![Orchestration: Genblaze](https://img.shields.io/badge/Orchestration-Genblaze%200.4-0B7285)](https://github.com/backblaze/genblaze)
+[![Orchestration: Genblaze](https://img.shields.io/badge/Orchestration-Genblaze%200.4.3-0B7285)](https://github.com/backblaze-labs/genblaze)
 [![Models: GMI Cloud](https://img.shields.io/badge/Models-GMI%20Cloud-6D28D9)](https://gmicloud.ai)
 [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Next.js 15](https://img.shields.io/badge/Web-Next.js%2015-000000?logo=next.js&logoColor=white)](https://nextjs.org)
@@ -51,8 +51,22 @@ offline, with no call back to our servers.
 | **Health check** | https://originshot-api.onrender.com/healthz |
 | **Public verifier** (no login) | https://originshot.vercel.app/verify |
 
-> The API runs on Render's **free tier**, which sleeps after ~15 minutes idle. The first
-> request may take ~50s to cold-start. Hit `/healthz` first to wake it.
+> The API runs on Render's **free tier**, which sleeps after ~15 minutes idle. A
+> [keep-warm workflow](.github/workflows/keep-warm.yml) pings `/healthz` every 10 minutes so
+> this should never bite; if it does, the first request cold-starts in ~50s.
+
+### Judge quick access
+
+A pre-loaded demo account — real generated packs, real provenance, a small credit balance
+to run your own generation:
+
+| | |
+|---|---|
+| **Email** | `judge@originshot.app` |
+| **Password** | `verify-the-pixels` |
+
+Or click **"Explore a pre-loaded demo account"** on the [sign-in page](https://originshot.vercel.app/signin).
+These credentials are deliberately public and the account is quota- and balance-limited.
 
 ---
 
@@ -94,11 +108,16 @@ content hash by stripping the manifest back out of the container — PNG `iTXt`,
 box, JPEG APP1 XMP, WebP `XMP ` chunk — and comparing it to the hash the manifest committed
 to. See [`originshot_pipelines/provenance.py`](backend/originshot_pipelines/provenance.py).
 
-> **Why we wrote our own embedder for JPEG/WebP.** Genblaze's built-in JPEG/WebP handlers
-> re-encode through Pillow, which destroys the exact bytes the manifest committed to and
-> makes strip-and-rehash verification impossible. OriginShot injects the manifest
+> **Why we wrote our own embedder for JPEG/WebP.** Both SDK handlers re-encoded through
+> Pillow, which destroys the exact bytes the manifest committed to and makes
+> strip-and-rehash verification impossible. OriginShot injects the manifest
 > **byte-preservingly** (JPEG APP1 / WebP RIFF chunk) so those formats get real
 > content-binding too. PNG and MP4 use the SDK path, which already appends cleanly.
+>
+> *Re-verified on genblaze-core 0.3.6 (2026-07-19): **JPEG is now byte-preserving upstream**
+> — that half of our workaround has been fixed in the SDK. **WebP still re-encodes** and
+> still loses content-binding, so our embedder remains load-bearing there. We kept one code
+> path for both formats rather than making it release-conditional.*
 
 ---
 
@@ -160,7 +179,7 @@ a ready-to-file `disclosure.txt` and per-asset statements automatically.
 - **Private bucket.** Media is served only through short-lived presigned URLs (15 min default) — no public objects.
 - **Graceful degradation** — partial job results, provider fallback chains, and a storage/repo abstraction that runs fully offline in dev.
 - **A health check that doesn't lie.** `/healthz` *exercises* each dependency rather than checking that an env var is set — it initializes the Firebase Admin SDK and (with `?deep=true`) round-trips to the B2 bucket, reporting `status: degraded` plus the failing exception type. It deliberately still returns **200** while the process is alive, because a failing health check makes the platform restart-loop the service; degradation belongs in the body. Config problems surface as **503**, never as an unhandled 500 — a 500 escapes the CORS middleware and reaches browsers disguised as a CORS error.
-- **85 automated tests** covering auth, IDOR isolation, upload validation, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), and the export ZIP.
+- **114 automated tests** covering auth, IDOR isolation, upload validation, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), and the export ZIP.
 
 ### B2 Storage and Data Orchestration
 
@@ -191,6 +210,7 @@ The provenance claim on the homepage is checkable before you sign up.
 Genblaze is the orchestration layer, not a single wrapped API call:
 
 - **Multi-step pipelines** — `Pipeline("originshot-studio").step(provider, …)` per style, in [`originshot_pipelines/`](backend/originshot_pipelines/)
+- **Agentic evaluate → retry → store** — every generated image is QA-scored (deterministic Pillow checks + a vision-model "same product?" score against the authentic original), the style regenerates once on failure, and the verdict ships in the asset's metadata and the UI ("passed QA on attempt 2"). See [`originshot_pipelines/qa.py`](backend/originshot_pipelines/qa.py)
 - **Chaining with lineage** — the studio hero image feeds image-to-video; every generated asset records `parent_sha256` back to the authentic original
 - **Fallback chains** — `fallback_models=[…]` on the video step (`pixverse-v5.6-i2v`, `wan2.6-r2v`) so a provider outage degrades instead of failing
 - **Batch fan-out** — variant sweeps across colors and angles
@@ -200,6 +220,23 @@ Genblaze is the orchestration layer, not a single wrapped API call:
 Model IDs and kwargs are **runtime-verified against the installed SDK** by
 [`tests/test_sdk_integration.py`](backend/tests/test_sdk_integration.py), so a catalog drift
 fails CI rather than production.
+
+#### Feedback to the SDK team
+
+We upgraded to the current release (GitHub `v0.5.0`, published on PyPI as `genblaze` 0.4.3)
+and re-tested our findings against it before reporting anything. Write-ups live in
+[`docs/genblaze-issues/`](docs/genblaze-issues/):
+
+| Finding | Status on 0.3.6 / 0.3.3 |
+|---|---|
+| `validate_model()` returns `ok_authoritative` for a model that 404s, and `unknown_permissive` for the one that works | **Still reproduces** — reported |
+| WebP manifest embedding re-encodes the image, silently destroying content-binding | **Still reproduces** (JPEG fixed upstream) — reported, PR offered |
+| Failed steps returned empty `assets` instead of raising | ✅ **Fixed upstream** — withdrawn, not reported |
+| GitHub release `v0.5.0` publishes as PyPI `0.4.3`, so `genblaze==0.5.0` can't be installed | Reported (packaging) |
+
+The third row is the point of the exercise: it *was* on our list, the upgrade fixed it, so
+we dropped it. We also corrected two claims in this README that the new release made
+outdated, rather than leaving a flattering-but-stale story about JPEG.
 
 ---
 
@@ -215,6 +252,29 @@ only what the app actually calls today** — runtime-verified against our GMI Cl
 | Hero video (image → video) | GMI Cloud (`gmicloud`) | `Kling-Image2Video-V2.1-Master` | Primary |
 | Video fallbacks | GMI Cloud | `pixverse-v5.6-i2v`, `wan2.6-r2v` | Automatic on primary failure |
 | Text → video (optional) | GMI Cloud | `Kling-Text2Video-V2.1-Master` | Single-step path, no source photo |
+| **QA evaluator (vision)** | GMI Cloud (chat API) | `x-ai/grok-4.5` | Scores "is this the same physical product?" against the authentic original — the vision tier of the evaluate→retry loop |
+| **Listing copy** | GMI Cloud (chat API) | `zai-org/GLM-5.1-FP8` | Per-marketplace titles/bullets/tags; hard limits enforced in code |
+
+The chat models were chosen by **live probes on real product images**, not catalog presence
+— several catalog models 404, 429, return empty completions, or silently accept images they
+cannot see. The QA evaluator was benchmarked on four pairs before being wired in:
+
+| Pair (reference → candidate) | Score |
+|---|---|
+| Same mug, different shot | 9 / 10 |
+| Same mug, **hue-rotated** | 3 / 10 |
+| A different object entirely | 0 / 10 |
+| Identical image | 10 / 10 |
+
+That third-place row is the one that matters: a recoloured product is the exact failure a
+pixel-level check cannot see and a buyer would never catch. Two faster models were rejected
+— one returned empty content on real photos despite passing a toy probe, the other scored
+two shots of the *same* mug as 0. The evidence is recorded in
+[`registry.py`](backend/originshot_pipelines/registry.py).
+
+Nothing hard-depends on the chat endpoint: QA degrades to its deterministic tier and marks
+the report `scorer: "deterministic"`, and listing copy returns an honest "try again" rather
+than fabricating.
 
 **An honest note on image fallbacks.** `IMAGE_EDIT_FALLBACKS` is currently **empty**. The
 SDK's static catalog advertises `seededit-3-0-i2i-250628` and the `reve-*` models, and they
@@ -233,16 +293,23 @@ provider API makes OpenAI `gpt-image-1`, Google Imagen/Veo, or Luma a per-step s
 ```
 OriginShot-handmade-ceramic-mug/
 ├── README.txt          what's inside and how to verify it
+├── certificate.pdf     Certificate of Provenance — every hash, model, QA verdict + QR
+├── verify-qr.png       the QR badge alone, for dropping into a listing
 ├── disclosure.txt      per-asset AI-disclosure statements (EU AI Act ready)
-├── pack.json           machine-readable index with full lineage
+├── pack.json           machine-readable index with lineage + compliance scorecard
 ├── verified/           byte-exact masters — embedded manifests INTACT
 ├── manifests/          sidecar provenance JSON per asset
+├── listing/            paste-ready listing copy per channel (when generated)
 ├── amazon/             2000×2000, pure white, product fills ~85% of frame
 ├── etsy/               2000×1600, lifestyle context preserved
 ├── shopify/            2048×2048 square
 ├── ebay/               1600×1600, clean background
 └── social/             1080×1350 portrait 4:5
 ```
+
+Every pack ships with a **compliance scorecard** (in `pack.json` and live in the studio):
+each rendition is measured — exact dimensions, border whiteness, product fill ratio —
+against the channel's real rejection rules, on the same bytes the folders contain.
 
 Marketplace renditions are re-encoded to hit exact listing dimensions, which necessarily
 drops the embedded manifest — so `verified/` ships the untouched bytes alongside. **The
@@ -282,7 +349,7 @@ npm run dev                                    # http://localhost:3000
 **Tests:**
 
 ```bash
-cd backend && poetry run python -m pytest -q   # 85 passing
+cd backend && poetry run python -m pytest -q   # 114 passing
 ```
 
 > **Auth is always enforced** — there is no production bypass. Signing in locally requires
@@ -316,7 +383,9 @@ Full list with defaults in [`.env.example`](.env.example).
 | `GET` | `/api/skus/{id}/assets` | Assets with short-lived presigned URLs |
 | `POST` | `/api/skus/{id}/generate` | Kick off a generation job (`202`) |
 | `GET` | `/api/jobs/{id}` | Poll job status (`queued`/`running`/`partial`/`done`/`failed`) |
-| `POST` | `/api/skus/{id}/export` | **Marketplace ZIP pack** |
+| `POST` | `/api/skus/{id}/export` | **Marketplace ZIP pack** (renditions, masters, certificate, listing copy) |
+| `GET`/`POST` | `/api/skus/{id}/listing` | Per-marketplace listing copy (chat model, limits enforced in code) |
+| `GET` | `/api/skus/{id}/compliance` | Marketplace-readiness scorecard for the main image |
 | `GET`/`PUT` | `/api/brand-kit` | Brand kit reused across generations |
 | `GET` | `/api/analytics` | Assets, dedup savings, cost, provider mix |
 | `POST` | `/api/verify` | **Public** — verify an uploaded file from its bytes |
@@ -345,7 +414,7 @@ originshot/
 │   │   ├── storage.py      Genblaze ObjectStorageSink → B2 + ParquetSink
 │   │   ├── presets.py      marketplace dimensions + rendition rendering
 │   │   └── studio · lifestyle · onmodel · variants · video
-│   └── tests/              85 tests
+│   └── tests/              114 tests
 ├── frontend/               Next.js 15 App Router · Tailwind v4 · Radix primitives · Firebase Auth
 ├── infra/                  Dockerfile.backend · docker-compose · firestore.rules
 ├── docs/                   PROJECT_DESCRIPTION · BUILD_PLAN · SECURITY · DESIGN_SYSTEM
@@ -376,7 +445,7 @@ Stated plainly, because a submission that hides these is worse than one that nam
 
 - **Render free tier** — the API sleeps after ~15 min idle; first request cold-starts ~50s.
 - **No image-model fallback** — see the providers note above. A single API-entitled edit model exists for our account today; the fallback chain is wired and empty rather than fake.
-- **The analytics dashboard's cost figure uses fixed per-asset estimates.** The real provider-reported cost (`Step.cost_usd`) *is* captured and stored per job, and shows in the studio panel — it is not yet aggregated into the dashboard total.
+- **Cost figures are dual-sourced by design.** The analytics dashboard's headline spend is the ledger-settled, provider-billed total (`Step.cost_usd` aggregated through credit settlement); a list-price estimate is shown alongside it, labeled, for catalogs generated before billing data existed (e.g. dev-mock runs, which bill nothing).
 - **Marketplace renditions drop the embedded manifest** by necessity (re-encoding to exact dimensions). This is why `verified/` exists, and it's documented inside every pack.
 - **Jobs run inline** on the web service (`JOB_QUEUE=inline`). The Arq/Redis worker path is implemented and tested but not provisioned, to keep the free-tier footprint lean.
 
