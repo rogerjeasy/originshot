@@ -39,13 +39,30 @@ def _ensure_user(user: CurrentUser, *, username: str | None = None) -> dict:
     return repo.set_user(user.uid, patch)
 
 
+def _ensure_profile(user: CurrentUser) -> dict:
+    """Create/refresh the profile, seed admin from the allowlist, and grant signup credit.
+
+    Ordering matters: `is_admin` may write the admin role, and `ensure_signup_grant` writes
+    the balance, so the document is re-read afterwards to return the settled state rather
+    than the pre-grant snapshot.
+    """
+    from .. import credits
+    from ..admin import is_admin
+
+    _ensure_user(user)
+    is_admin(user)                      # seeds the admin role on allowlisted emails
+    credits.ensure_signup_grant(user.uid)  # exactly-once welcome credit
+    return get_repo().get_user(user.uid) or {}
+
+
 @router.post("/users", response_model=UserOut)
 def register_user(body: UserRegister, user: CurrentUser = Depends(get_current_user)):
     """Idempotent: called right after sign-up (and safe to re-call on every sign-in)."""
-    return _ensure_user(user, username=body.username)
+    _ensure_user(user, username=body.username)
+    return _ensure_profile(user)
 
 
 @router.get("/me", response_model=UserOut)
 def me(user: CurrentUser = Depends(get_current_user)):
     """Current user's profile, created with defaults on first read if it doesn't exist."""
-    return _ensure_user(user)
+    return _ensure_profile(user)
