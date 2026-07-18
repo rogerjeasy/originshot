@@ -89,6 +89,17 @@ class Settings(BaseSettings):
     # Per-style pause in the mock, so the live progress UI is demonstrable. Tests set 0.
     mock_step_delay_seconds: float = 0.0
 
+    # ── Post-generation QA (generate → evaluate → retry → store) ──────
+    # Deterministic Pillow checks always run when qa_enabled; the VLM product-fidelity tier
+    # additionally needs the GMI key and is best-effort (the chat endpoint 429s under load).
+    # qa_retry_enabled regenerates a style ONCE when its output fails QA. A retry can push
+    # the actual cost over the up-front quote; the ledger's overage-debit path handles that
+    # honestly (see credits.settle), and the retry cap bounds it to 2x per style.
+    qa_enabled: bool = True
+    qa_vlm_enabled: bool = True
+    qa_retry_enabled: bool = True
+    qa_vlm_timeout_seconds: int = 60
+
     # Manifest embedding into generated media (provenance):
     #   "full"    — embed the complete, self-contained verifiable manifest (prompts included);
     #               best for `genblaze verify <file>` with no network. (default)
