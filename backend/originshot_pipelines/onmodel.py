@@ -33,4 +33,4 @@ def build_onmodel_pipeline(
         "fallback_models": IMAGE_EDIT_FALLBACKS,
         REFERENCE_IMAGE_KWARG: source_image_uri,
     }
-    return Pipeline("listsnap-onmodel").step(provider, **step_kwargs)
+    return Pipeline("originshot-onmodel").step(provider, **step_kwargs)

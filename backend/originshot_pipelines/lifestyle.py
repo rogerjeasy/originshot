@@ -42,7 +42,7 @@ def build_scene_pipeline(
         "fallback_models": IMAGE_EDIT_FALLBACKS,
         REFERENCE_IMAGE_KWARG: source_image_uri,
     }
-    return Pipeline("listsnap-lifestyle").step(provider, **step_kwargs)
+    return Pipeline("originshot-lifestyle").step(provider, **step_kwargs)
 
 
 async def run_lifestyle(source_image_uri, product_desc, sink, scenes=SCENES, brand_suffix: str = ""):

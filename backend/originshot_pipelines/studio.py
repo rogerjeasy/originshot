@@ -43,4 +43,4 @@ def build_studio_pipeline(
         "fallback_models": IMAGE_EDIT_FALLBACKS,
         REFERENCE_IMAGE_KWARG: source_image_uri,
     }
-    return Pipeline("listsnap-studio").step(provider, **step_kwargs)
+    return Pipeline("originshot-studio").step(provider, **step_kwargs)

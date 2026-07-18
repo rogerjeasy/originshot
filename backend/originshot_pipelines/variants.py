@@ -36,7 +36,7 @@ def build_variant_pipeline(source_image_uri: str, prompt: str, *, provider=None,
         "fallback_models": IMAGE_EDIT_FALLBACKS,
         REFERENCE_IMAGE_KWARG: source_image_uri,
     }
-    return Pipeline("listsnap-variant").step(provider, **step_kwargs)
+    return Pipeline("originshot-variant").step(provider, **step_kwargs)
 
 
 async def run_variants(source_image_uri, product_desc, sink, colors=(), angles=(), brand_suffix: str = ""):
