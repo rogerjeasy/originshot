@@ -33,8 +33,10 @@ export default function SignInPage() {
   const { configured, user, signIn, signUp } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<"in" | "up">("in");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -44,17 +46,28 @@ export default function SignInPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (mode === "up") {
+      if (username.trim().length < 2) return setErr("Username must be at least 2 characters.");
+      if (pw.length < 6) return setErr("Password must be at least 6 characters.");
+      if (pw !== confirm) return setErr("Passwords do not match.");
+    }
     setBusy(true);
     setErr(null);
     try {
       if (mode === "in") await signIn(email, pw);
-      else await signUp(email, pw);
+      else await signUp(email, pw, username.trim());
       router.replace("/studio");
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Authentication failed");
     } finally {
       setBusy(false);
     }
+  }
+
+  function switchMode() {
+    setMode(mode === "in" ? "up" : "in");
+    setErr(null);
+    setConfirm("");
   }
 
   return (
@@ -163,6 +176,22 @@ export default function SignInPage() {
                     </p>
 
                     <form onSubmit={submit} className="mt-6 space-y-4">
+                      {mode === "up" && (
+                        <div className="space-y-1.5">
+                          <Label htmlFor="username">Username</Label>
+                          <Input
+                            id="username"
+                            type="text"
+                            autoComplete="username"
+                            placeholder="your-handle"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            required
+                            minLength={2}
+                            maxLength={40}
+                          />
+                        </div>
+                      )}
                       <div className="space-y-1.5">
                         <Label htmlFor="email">Email</Label>
                         <Input
@@ -185,8 +214,24 @@ export default function SignInPage() {
                           value={pw}
                           onChange={(e) => setPw(e.target.value)}
                           required
+                          minLength={mode === "up" ? 6 : undefined}
                         />
                       </div>
+                      {mode === "up" && (
+                        <div className="space-y-1.5">
+                          <Label htmlFor="confirm">Confirm password</Label>
+                          <Input
+                            id="confirm"
+                            type="password"
+                            autoComplete="new-password"
+                            placeholder="••••••••"
+                            value={confirm}
+                            onChange={(e) => setConfirm(e.target.value)}
+                            required
+                            minLength={6}
+                          />
+                        </div>
+                      )}
 
                       {err && <Alert>{err}</Alert>}
 
@@ -201,10 +246,7 @@ export default function SignInPage() {
                       <button
                         type="button"
                         className="font-medium text-accent hover:underline"
-                        onClick={() => {
-                          setMode(mode === "in" ? "up" : "in");
-                          setErr(null);
-                        }}
+                        onClick={switchMode}
                       >
                         {mode === "in" ? "Create an account" : "Sign in"}
                       </button>
