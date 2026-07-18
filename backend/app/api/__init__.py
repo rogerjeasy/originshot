@@ -5,9 +5,11 @@ from . import (
     admin,
     analytics,
     brand_kit,
+    compliance,
     credits,
     export,
     generate,
+    listing,
     skus,
     uploads,
     users,
@@ -24,4 +26,6 @@ api_router.include_router(analytics.router)
 api_router.include_router(export.router)
 api_router.include_router(brand_kit.router)
 api_router.include_router(credits.router)
+api_router.include_router(listing.router)
+api_router.include_router(compliance.router)
 api_router.include_router(admin.router)

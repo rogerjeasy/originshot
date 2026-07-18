@@ -27,9 +27,11 @@ import zipfile
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
+from originshot_pipelines.listing import listing_text
 from originshot_pipelines.presets import get_preset, preset_targets, render_for_preset
 
 from ..auth import CurrentUser, get_current_user
+from ..config import get_settings
 from ..models import ExportRequest, Modality
 from ..repo import get_repo
 from ..storage import get_storage, key_from_url
@@ -86,6 +88,10 @@ def export_pack(
     buf = io.BytesIO()
     disclosures: list[str] = []
     rendered = skipped = 0
+    # The main image's master bytes, for the compliance scorecard: prefer studio (that's
+    # the marketplace main image), fall back to the first still we manage to read.
+    scorecard_master: bytes | None = None
+    scorecard_is_studio = False
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for asset in assets:
@@ -118,6 +124,11 @@ def export_pack(
             # 3. Marketplace-formatted renditions (still images only).
             if is_video:
                 continue
+            if scorecard_master is None or (
+                not scorecard_is_studio and asset.get("style") == "studio"
+            ):
+                scorecard_master = data
+                scorecard_is_studio = asset.get("style") == "studio"
             for marketplace in marketplaces:
                 preset = get_preset(marketplace)
                 if not preset:
@@ -128,6 +139,47 @@ def export_pack(
                     rendered += 1
                 except Exception as exc:  # noqa: BLE001 — a bad render must not kill the pack
                     log.warning("export: render %s for %s failed (%s)", name, marketplace, exc)
+
+        # Listing copy, when it has been generated: one paste-ready .txt per channel plus
+        # the machine-readable original. Copy discloses itself the same way the images do.
+        stored_listing = sku.get("listing")
+        if stored_listing:
+            zf.writestr(f"{root}/listing/listing.json",
+                        json.dumps(stored_listing, indent=2))
+            for market, entry in (stored_listing.get("marketplaces") or {}).items():
+                if marketplaces and market not in marketplaces:
+                    continue
+                zf.writestr(
+                    f"{root}/listing/{market}.txt",
+                    listing_text(market, entry, stored_listing.get("disclosure", "")),
+                )
+
+        # Compliance scorecard, measured on the same render path the folders above used.
+        compliance_items: list[dict] = []
+        if scorecard_master is not None:
+            try:
+                from originshot_pipelines.compliance import studio_scorecard
+
+                compliance_items = studio_scorecard(
+                    scorecard_master, marketplaces or None
+                )
+            except Exception as exc:  # noqa: BLE001 — the scorecard must not kill the pack
+                log.warning("export: compliance scorecard failed (%s)", exc)
+
+        # Certificate of Provenance + QR badge: the tangible proof sheet. The frontend
+        # origin hosts /verify, so the QR resolves for anyone who scans it from a listing.
+        try:
+            from originshot_pipelines.certificate import build_certificate, qr_png
+
+            verify_base = get_settings().origins[0].rstrip("/") + "/verify"
+            zf.writestr(f"{root}/certificate.pdf",
+                        build_certificate(sku, assets, verify_base_url=verify_base))
+            original_asset = next((a for a in assets if a.get("is_authentic")), None)
+            if original_asset and original_asset.get("sha256"):
+                zf.writestr(f"{root}/verify-qr.png",
+                            qr_png(f"{verify_base}/{original_asset['sha256']}"))
+        except Exception as exc:  # noqa: BLE001 — the certificate must not kill the pack
+            log.warning("export: certificate generation failed (%s)", exc)
 
         targets = preset_targets(marketplaces)
         zf.writestr(f"{root}/disclosure.txt", _disclosure_doc(sku, disclosures))
@@ -140,6 +192,7 @@ def export_pack(
             "presets": targets,
             "renditions": rendered,
             "skipped": skipped,
+            "compliance": compliance_items,
             "assets": [
                 {
                     "file": f"{_label(a)}{_ext_for(a)}",
@@ -198,9 +251,17 @@ def _readme_doc(sku: dict, targets: list[dict], asset_count: int, rendered: int)
         "               Re-encoded to hit those dimensions, so the embedded manifest is",
         "               NOT preserved here — use verified/ for proof, these for listing.",
         "",
+        "  listing/         Paste-ready listing copy per marketplace (when generated),",
+        "                   written to each channel's title/bullet/tag rules.",
+        "",
+        "  certificate.pdf  One-page Certificate of Provenance: every hash, model, and",
+        "                   QA verdict, plus a QR code into the public verifier.",
+        "  verify-qr.png    The QR badge alone - drop it into a listing so buyers can",
+        "                   scan straight to the proof.",
         "  disclosure.txt   Per-asset AI-disclosure statements (EU AI Act / marketplace",
         "                   transparency rules).",
-        "  pack.json        Machine-readable index of the whole pack.",
+        "  pack.json        Machine-readable index of the whole pack, including the",
+        "                   marketplace compliance scorecard.",
         "",
     ]
     if targets:
