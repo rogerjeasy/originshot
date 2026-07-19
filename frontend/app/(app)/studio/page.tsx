@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Package, Plus } from "lucide-react";
+import Link from "next/link";
+import { Layers, Loader2, Package, Plus } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 import { useApiData } from "@/lib/use-api";
@@ -12,7 +13,7 @@ import { Stagger, StaggerItem } from "@/components/motion/stagger";
 import { PageHeader } from "@/components/page-header";
 import { SkuCard } from "@/components/sku-card";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,13 +48,36 @@ export default function StudioPage() {
         title="Studio"
         description="Create a product, then turn one photo into a full pack."
         action={
-          count > 0 ? (
-            <span className="tabular rounded-full border bg-card px-3 py-1.5 text-sm text-muted-foreground">
-              {count} product{count === 1 ? "" : "s"}
-            </span>
-          ) : null
+          <div className="flex items-center gap-3">
+            {count > 0 && (
+              <span className="tabular rounded-full border bg-card px-3 py-1.5 text-sm text-muted-foreground">
+                {count} product{count === 1 ? "" : "s"}
+              </span>
+            )}
+            <Link href="/studio/catalog" className={buttonVariants({ variant: "outline" })}>
+              <Layers /> Catalog Mode
+            </Link>
+          </div>
         }
       />
+
+      <FadeIn>
+        {/* The single-product form below is the right default; a shop with a hundred SKUs
+            needs to know the other door exists before they use this one a hundred times. */}
+        <Link
+          href="/studio/catalog"
+          className="flex items-start gap-3 rounded-md border bg-card p-4 transition-colors hover:bg-secondary"
+        >
+          <Layers className="mt-0.5 size-4 shrink-0 text-accent" />
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">Got a whole shop to photograph?</span>
+            <span className="mt-0.5 block text-sm text-muted-foreground">
+              Catalog Mode takes a folder of photos and generates every product in one run,
+              with a live board and a single download at the end.
+            </span>
+          </span>
+        </Link>
+      </FadeIn>
 
       <FadeIn>
         <Card>
