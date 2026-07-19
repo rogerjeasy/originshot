@@ -5,7 +5,6 @@ Firebase service account was never uploaded, so Firebase Admin could not initial
 `/healthz` reported `firebase: true` because FIREBASE_PROJECT_ID happened to be set, and
 every authenticated route returned an opaque 500 that surfaced in browsers as a CORS error.
 """
-import pytest
 
 
 def test_health_reports_per_dependency_status(client):
