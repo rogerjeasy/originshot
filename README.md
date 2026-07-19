@@ -50,6 +50,7 @@ offline, with no call back to our servers.
 | **Swagger / OpenAPI** | https://originshot-api.onrender.com/docs |
 | **Health check** | https://originshot-api.onrender.com/healthz |
 | **Public verifier** (no login) | https://originshot.vercel.app/verify |
+| **Resolve a dispute** (no login) | https://originshot.vercel.app/resolve |
 
 > The API runs on Render's **free tier**, which sleeps after ~15 minutes idle. A
 > [keep-warm workflow](.github/workflows/keep-warm.yml) pings `/healthz` every 10 minutes so
@@ -121,6 +122,108 @@ to. See [`originshot_pipelines/provenance.py`](backend/originshot_pipelines/prov
 
 ---
 
+## Catalog Mode — The Whole Shop In One Run
+
+The problem statement above says *"a 150-SKU shop can't afford it"*. Generating one product
+at a time is not a product for that shop. [**Catalog Mode**](https://originshot.vercel.app/studio/catalog)
+takes a folder of photos, makes one product per photo, and runs the lot:
+
+```
+Generating catalog          8 of 12 products complete · 2 at a time
+▓▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓▓ ▒▒▒▒▒▒▒▒ ░░░░░░░░ ░░░░░░░░ ░░░░░░░░
+
+✓ Handmade ceramic mug      done         3 assets   74.6s   $0.0400
+✓ Green glass bottle        done         3 assets  126.5s   $0.0400
+◐ Linen apron               developing
+○ Walnut serving board      queued
+⏸ Brass candlestick         not started  — insufficient credit (needs $0.08)
+```
+
+**Every SKU is still an ordinary job.** Catalog Mode does not fork a second generation path:
+it submits the same job the single-product button submits, so credit holds, settlement,
+per-style isolation, QA retries and provenance embedding behave identically whether a photo
+ran alone or as item 47 of a catalog. What the batch adds is exactly three things — bounded
+concurrency, per-item bookkeeping, and honest partial results.
+
+A few decisions worth naming, because they are where a bulk feature usually goes wrong:
+
+- **Per-job credit holds, not one batch hold.** A single hold across N SKUs would need
+  reconciling against N settlements, and any crash between them strands credit no operator
+  can reason about. Holding per job preserves the ledger's existing one-hold-one-settlement
+  invariant exactly.
+- **`not started` is not `failed`.** A catalog can exhaust its balance or daily quota
+  halfway through. Those products never ran and cost nothing, so they report as blocked and
+  are trivially re-runnable. Telling a seller their photos *failed* when they merely ran out
+  of credit is a lie that generates a support ticket.
+- **Concurrency is bounded and deliberately low.** Generation is I/O-bound on the provider so
+  parallelism buys wall-clock cheaply, but each in-flight job also holds decoded image bytes
+  for QA scoring in the same process, and the deployment target is a 512 MB free-tier
+  instance. Verified live: two SKUs at concurrency 2 finished in 128s against 201s of summed
+  work.
+- **The bulk download is not a reduced pack.** Every product folder in the catalog ZIP is
+  byte-identical in structure to a single-product export — same `verified/` masters, same
+  certificate, same disclosure — because both go through one `write_pack`. A test asserts the
+  two archives agree entry-for-entry, so a thinner bulk pack can't quietly ship.
+
+Uploads deliberately go through the ordinary per-SKU route, one file at a time, rather than
+one giant multipart request: it keeps a single hardened upload path (magic-byte validation,
+pixel caps, bomb guards, EXIF stripping), keeps a twelve-photo catalog off a request a
+free-tier instance would drop, and lets the UI show real per-file progress.
+
+---
+
+## Resolve — Provenance That Shows Up For The Argument
+
+The scenario this project opens with ends *"…not the seller six months later during a
+dispute."* Every other surface in OriginShot serves the seller **before** the sale. Resolve
+serves the moment the provenance is actually worth something, for the people on the other
+side of the transaction.
+
+[**`/resolve`**](https://originshot.vercel.app/resolve) is public and account-free — a buyer
+disputing a parcel has no login here, and a tool that demands one is a tool that never gets
+used in the argument it exists for. Drop in the listing photo and, optionally, a photo of
+what actually turned up:
+
+```
+FINDING   condition_differences                                        ⚠ WARNING
+──────────────────────────────────────────────────────────────────────────────
+The right product, but the delivered item differs in condition
+
+Listing image   authentic original, anchored by SHA-256 on upload
+                integrity confirmed · content binding intact
+Anchored orig.  05993b99f9affece…   ← the pre-AI photo, not the marketing shot
+Delivered photo fbef4702dcbee811…   ← hash only; the image itself is never stored
+
+Comparison      9 / 10 same physical product        (x-ai/grok-4.5)
+  "The two images show the same physical handmade ceramic mug, with identical
+   shape, proportions, two-tone glaze, speckled texture and handle form."
+
+  Visible differences in condition or completeness
+  — small brownish mark/chip on inner rim
+  — diagonal scratch on lower body
+```
+
+Two questions answered together, because a dispute is always both: *was the listing photo
+honest about how it was made* (re-derived from the file's bytes, no model involved), and *is
+the delivered item the listed item* (compared against the **authentic anchored original**,
+not the AI-generated shot it descends from). The output is a hash-anchored PDF stored
+content-addressably on B2, resolvable by anyone holding the id printed on it.
+
+**Why the verdict has six outcomes and not two.** The most common real dispute is not "wrong
+item" — it is *right item, arrived damaged*. A high same-product score with defects logged
+returns `condition_differences`, never a green pass: reporting that as "consistent" would
+hand the complainant a document describing the very damage they reported. The scoring prompt
+asks for identity and condition **separately** for exactly this reason. Live-benchmarked
+before it shipped — same mug in a different shot 9/10, the same mug held in someone's hands
+9/10, a green bottle 0/10, and a mug with a scratch and a chip painted on scored 9/10 while
+naming both defects. That last row is the one the feature exists for.
+
+> **"Hash-anchored", not "signed".** There is no issuing keypair, so the reports don't claim
+> a signature. This instance records the SHA-256 of the PDF it issued, which proves a copy is
+> unaltered against that record and nothing more. The document says so on its own face.
+
+---
+
 ## How It Works
 
 ```
@@ -169,17 +272,25 @@ offers: **provable authenticity**. That matters for used and high-value goods, f
 marketplace policy compliance, and for the EU AI Act's transparency rules — the export ships
 a ready-to-file `disclosure.txt` and per-asset statements automatically.
 
+It also serves **two audiences, not one**. The Studio is for the seller; [Resolve](#resolve--provenance-that-shows-up-for-the-argument)
+is for the buyer and the marketplace, and needs no account because they don't have one. That
+is what turns provenance from a feature the seller enjoys into an asset the seller can spend
+— a listing whose photos can be checked by the person deciding whether to buy, and a claim
+that can be adjudicated from evidence instead of two conflicting stories. Marketplace trust
+and safety teams settle these by hand today, at a cost per case that dwarfs the price of the
+photography.
+
 ### Production Readiness
 
 - **Auth on every route.** Firebase ID tokens verified server-side; `uid` comes only from the verified token, never client input. No dev bypass in production.
 - **Per-user isolation** enforced in the backend *and* in Firestore rules (deny-by-default).
-- **Denial-of-wallet protection** — per-user daily generation quotas plus IP rate limiting, because every generation spends real money.
 - **Upload hardening** — magic-byte type checks, size and pixel caps, decompression-bomb guards, EXIF/GPS stripping via full re-encode.
 - **Security headers** on every response — CSP, HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`.
 - **Private bucket.** Media is served only through short-lived presigned URLs (15 min default) — no public objects.
 - **Graceful degradation** — partial job results, provider fallback chains, and a storage/repo abstraction that runs fully offline in dev.
 - **A health check that doesn't lie.** `/healthz` *exercises* each dependency rather than checking that an env var is set — it initializes the Firebase Admin SDK and (with `?deep=true`) round-trips to the B2 bucket, reporting `status: degraded` plus the failing exception type. It deliberately still returns **200** while the process is alive, because a failing health check makes the platform restart-loop the service; degradation belongs in the body. Config problems surface as **503**, never as an unhandled 500 — a 500 escapes the CORS middleware and reaches browsers disguised as a CORS error.
-- **114 automated tests** covering auth, IDOR isolation, upload validation, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), and the export ZIP.
+- **Denial-of-wallet, actually enforced.** Per-user daily quotas, plus a global per-IP ceiling and a tight dedicated limit on the one public endpoint that spends provider money (`/api/resolve`). The limiter keys on the left-most `X-Forwarded-For` entry — behind Render's proxy `request.client.host` is the same address for every visitor, so limiting on it would put the whole internet in one bucket and let the first burst lock everyone out.
+- **171 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), dispute-report findings, incremental asset delivery, and the export ZIP.
 
 ### B2 Storage and Data Orchestration
 
@@ -213,7 +324,9 @@ Genblaze is the orchestration layer, not a single wrapped API call:
 - **Agentic evaluate → retry → store** — every generated image is QA-scored (deterministic Pillow checks + a vision-model "same product?" score against the authentic original), the style regenerates once on failure, and the verdict ships in the asset's metadata and the UI ("passed QA on attempt 2"). See [`originshot_pipelines/qa.py`](backend/originshot_pipelines/qa.py)
 - **Chaining with lineage** — the studio hero image feeds image-to-video; every generated asset records `parent_sha256` back to the authentic original
 - **Fallback chains** — `fallback_models=[…]` on the video step (`pixverse-v5.6-i2v`, `wan2.6-r2v`) so a provider outage degrades instead of failing
-- **Batch fan-out** — variant sweeps across colors and angles
+- **Batch fan-out at two levels** — variant sweeps across colors and angles within one pack, and [Catalog Mode](#catalog-mode--the-whole-shop-in-one-run) running many SKUs' pipelines concurrently under a bounded semaphore
+- **Incremental delivery** — each style's assets are persisted the moment that step completes, not when the job ends, so a pack with a five-minute video step fills the grid image by image instead of after a spinner. A crash mid-run keeps what was produced and settles credit against it, rather than discarding billed work
+- **The same model reused across two jobs** — the QA evaluator is also Resolve's comparison scorer, re-benchmarked for the harder dispute question rather than assumed transferable
 - **Provenance** — `EmbedPolicy` with `full` / `pointer` / `none` modes; `PipelineResult.save(embed=True)`; `manifest.verify()`; extraction via `get_handler(mime).extract()`
 - **Storage sink** — `ObjectStorageSink` + `S3StorageBackend.for_backblaze` + `ParquetSink`
 
@@ -229,10 +342,20 @@ and re-tested our findings against it before reporting anything. Write-ups live 
 
 | Finding | Status on 0.3.6 / 0.3.3 |
 |---|---|
+| **The entire GMI audio modality is unreachable** — the TTS/music `param_allowlist`s omit `text`/`lyrics`, the parameters the API requires, and never alias `prompt` onto them. Every audio model 400s. | **Reproduces** — reported, PR offered |
 | `validate_model()` returns `ok_authoritative` for a model that 404s, and `unknown_permissive` for the one that works | **Still reproduces** — reported |
 | WebP manifest embedding re-encodes the image, silently destroying content-binding | **Still reproduces** (JPEG fixed upstream) — reported, PR offered |
 | Failed steps returned empty `assets` instead of raising | ✅ **Fixed upstream** — withdrawn, not reported |
 | GitHub release `v0.5.0` publishes as PyPI `0.4.3`, so `genblaze==0.5.0` can't be installed | Reported (packaging) |
+
+The first row cost us a planned feature and is the most useful thing we found. We had
+designed a voiceover step — listing copy → narration script → TTS → muxed onto the product
+video — partly because TTS was the one place this app could show a **real** multi-model
+fallback chain, which our image path honestly cannot. It cannot be built on 0.3.3 by anyone:
+the SDK strips the required parameter before the request leaves the process, then reports the
+API's complaint about its absence. We cut the feature rather than bypass the SDK to fake the
+capability. Full root-cause analysis, repro and suggested fix in
+[`docs/genblaze-issues/04-gmi-audio-modality-unreachable.md`](docs/genblaze-issues/04-gmi-audio-modality-unreachable.md).
 
 The third row is the point of the exercise: it *was* on our list, the upgrade fixed it, so
 we dropped it. We also corrected two claims in this README that the new release made
@@ -349,7 +472,7 @@ npm run dev                                    # http://localhost:3000
 **Tests:**
 
 ```bash
-cd backend && poetry run python -m pytest -q   # 114 passing
+cd backend && poetry run python -m pytest -q   # 171 passing
 ```
 
 > **Auth is always enforced** — there is no production bypass. Signing in locally requires
@@ -366,7 +489,7 @@ cd backend && poetry run python -m pytest -q   # 114 passing
 | `NEXT_PUBLIC_API_BASE_URL` | Frontend → API base (inlined at **build** time) |
 | `ALLOWED_ORIGINS` | Comma-separated CORS allowlist, exact match |
 | `MANIFEST_EMBED_MODE` | `full` (default) · `pointer` · `none` |
-| `DAILY_GENERATION_QUOTA` · `RATE_LIMIT_PER_MINUTE` | Denial-of-wallet controls |
+| `DAILY_GENERATION_QUOTA` · `RATE_LIMIT_PER_MINUTE` · `RESOLVE_RATE_LIMIT` | Denial-of-wallet controls |
 
 Full list with defaults in [`.env.example`](.env.example).
 
@@ -383,6 +506,9 @@ Full list with defaults in [`.env.example`](.env.example).
 | `GET` | `/api/skus/{id}/assets` | Assets with short-lived presigned URLs |
 | `POST` | `/api/skus/{id}/generate` | Kick off a generation job (`202`) |
 | `GET` | `/api/jobs/{id}` | Poll job status (`queued`/`running`/`partial`/`done`/`failed`) |
+| `POST` | `/api/batches/estimate` | **Catalog Mode** — quote a whole catalog before running it |
+| `POST` | `/api/batches` · `GET /api/batches` · `GET /api/batches/{id}` | Run and poll a catalog |
+| `POST` | `/api/batches/{id}/export` | **Catalog ZIP** — one full pack per product |
 | `POST` | `/api/skus/{id}/export` | **Marketplace ZIP pack** (renditions, masters, certificate, listing copy) |
 | `GET`/`POST` | `/api/skus/{id}/listing` | Per-marketplace listing copy (chat model, limits enforced in code) |
 | `GET` | `/api/skus/{id}/compliance` | Marketplace-readiness scorecard for the main image |
@@ -390,6 +516,8 @@ Full list with defaults in [`.env.example`](.env.example).
 | `GET` | `/api/analytics` | Assets, dedup savings, cost, provider mix |
 | `POST` | `/api/verify` | **Public** — verify an uploaded file from its bytes |
 | `GET` | `/api/verify/{sha256}` | **Public** — look up provenance by hash |
+| `POST` | `/api/resolve` | **Public** — issue a Dispute Evidence Report (rate-limited) |
+| `GET` | `/api/resolve/{id}` | **Public** — resolve a report by the id on its PDF |
 | `GET` | `/api/assets/{sha256}/manifest` | **Public** — non-sensitive manifest view |
 
 ---
@@ -400,21 +528,23 @@ Full list with defaults in [`.env.example`](.env.example).
 originshot/
 ├── backend/
 │   ├── app/
-│   │   ├── api/            skus · uploads · generate · export · verify · analytics · brand_kit · users
+│   │   ├── api/            skus · uploads · generate · batches · export · verify · resolve · analytics · brand_kit · users
 │   │   ├── auth.py         Firebase ID-token verification (uid only from verified token)
+│   │   ├── batches.py      Catalog Mode runner — bounded concurrency, per-item credit
 │   │   ├── config.py       pydantic settings + env mirroring for SDKs reading os.environ
 │   │   ├── generation.py   pipeline orchestration, manifest embedding, per-style isolation
-│   │   ├── security.py     headers · rate limits · upload validation · quotas
+│   │   ├── security.py     headers · XFF-aware rate limits · upload validation · quotas
 │   │   ├── storage.py      B2Storage / LocalStorage, content-addressable keys
 │   │   ├── repo.py         Firestore repo + in-memory dev fallback
-│   │   └── worker.py       job execution (inline BackgroundTasks or Arq/Redis)
+│   │   └── worker.py       job execution + per-step asset persistence (inline or Arq/Redis)
 │   ├── originshot_pipelines/
 │   │   ├── registry.py     ⭐ canonical providers/models (runtime-verified)
 │   │   ├── provenance.py   ⭐ embed / extract / verify / content-binding
+│   │   ├── resolve.py      ⭐ dispute findings · item comparison · evidence PDF
 │   │   ├── storage.py      Genblaze ObjectStorageSink → B2 + ParquetSink
 │   │   ├── presets.py      marketplace dimensions + rendition rendering
 │   │   └── studio · lifestyle · onmodel · variants · video
-│   └── tests/              114 tests
+│   └── tests/              171 tests
 ├── frontend/               Next.js 15 App Router · Tailwind v4 · Radix primitives · Firebase Auth
 ├── infra/                  Dockerfile.backend · docker-compose · firestore.rules
 ├── docs/                   PROJECT_DESCRIPTION · BUILD_PLAN · SECURITY · DESIGN_SYSTEM
@@ -448,6 +578,9 @@ Stated plainly, because a submission that hides these is worse than one that nam
 - **Cost figures are dual-sourced by design.** The analytics dashboard's headline spend is the ledger-settled, provider-billed total (`Step.cost_usd` aggregated through credit settlement); a list-price estimate is shown alongside it, labeled, for catalogs generated before billing data existed (e.g. dev-mock runs, which bill nothing).
 - **Marketplace renditions drop the embedded manifest** by necessity (re-encoding to exact dimensions). This is why `verified/` exists, and it's documented inside every pack.
 - **Jobs run inline** on the web service (`JOB_QUEUE=inline`). The Arq/Redis worker path is implemented and tested but not provisioned, to keep the free-tier footprint lean.
+- **Dispute reports are hash-anchored, not signed.** There is no issuing keypair, so a report proves it is unaltered against the record this instance holds — not who issued it. An offline-verifiable signature is the obvious next step and is deliberately not claimed until it exists.
+- **The delivered-item comparison is a vision-model judgement.** It is evidence for a human decision, never a determination of fault, and every report says so on its face. It reads two photographs: it cannot assess working order, brand authenticity, or anything not visible in them. The provenance half of each report needs no model and is reproducible by anyone.
+- **No audio modality.** Not a scoping choice — GMI's TTS and music models cannot be invoked through `genblaze-gmicloud` 0.3.3 at all ([issue 04](docs/genblaze-issues/04-gmi-audio-modality-unreachable.md)). We cut the planned voiceover step rather than bypass the SDK to fake the capability.
 
 ---
 
