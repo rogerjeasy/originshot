@@ -14,8 +14,34 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import get_settings
 
-# IP-based limiter for coarse abuse protection; per-user quotas are enforced separately.
-limiter = Limiter(key_func=get_remote_address)
+
+def client_ip(request: Request) -> str:
+    """The caller's real IP, as the rate limiter's bucket key.
+
+    slowapi's stock `get_remote_address` reads `request.client.host`, which behind Render's
+    load balancer is the *proxy's* address — identical for every visitor. Limiting on that
+    puts the whole internet in one bucket: the first burst of traffic locks everyone out.
+    So prefer the left-most `X-Forwarded-For` entry, which is the originating client.
+
+    Trusting XFF is only safe because this app is always deployed behind exactly one proxy
+    that overwrites the header. Exposing the service directly would let a caller forge the
+    header and mint a fresh bucket per request — if that ever changes, this must become an
+    allow-list of trusted proxy addresses.
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
+    return get_remote_address(request)
+
+
+# Per-IP limiter. `default_limits` applies the global ceiling to every route via
+# SlowAPIMiddleware; individual routes add tighter `@limiter.limit(...)` decorators.
+limiter = Limiter(
+    key_func=client_ip,
+    default_limits=[f"{get_settings().rate_limit_per_minute}/minute"],
+)
 
 _ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
 

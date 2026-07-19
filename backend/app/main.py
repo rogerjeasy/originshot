@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from .api import api_router
 from .config import get_settings
@@ -26,9 +27,12 @@ app = FastAPI(
     description="Turn one photo into a marketplace-ready, provenance-verified product pack.",
 )
 
-# Rate limiting (slowapi)
+# Rate limiting (slowapi). The middleware is what actually enforces the limiter's
+# `default_limits` on every route — without it, `app.state.limiter` only powers the
+# per-route `@limiter.limit(...)` decorators and the global ceiling is never applied.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, lambda r, e: _rate_limited())
+app.add_middleware(SlowAPIMiddleware)
 
 # Security headers on every response
 app.add_middleware(SecurityHeadersMiddleware)
