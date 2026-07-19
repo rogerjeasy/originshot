@@ -10,14 +10,20 @@ here: it is us marking our own homework. The endpoint says so in its own respons
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+import hmac
+import logging
+
+from fastapi import APIRouter, Header, HTTPException, Query
 
 from originshot_pipelines import transparency as chain
 
 from .. import transparency as log_service
-from ..models import (LedgerCheckpointOut, LedgerEntryRow, LedgerProofOut,
-                      LedgerStatusOut, LedgerVerifyOut)
+from ..config import get_settings
+from ..models import (LedgerAuditOut, LedgerCheckpointOut, LedgerEntryRow,
+                      LedgerProofOut, LedgerStatusOut, LedgerVerifyOut)
 from ..repo import get_repo
+
+log = logging.getLogger("originshot.ledger")
 
 router = APIRouter(prefix="/ledger", tags=["transparency"])
 
@@ -70,6 +76,45 @@ def proof(sha256: str):
         note="Replay `entry` then `following` and compare the resulting head to "
              "`checkpoint.head`. scripts/verify_ledger.py does exactly this, offline.",
     )
+
+
+@router.get("/audit", response_model=LedgerAuditOut)
+def last_audit():
+    """The most recent integrity audit (app/auditor.py) — public, like the rest of the log.
+
+    404 until an audit has run: "no audit yet" and "audit passed" must never render the
+    same way, so absence is a distinct state rather than a default-green placeholder.
+    """
+    from ..auditor import latest_audit
+
+    report = latest_audit()
+    if not report:
+        raise HTTPException(404, "No audit has run yet")
+    return report
+
+
+@router.post("/audit", response_model=LedgerAuditOut)
+def trigger_audit(x_audit_token: str | None = Header(default=None)):
+    """Run one audit pass now. The caller is a scheduler, not a person.
+
+    Authenticated by a shared token (GitHub Actions cron holds it as a secret) rather than
+    a user account, because no user is present at 03:00. Unset token ⇒ 503, so a
+    deployment that never configured auditing refuses rather than silently exposing an
+    unauthenticated endpoint that downloads media at B2's expense.
+    """
+    expected = get_settings().audit_trigger_token
+    if not expected:
+        raise HTTPException(503, "Auditing is not configured (AUDIT_TRIGGER_TOKEN unset)")
+    if not x_audit_token or not hmac.compare_digest(x_audit_token, expected):
+        raise HTTPException(403, "Invalid audit token")
+
+    from ..auditor import run_audit
+
+    try:
+        return run_audit()
+    except Exception as exc:  # noqa: BLE001 — an audit crash must not read as an outage
+        log.exception("audit run failed")
+        raise HTTPException(500, f"Audit failed to complete: {exc.__class__.__name__}") from exc
 
 
 @router.get("/verify-log", response_model=LedgerVerifyOut)

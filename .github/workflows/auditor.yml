@@ -1,0 +1,40 @@
+# The Auditor's clock. Every few hours it asks the API to run one integrity pass
+# (app/auditor.py): re-verify a random sample of stored assets against their own B2 bytes,
+# replay the transparency chain against the last published checkpoint, cut a fresh
+# checkpoint, and publish the report to B2. The /ledger page shows the result as
+# "Last audit: … assets verified, chain consistent".
+#
+# Setup: add the same random string as
+#   * a repo Actions secret named AUDIT_TRIGGER_TOKEN, and
+#   * the AUDIT_TRIGGER_TOKEN env var on the Render service.
+# Without the secret the job skips with a notice instead of failing every run.
+#
+# The minute is offset from :00 because GitHub throttles top-of-the-hour crons hardest;
+# --retry rides out a Render cold start (~50s), and a successful audit is also an
+# independent keep-warm touch on a different schedule from keep-warm.yml.
+name: auditor
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger an integrity audit
+        env:
+          AUDIT_TRIGGER_TOKEN: ${{ secrets.AUDIT_TRIGGER_TOKEN }}
+        run: |
+          if [ -z "$AUDIT_TRIGGER_TOKEN" ]; then
+            echo "::notice::AUDIT_TRIGGER_TOKEN secret not set — skipping audit trigger."
+            exit 0
+          fi
+          code=$(curl -s -o /tmp/audit.json -w "%{http_code}" --max-time 300 \
+            --retry 3 --retry-delay 20 \
+            -X POST -H "X-Audit-Token: $AUDIT_TRIGGER_TOKEN" \
+            https://originshot-api.onrender.com/api/ledger/audit)
+          echo "audit -> HTTP $code"
+          cat /tmp/audit.json
+          test "$code" = "200"
