@@ -86,6 +86,24 @@ export default function SkuWorkspace() {
     }
   }
 
+  // Replay re-runs one asset from its stored manifest — an ordinary job on the backend,
+  // so it reuses the exact polling/progress machinery a generation does.
+  async function replayAsset(a: Asset) {
+    setActive(null);
+    setError(null);
+    doneStepsRef.current = 0;
+    try {
+      const j = await apiFetch<Job>(`/api/skus/${skuId}/assets/${a.id}/replay`, {
+        method: "POST",
+      });
+      setJob(j);
+      setJobId(j.id);
+      void refreshCredits();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Replay failed");
+    }
+  }
+
   // Poll the job while it runs. Polls on the job *id* (not the job object) so a new
   // interval isn't torn down and rebuilt on every status update the poll itself causes.
   useEffect(() => {
@@ -257,7 +275,12 @@ export default function SkuWorkspace() {
         </FadeIn>
       </div>
 
-      <Lightbox asset={active} onClose={() => setActive(null)} />
+      <Lightbox
+        asset={active}
+        onClose={() => setActive(null)}
+        onReplay={replayAsset}
+        replayDisabled={busyJob}
+      />
     </div>
   );
 }

@@ -3,14 +3,35 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ShieldCheck, Sparkles, X } from "lucide-react";
+import { RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
 
 import { shortHash } from "@/lib/utils";
 import type { Asset } from "@/lib/types";
 import { Button } from "./ui/button";
 
-export function Lightbox({ asset, onClose }: { asset: Asset | null; onClose: () => void }) {
+export function Lightbox({
+  asset,
+  onClose,
+  onReplay,
+  replayDisabled = false,
+  linkToProduct = false,
+}: {
+  asset: Asset | null;
+  onClose: () => void;
+  /** Re-run this asset from its stored manifest. Omit where replay makes no sense. */
+  onReplay?: (a: Asset) => void;
+  replayDisabled?: boolean;
+  /** Show an "Open product" link — for surfaces outside the SKU workspace (Library). */
+  linkToProduct?: boolean;
+}) {
   const reduce = useReducedMotion();
+
+  // Replay needs a spec to execute: a stored manifest, on a generated image. The authentic
+  // original is a photograph, and video's input was a generated intermediate — the backend
+  // refuses both, so the button never appears for them.
+  const canReplay = Boolean(
+    asset && onReplay && !asset.is_authentic && asset.manifest_key && asset.style !== "video",
+  );
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -69,8 +90,9 @@ export function Lightbox({ asset, onClose }: { asset: Asset | null; onClose: () 
                 {asset.provider && <span>{asset.provider}</span>}
                 {asset.model && <span>{asset.model}</span>}
                 {asset.embedded && <span className="text-verified">manifest embedded</span>}
+                {asset.replay_of && <span>replay of {shortHash(asset.replay_of, 8, 8)}</span>}
               </div>
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5">
                   {asset.is_authentic ? (
                     <ShieldCheck className="size-4 text-verified" />
@@ -79,9 +101,32 @@ export function Lightbox({ asset, onClose }: { asset: Asset | null; onClose: () 
                   )}
                   {asset.is_authentic ? "Verified original" : "AI-generated"}
                 </span>
-                <Link href={`/verify/${asset.sha256}`} className="text-accent hover:underline">
-                  Verify →
-                </Link>
+                <span className="inline-flex items-center gap-3">
+                  {linkToProduct && (
+                    <Link
+                      href={`/studio/${asset.sku_id}`}
+                      className="text-accent hover:underline"
+                    >
+                      Open product →
+                    </Link>
+                  )}
+                  {canReplay && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={replayDisabled}
+                      onClick={() => onReplay?.(asset)}
+                      title="Re-run this exact generation from its embedded provenance spec — same prompt, model and seed, fresh output"
+                    >
+                      <RotateCcw className="size-3.5" />
+                      Replay from manifest
+                    </Button>
+                  )}
+                  <Link href={`/verify/${asset.sha256}`} className="text-accent hover:underline">
+                    Verify →
+                  </Link>
+                </span>
               </div>
             </div>
           </motion.div>

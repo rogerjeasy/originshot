@@ -215,7 +215,13 @@ export function JobProgress({ job }: { job: Job }) {
               className={cn("size-3.5 text-accent", running && "animate-pulse")}
               aria-hidden
             />
-            {running ? "Developing" : "Generation complete"}
+            {job.replay_of_sha256
+              ? running
+                ? "Replaying from manifest"
+                : "Replay complete"
+              : running
+                ? "Developing"
+                : "Generation complete"}
           </h2>
           <div className="text-right">
             <span
