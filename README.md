@@ -51,7 +51,8 @@ offline, with no call back to our servers.
 | **Health check** | https://originshot-api.onrender.com/healthz |
 | **Public verifier** (no login) | https://originshot.vercel.app/verify |
 | **Resolve a dispute** (no login) | https://originshot.vercel.app/resolve |
-| **Transparency log** (no login) | https://originshot.vercel.app/ledger |
+| **Transparency log + last audit** (no login) | https://originshot.vercel.app/ledger |
+| **Library** (signed in) | https://originshot.vercel.app/library |
 
 > The API runs on Render's **free tier**, which sleeps after ~15 minutes idle. A
 > [keep-warm workflow](.github/workflows/keep-warm.yml) pings `/healthz` every 10 minutes so
@@ -164,6 +165,37 @@ forger rebuilt every hash after the edit, so internal consistency proves nothing
 What catches it is the previously published checkpoint, which the doctored history can no
 longer reproduce.
 
+### The Auditor — the log with a heartbeat
+
+A log nobody checks is a log nobody checks. Every few hours a scheduled **Auditor**
+([`app/auditor.py`](backend/app/auditor.py), driven by
+[`.github/workflows/auditor.yml`](.github/workflows/auditor.yml)) does, unattended, exactly
+what a sceptical customer would do by hand:
+
+```
+Last audit · 2h ago                                        ✓ 25 / 25 verified
+──────────────────────────────────────────────────────────────────────────────
+Assets re-verified   25 / 25 passed     re-downloaded from B2, re-hashed,
+                                        embedded manifests re-extracted + verified
+Chain replay         consistent         all 148 entries replayed
+Published head       reproduced         replaying the first 140 reproduces the checkpoint
+Report               ledger/audits/audit-20260719T0317Z-9f2c1e04b7aa.json
+```
+
+It re-downloads a random sample of stored media and re-derives each file's integrity from
+its **bytes alone** (does the object still hash to the content address it is stored under;
+does its embedded manifest still verify and still bind to the media), replays the chain
+against the last *published* checkpoint, cuts a fresh checkpoint — the timer-based cut that
+entry-count checkpointing can't provide during a quiet period — and publishes its report to
+B2 under a key carrying the report's own SHA-256.
+
+This catches what nothing else here catches: **silent** failure. Bit rot, a bad write, or
+bytes swapped under a content address would otherwise sit unnoticed until a customer
+happened to hit the one damaged file. Swap an object's bytes and the next pass names the
+exact hash and the exact check that failed. It is also, deliberately, the instance marking
+its own homework — the page says so, and independent verification remains the standalone
+script below.
+
 ### What this does not prove
 
 Stated as plainly as the rest, because a transparency log that overstates itself is worse
@@ -172,6 +204,9 @@ than none:
 - **No signatures.** There is no issuing keypair, so a checkpoint proves integrity against a
   published record, not authorship. Real CT logs sign their heads; that is the next step and
   is not claimed here.
+- **The Auditor is self-audit.** It protects against silent corruption and drift, not
+  against a dishonest operator, who could simply not run it or not publish a bad result.
+  The load-bearing check remains the standalone verifier, which needs none of our code.
 - **No witnesses, so a split view is undetectable.** A dishonest operator could keep two
   chains and show different checkpoints to different people. CT solves this with gossip
   between independent auditors; a single-operator log cannot.
@@ -183,6 +218,44 @@ than none:
   and honest about its cost.
 
 ---
+
+## Replay — Provenance You Can Execute
+
+Everything above points provenance *backwards*: it proves how an existing file was made.
+But a Genblaze manifest carries the complete step spec — provider, model, prompt, seed,
+params — which means it can **drive** a new run, not merely describe an old one. One button
+on any generated asset:
+
+```
+REPLAY  studio · from manifest run-9f2c1e04                    ✓ REPLAY COMPLETE
+──────────────────────────────────────────────────────────────────────────────
+Spec source     the stored manifest — NOT today's prompt templates
+Model           gemini-3-pro-image-preview          (recorded, no fallback substitution)
+Prompt          "Professional e-commerce product photograph of a handmade…"
+Reference       re-presigned from the anchored original by content hash
+New asset       7c41ab90e3d5…   replay_of ea88b1f0…   parent 05993b99…
+Ledger          entry #149, kind=replay
+```
+
+Two decisions are the whole feature. **The spec comes from the manifest, verbatim** — if
+the prompt templates in this repo have changed since the original run, a replay still runs
+the *original* words; that is what reproducibility against a record means. And **fallbacks
+are stripped**: a fresh generation may degrade to a fallback model because its promise is
+"produce the style", but a replay's promise is "this exact spec", and an output quietly
+served by a different model would contradict the very manifest being replayed.
+
+The one thing that can't be replayed verbatim is the reference-image URL — the manifest
+recorded a presign that expired minutes after the run. Replay re-presigns the same
+*content* instead, resolved from the asset's `parent_sha256`, which is a stronger binding
+than any URL. (Video is excluded for exactly this reason: its input was a generated
+intermediate, not the anchored original.) Determinism is not claimed — the seed is carried
+when present, but providers don't guarantee bit-identical output, so the replayed asset
+gets its own hash, its own manifest and its own ledger entry rather than impersonating the
+old one.
+
+Replay is also what makes the transparency log's central claim demonstrable: run it a few
+times and the log fills with `kind=replay` entries. Each individual file stays honest; the
+*history* is what shows the seller regenerated the shot until the scratch went away.
 
 ## Catalog Mode — The Whole Shop In One Run
 
@@ -359,7 +432,7 @@ photography.
 - **Graceful degradation** — partial job results, provider fallback chains, and a storage/repo abstraction that runs fully offline in dev.
 - **A health check that doesn't lie.** `/healthz` *exercises* each dependency rather than checking that an env var is set — it initializes the Firebase Admin SDK and (with `?deep=true`) round-trips to the B2 bucket, reporting `status: degraded` plus the failing exception type. It deliberately still returns **200** while the process is alive, because a failing health check makes the platform restart-loop the service; degradation belongs in the body. Config problems surface as **503**, never as an unhandled 500 — a 500 escapes the CORS middleware and reaches browsers disguised as a CORS error.
 - **Denial-of-wallet, actually enforced.** Per-user daily quotas, plus a global per-IP ceiling and a tight dedicated limit on the one public endpoint that spends provider money (`/api/resolve`). The limiter keys on the left-most `X-Forwarded-For` entry — behind Render's proxy `request.client.host` is the same address for every visitor, so limiting on it would put the whole internet in one bucket and let the first burst lock everyone out.
-- **204 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), transparency-log tampering and concurrent appends, dispute-report findings, catalog credit and concurrency, incremental asset delivery, and the export ZIP.
+- **221 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), transparency-log tampering and concurrent appends, the Auditor catching a swapped object, replay refusal paths and manifest-driven specs, cross-catalog library scoping, dispute-report findings, catalog credit and concurrency, incremental asset delivery, and the export ZIP.
 
 ### B2 Storage and Data Orchestration
 
@@ -373,12 +446,21 @@ B2 is the system of record for every byte, not an afterthought:
 | **Sidecar manifests** | `manifests/<run_id>/<style>.json` — canonical provenance JSON |
 | **Analytics** | Genblaze `ParquetSink` metadata export |
 | **Transparency checkpoints** | `ledger/checkpoints/<size>-<hash>.json` — the published head of the append-only log |
+| **Audit reports** | `ledger/audits/<audit-id>-<hash>.json` — each scheduled integrity pass, keyed by the report's own SHA-256 |
 
 **B2 is the trust anchor, not just the blob store.** A transparency checkpoint kept only in
 our own database would be worth nothing — the party you are being asked to trust is the same
 party who could rewrite it. Publishing each head to object storage under a content-addressed
 key gives it an existence independent of the application's own data, and the bucket's own
 listing becomes a second record of when each head appeared.
+
+**Organized and searchable, not just durable.** The
+[**Library**](https://originshot.vercel.app/library) is the cross-catalog view over
+everything stored: filter by style, modality, authentic-vs-AI, or QA verdict, and search by
+**content-hash prefix** — the same handle the ledger, `/verify` and the export certificates
+all use, so "which of my files is `4b2b705d…`?" is answerable from the question the ledger
+itself hands you. Filters run server-side, so a signed URL is minted only for the assets
+actually being shown.
 
 **Content-addressing is the cost story.** The key *is* the SHA-256 of the content, so
 identical bytes — a re-uploaded original, a repeated generation, a shared scene plate — are
@@ -404,6 +486,7 @@ Genblaze is the orchestration layer, not a single wrapped API call:
 - **Incremental delivery** — each style's assets are persisted the moment that step completes, not when the job ends, so a pack with a five-minute video step fills the grid image by image instead of after a spinner. A crash mid-run keeps what was produced and settles credit against it, rather than discarding billed work
 - **The same model reused across two jobs** — the QA evaluator is also Resolve's comparison scorer, re-benchmarked for the harder dispute question rather than assumed transferable
 - **Provenance** — `EmbedPolicy` with `full` / `pointer` / `none` modes; `PipelineResult.save(embed=True)`; `manifest.verify()`; extraction via `get_handler(mime).extract()`
+- **Executable provenance** — [Replay](#replay--provenance-you-can-execute) reads a stored manifest back into a live `Pipeline` step (`originshot_pipelines/replay.py`), so the manifest is a spec rather than only a record
 - **Storage sink** — `ObjectStorageSink` + `S3StorageBackend.for_backblaze` + `ParquetSink`
 
 Model IDs and kwargs are **runtime-verified against the installed SDK** by
@@ -548,7 +631,7 @@ npm run dev                                    # http://localhost:3000
 **Tests:**
 
 ```bash
-cd backend && poetry run python -m pytest -q   # 204 passing
+cd backend && poetry run python -m pytest -q   # 221 passing
 ```
 
 > **Auth is always enforced** — there is no production bypass. Signing in locally requires
@@ -566,6 +649,7 @@ cd backend && poetry run python -m pytest -q   # 204 passing
 | `ALLOWED_ORIGINS` | Comma-separated CORS allowlist, exact match |
 | `MANIFEST_EMBED_MODE` | `full` (default) · `pointer` · `none` |
 | `DAILY_GENERATION_QUOTA` · `RATE_LIMIT_PER_MINUTE` · `RESOLVE_RATE_LIMIT` | Denial-of-wallet controls |
+| `AUDIT_TRIGGER_TOKEN` · `AUDIT_SAMPLE_SIZE` | The Auditor's scheduler token (unset ⇒ the trigger refuses) and per-pass sample size |
 
 Full list with defaults in [`.env.example`](.env.example).
 
@@ -580,7 +664,9 @@ Full list with defaults in [`.env.example`](.env.example).
 | `POST` | `/api/skus` · `GET /api/skus` · `GET /api/skus/{id}` | Product CRUD |
 | `POST` | `/api/skus/{id}/upload` | Upload + SHA-256 anchor the authentic original |
 | `GET` | `/api/skus/{id}/assets` | Assets with short-lived presigned URLs |
+| `GET` | `/api/assets` | **Library** — every asset across the catalog; filter by style, modality, authentic/AI, QA verdict, or content-hash prefix |
 | `POST` | `/api/skus/{id}/generate` | Kick off a generation job (`202`) |
+| `POST` | `/api/skus/{id}/assets/{assetId}/replay` | **Replay** — re-run an asset from its stored manifest (`202`) |
 | `GET` | `/api/jobs/{id}` | Poll job status (`queued`/`running`/`partial`/`done`/`failed`) |
 | `POST` | `/api/batches/estimate` | **Catalog Mode** — quote a whole catalog before running it |
 | `POST` | `/api/batches` · `GET /api/batches` · `GET /api/batches/{id}` | Run and poll a catalog |
@@ -593,6 +679,7 @@ Full list with defaults in [`.env.example`](.env.example).
 | `POST` | `/api/verify` | **Public** — verify an uploaded file from its bytes |
 | `GET` | `/api/verify/{sha256}` | **Public** — look up provenance by hash |
 | `GET` | `/api/ledger` · `/api/ledger/entries` · `/api/ledger/checkpoint` | **Public** — the transparency log, its raw entries and the published head |
+| `GET`/`POST` | `/api/ledger/audit` | **Public** read of the latest integrity audit; POST runs one (scheduler token) |
 | `GET` | `/api/ledger/proof/{sha256}` | **Public** — offline-verifiable inclusion proof |
 | `POST` | `/api/resolve` | **Public** — issue a Dispute Evidence Report (rate-limited) |
 | `GET` | `/api/resolve/{id}` | **Public** — resolve a report by the id on its PDF |
@@ -609,6 +696,7 @@ originshot/
 │   │   ├── api/            skus · uploads · generate · batches · export · verify · resolve · analytics · brand_kit · users
 │   │   ├── auth.py         Firebase ID-token verification (uid only from verified token)
 │   │   ├── batches.py      Catalog Mode runner — bounded concurrency, per-item credit
+│   │   ├── auditor.py      ⭐ scheduled integrity agent — resample, re-verify, replay, publish
 │   │   ├── transparency.py log appends + checkpoint publication to B2
 │   │   ├── config.py       pydantic settings + env mirroring for SDKs reading os.environ
 │   │   ├── generation.py   pipeline orchestration, manifest embedding, per-style isolation
@@ -621,10 +709,11 @@ originshot/
 │   │   ├── provenance.py   ⭐ embed / extract / verify / content-binding
 │   │   ├── transparency.py ⭐ append-only hash chain · checkpoints · proofs
 │   │   ├── resolve.py      ⭐ dispute findings · item comparison · evidence PDF
+│   │   ├── replay.py       ⭐ manifest → executable pipeline spec
 │   │   ├── storage.py      Genblaze ObjectStorageSink → B2 + ParquetSink
 │   │   ├── presets.py      marketplace dimensions + rendition rendering
 │   │   └── studio · lifestyle · onmodel · variants · video
-│   └── tests/              204 tests
+│   └── tests/              221 tests
 ├── frontend/               Next.js 15 App Router · Tailwind v4 · Radix primitives · Firebase Auth
 ├── infra/                  Dockerfile.backend · docker-compose · firestore.rules
 ├── docs/                   PROJECT_DESCRIPTION · BUILD_PLAN · SECURITY · DESIGN_SYSTEM · BENCHMARKS
