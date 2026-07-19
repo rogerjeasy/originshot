@@ -66,6 +66,149 @@ def _label(asset: dict) -> str:
     return f"{asset.get('style') or 'asset'}-{(asset.get('sha256') or '')[:8]}"
 
 
+def pack_root(sku: dict, sku_id: str) -> str:
+    """The pack's top-level folder name. Shared so a catalog export nests real pack folders."""
+    return f"OriginShot-{_slug(sku.get('title'), sku_id)}"
+
+
+def write_pack(zf: zipfile.ZipFile, *, sku: dict, sku_id: str, assets: list[dict],
+               marketplaces: list[str], root: str, storage) -> dict:
+    """Write one complete SKU pack into an already-open ZIP under `root`.
+
+    Extracted so the single-SKU download and the catalog-wide download build *the same*
+    pack — a bulk export that quietly produced a thinner pack than the individual one would
+    be the kind of divergence nobody notices until a seller complains. Returns pack stats.
+    """
+    disclosures: list[str] = []
+    rendered = skipped = 0
+    # The main image's master bytes, for the compliance scorecard: prefer studio (that's
+    # the marketplace main image), fall back to the first still we manage to read.
+    scorecard_master: bytes | None = None
+    scorecard_is_studio = False
+
+    for asset in assets:
+        key = _asset_key(asset)
+        if not key:
+            skipped += 1
+            continue
+        try:
+            data = storage.get_bytes(key)
+        except Exception as exc:  # noqa: BLE001 — one bad object must not kill the pack
+            log.warning("export: could not read %s (%s)", key, exc)
+            skipped += 1
+            continue
+
+        name, ext = _label(asset), _ext_for(asset)
+        is_video = asset.get("modality") == Modality.video.value or ext == _VIDEO_EXT
+
+        # 1. Byte-exact master — embedded manifest intact, still verifiable.
+        zf.writestr(f"{root}/verified/{name}{ext}", data)
+        disclosures.append(f"{name}{ext}\n    {disclosure(asset)}")
+
+        # 2. Sidecar provenance manifest, when one was persisted to B2.
+        manifest_key = asset.get("manifest_key")
+        if manifest_key and not str(manifest_key).startswith("http"):
+            try:
+                zf.writestr(f"{root}/manifests/{name}.json", storage.get_bytes(manifest_key))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("export: manifest %s unavailable (%s)", manifest_key, exc)
+
+        # 3. Marketplace-formatted renditions (still images only).
+        if is_video:
+            continue
+        if scorecard_master is None or (
+            not scorecard_is_studio and asset.get("style") == "studio"
+        ):
+            scorecard_master = data
+            scorecard_is_studio = asset.get("style") == "studio"
+        for marketplace in marketplaces:
+            preset = get_preset(marketplace)
+            if not preset:
+                continue
+            try:
+                out, out_ext = render_for_preset(data, preset)
+                zf.writestr(f"{root}/{marketplace}/{name}{out_ext}", out)
+                rendered += 1
+            except Exception as exc:  # noqa: BLE001 — a bad render must not kill the pack
+                log.warning("export: render %s for %s failed (%s)", name, marketplace, exc)
+
+    # Listing copy, when it has been generated: one paste-ready .txt per channel plus
+    # the machine-readable original. Copy discloses itself the same way the images do.
+    stored_listing = sku.get("listing")
+    if stored_listing:
+        zf.writestr(f"{root}/listing/listing.json",
+                    json.dumps(stored_listing, indent=2))
+        for market, entry in (stored_listing.get("marketplaces") or {}).items():
+            if marketplaces and market not in marketplaces:
+                continue
+            zf.writestr(
+                f"{root}/listing/{market}.txt",
+                listing_text(market, entry, stored_listing.get("disclosure", "")),
+            )
+
+    # Compliance scorecard, measured on the same render path the folders above used.
+    compliance_items: list[dict] = []
+    if scorecard_master is not None:
+        try:
+            from originshot_pipelines.compliance import studio_scorecard
+
+            compliance_items = studio_scorecard(
+                scorecard_master, marketplaces or None
+            )
+        except Exception as exc:  # noqa: BLE001 — the scorecard must not kill the pack
+            log.warning("export: compliance scorecard failed (%s)", exc)
+
+    # Certificate of Provenance + QR badge: the tangible proof sheet. The frontend
+    # origin hosts /verify, so the QR resolves for anyone who scans it from a listing.
+    try:
+        from originshot_pipelines.certificate import build_certificate, qr_png
+
+        verify_base = get_settings().origins[0].rstrip("/") + "/verify"
+        zf.writestr(f"{root}/certificate.pdf",
+                    build_certificate(sku, assets, verify_base_url=verify_base))
+        original_asset = next((a for a in assets if a.get("is_authentic")), None)
+        if original_asset and original_asset.get("sha256"):
+            zf.writestr(f"{root}/verify-qr.png",
+                        qr_png(f"{verify_base}/{original_asset['sha256']}"))
+    except Exception as exc:  # noqa: BLE001 — the certificate must not kill the pack
+        log.warning("export: certificate generation failed (%s)", exc)
+
+    targets = preset_targets(marketplaces)
+    zf.writestr(f"{root}/disclosure.txt", _disclosure_doc(sku, disclosures))
+    zf.writestr(f"{root}/README.txt", _readme_doc(sku, targets, len(assets), rendered))
+    zf.writestr(f"{root}/pack.json", json.dumps({
+        "sku_id": sku_id,
+        "title": sku.get("title"),
+        "asset_count": len(assets),
+        "marketplaces": marketplaces,
+        "presets": targets,
+        "renditions": rendered,
+        "skipped": skipped,
+        "compliance": compliance_items,
+        "assets": [
+            {
+                "file": f"{_label(a)}{_ext_for(a)}",
+                "style": a.get("style"),
+                "sha256": a.get("sha256"),
+                "is_authentic": bool(a.get("is_authentic")),
+                "provider": a.get("provider"),
+                "model": a.get("model"),
+                "parent_sha256": a.get("parent_sha256"),
+                "manifest_verified": a.get("manifest_verified"),
+            }
+            for a in assets
+        ],
+    }, indent=2))
+
+    return {
+        "root": root,
+        "assets": len(assets),
+        "renditions": rendered,
+        "skipped": skipped,
+        "compliance": compliance_items,
+    }
+
+
 @router.post("/skus/{sku_id}/export")
 def export_pack(
     sku_id: str,
@@ -82,131 +225,12 @@ def export_pack(
         raise HTTPException(400, "Nothing to export — generate assets first")
 
     marketplaces = [m.value for m in body.marketplaces] if body else []
-    storage = get_storage()
-    root = f"OriginShot-{_slug(sku.get('title'), sku_id)}"
+    root = pack_root(sku, sku_id)
 
     buf = io.BytesIO()
-    disclosures: list[str] = []
-    rendered = skipped = 0
-    # The main image's master bytes, for the compliance scorecard: prefer studio (that's
-    # the marketplace main image), fall back to the first still we manage to read.
-    scorecard_master: bytes | None = None
-    scorecard_is_studio = False
-
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for asset in assets:
-            key = _asset_key(asset)
-            if not key:
-                skipped += 1
-                continue
-            try:
-                data = storage.get_bytes(key)
-            except Exception as exc:  # noqa: BLE001 — one bad object must not kill the pack
-                log.warning("export: could not read %s (%s)", key, exc)
-                skipped += 1
-                continue
-
-            name, ext = _label(asset), _ext_for(asset)
-            is_video = asset.get("modality") == Modality.video.value or ext == _VIDEO_EXT
-
-            # 1. Byte-exact master — embedded manifest intact, still verifiable.
-            zf.writestr(f"{root}/verified/{name}{ext}", data)
-            disclosures.append(f"{name}{ext}\n    {disclosure(asset)}")
-
-            # 2. Sidecar provenance manifest, when one was persisted to B2.
-            manifest_key = asset.get("manifest_key")
-            if manifest_key and not str(manifest_key).startswith("http"):
-                try:
-                    zf.writestr(f"{root}/manifests/{name}.json", storage.get_bytes(manifest_key))
-                except Exception as exc:  # noqa: BLE001
-                    log.warning("export: manifest %s unavailable (%s)", manifest_key, exc)
-
-            # 3. Marketplace-formatted renditions (still images only).
-            if is_video:
-                continue
-            if scorecard_master is None or (
-                not scorecard_is_studio and asset.get("style") == "studio"
-            ):
-                scorecard_master = data
-                scorecard_is_studio = asset.get("style") == "studio"
-            for marketplace in marketplaces:
-                preset = get_preset(marketplace)
-                if not preset:
-                    continue
-                try:
-                    out, out_ext = render_for_preset(data, preset)
-                    zf.writestr(f"{root}/{marketplace}/{name}{out_ext}", out)
-                    rendered += 1
-                except Exception as exc:  # noqa: BLE001 — a bad render must not kill the pack
-                    log.warning("export: render %s for %s failed (%s)", name, marketplace, exc)
-
-        # Listing copy, when it has been generated: one paste-ready .txt per channel plus
-        # the machine-readable original. Copy discloses itself the same way the images do.
-        stored_listing = sku.get("listing")
-        if stored_listing:
-            zf.writestr(f"{root}/listing/listing.json",
-                        json.dumps(stored_listing, indent=2))
-            for market, entry in (stored_listing.get("marketplaces") or {}).items():
-                if marketplaces and market not in marketplaces:
-                    continue
-                zf.writestr(
-                    f"{root}/listing/{market}.txt",
-                    listing_text(market, entry, stored_listing.get("disclosure", "")),
-                )
-
-        # Compliance scorecard, measured on the same render path the folders above used.
-        compliance_items: list[dict] = []
-        if scorecard_master is not None:
-            try:
-                from originshot_pipelines.compliance import studio_scorecard
-
-                compliance_items = studio_scorecard(
-                    scorecard_master, marketplaces or None
-                )
-            except Exception as exc:  # noqa: BLE001 — the scorecard must not kill the pack
-                log.warning("export: compliance scorecard failed (%s)", exc)
-
-        # Certificate of Provenance + QR badge: the tangible proof sheet. The frontend
-        # origin hosts /verify, so the QR resolves for anyone who scans it from a listing.
-        try:
-            from originshot_pipelines.certificate import build_certificate, qr_png
-
-            verify_base = get_settings().origins[0].rstrip("/") + "/verify"
-            zf.writestr(f"{root}/certificate.pdf",
-                        build_certificate(sku, assets, verify_base_url=verify_base))
-            original_asset = next((a for a in assets if a.get("is_authentic")), None)
-            if original_asset and original_asset.get("sha256"):
-                zf.writestr(f"{root}/verify-qr.png",
-                            qr_png(f"{verify_base}/{original_asset['sha256']}"))
-        except Exception as exc:  # noqa: BLE001 — the certificate must not kill the pack
-            log.warning("export: certificate generation failed (%s)", exc)
-
-        targets = preset_targets(marketplaces)
-        zf.writestr(f"{root}/disclosure.txt", _disclosure_doc(sku, disclosures))
-        zf.writestr(f"{root}/README.txt", _readme_doc(sku, targets, len(assets), rendered))
-        zf.writestr(f"{root}/pack.json", json.dumps({
-            "sku_id": sku_id,
-            "title": sku.get("title"),
-            "asset_count": len(assets),
-            "marketplaces": marketplaces,
-            "presets": targets,
-            "renditions": rendered,
-            "skipped": skipped,
-            "compliance": compliance_items,
-            "assets": [
-                {
-                    "file": f"{_label(a)}{_ext_for(a)}",
-                    "style": a.get("style"),
-                    "sha256": a.get("sha256"),
-                    "is_authentic": bool(a.get("is_authentic")),
-                    "provider": a.get("provider"),
-                    "model": a.get("model"),
-                    "parent_sha256": a.get("parent_sha256"),
-                    "manifest_verified": a.get("manifest_verified"),
-                }
-                for a in assets
-            ],
-        }, indent=2))
+        write_pack(zf, sku=sku, sku_id=sku_id, assets=assets,
+                   marketplaces=marketplaces, root=root, storage=get_storage())
 
     buf.seek(0)
     return StreamingResponse(
