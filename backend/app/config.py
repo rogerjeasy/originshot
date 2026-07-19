@@ -57,7 +57,19 @@ class Settings(BaseSettings):
     max_image_pixels: int = 40_000_000
     daily_generation_quota: int = 50
     presigned_url_ttl_seconds: int = 900
-    rate_limit_per_minute: int = 60
+
+    # Global per-IP ceiling, applied to every route by SlowAPIMiddleware. Sized as an ABUSE
+    # ceiling, not a fairness knob: the studio polls `/api/jobs/{id}` every 1.2s during a run
+    # (50 req/min) and reloads the asset grid on each completed step, so a limit anywhere
+    # near 60/min would throttle one honest user mid-generation. Endpoints where a request
+    # costs real provider money carry their own, much tighter limit on top of this.
+    rate_limit_per_minute: int = 240
+
+    # Resolve is public (a buyer in a dispute has no account) AND spends a vision-model call
+    # per report, so it is the app's only unauthenticated path to a provider bill. Tight
+    # per-IP limit; see app/api/resolve.py.
+    resolve_rate_limit: str = "10/hour"
+    resolve_enabled: bool = True
 
     # Credits (USD). The daily quota above bounds *request volume*; credits bound *spend* —
     # a single video pack costs 10x an image pack, so a request count alone can't cap cost.
@@ -72,6 +84,14 @@ class Settings(BaseSettings):
 
     # How generation jobs run: "inline" (BackgroundTasks) or "arq" (Redis worker).
     job_queue: str = "inline"
+
+    # Catalog Mode: how many SKUs generate at once within one batch. Generation is I/O-bound
+    # on the provider so parallelism buys wall-clock cheaply, but each in-flight job also
+    # holds decoded image bytes for QA scoring in this same process, and the deployment
+    # target is a 512 MB free-tier instance. See app/batches.py::concurrency_for.
+    catalog_concurrency: int = 2
+    # Ceiling on SKUs per batch — bounds one request's blast radius on quota and spend.
+    catalog_max_skus: int = 100
     image_timeout_seconds: int = 300
     video_timeout_seconds: int = 600
 
