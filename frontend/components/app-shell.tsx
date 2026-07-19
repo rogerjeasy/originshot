@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   Gauge,
+  Images,
   LayoutGrid,
   Loader2,
   LogOut,
@@ -24,6 +25,7 @@ import { TooltipProvider } from "./ui/tooltip";
 
 const NAV = [
   { href: "/studio", label: "Studio", icon: LayoutGrid },
+  { href: "/library", label: "Library", icon: Images },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/verify", label: "Verify", icon: ShieldCheck },
   { href: "/settings", label: "Settings", icon: Settings },

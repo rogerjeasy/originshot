@@ -11,6 +11,7 @@ from . import (
     export,
     generate,
     ledger,
+    library,
     listing,
     resolve,
     skus,
@@ -29,6 +30,7 @@ api_router.include_router(verify.router)
 api_router.include_router(ledger.router)
 api_router.include_router(resolve.router)
 api_router.include_router(analytics.router)
+api_router.include_router(library.router)
 api_router.include_router(export.router)
 api_router.include_router(brand_kit.router)
 api_router.include_router(credits.router)

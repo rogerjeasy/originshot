@@ -48,6 +48,7 @@ class Repo(Protocol):
 
     def add_asset(self, uid: str, asset: dict) -> dict: ...
     def list_assets(self, uid: str, sku_id: str) -> list[dict]: ...
+    def list_assets_for_user(self, uid: str) -> list[dict]: ...  # cross-SKU library view
     def find_asset_by_sha(self, sha256: str) -> dict | None: ...  # public verify (global)
 
     def create_job(self, uid: str, job: dict) -> dict: ...
@@ -163,6 +164,12 @@ class InMemoryRepo:
         return sorted(
             [a for a in self._assets.values() if a["owner_uid"] == uid and a["sku_id"] == sku_id],
             key=lambda a: a["created_at"],
+        )
+
+    def list_assets_for_user(self, uid: str) -> list[dict]:
+        return sorted(
+            [a for a in self._assets.values() if a["owner_uid"] == uid],
+            key=lambda a: a["created_at"], reverse=True,
         )
 
     def find_asset_by_sha(self, sha256: str) -> dict | None:
@@ -381,6 +388,18 @@ class FirestoreRepo:
     def list_assets(self, uid: str, sku_id: str) -> list[dict]:
         col = self._seller(uid).collection("skus").document(sku_id).collection("assets")
         return [d.to_dict() for d in col.stream()]
+
+    def list_assets_for_user(self, uid: str) -> list[dict]:
+        # Iterating the user's SKUs rather than a filtered collection-group query is
+        # deliberate: a `collection_group("assets").where("owner_uid"==uid)` needs a
+        # collection-group-scoped index that a fresh Firestore project doesn't have, and a
+        # missing index fails at request time in production. SKU count is bounded (the
+        # catalog cap is 100), so N subcollection reads is the safe shape.
+        out: list[dict] = []
+        for sku in self.list_skus(uid):
+            out.extend(self.list_assets(uid, sku["id"]))
+        epoch = datetime.min.replace(tzinfo=timezone.utc)
+        return sorted(out, key=lambda a: a.get("created_at") or epoch, reverse=True)
 
     def find_asset_by_sha(self, sha256: str) -> dict | None:
         idx = self._db.collection("asset_index").document(sha256).get()
