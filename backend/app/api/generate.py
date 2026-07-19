@@ -8,9 +8,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from .. import credits, pricing
 from ..auth import CurrentUser, get_current_user
 from ..generation import generation_mode, missing_generation_requirements
-from ..models import GenerateRequest, JobOut, StepStatus
+from ..models import GenerateRequest, JobOut, StepStatus, Style
 from ..repo import get_repo
-from ..queue import enqueue_generation
+from ..queue import enqueue_generation, enqueue_replay
 from ..security import enforce_generation_quota
 
 router = APIRouter(tags=["generate"])
@@ -100,6 +100,59 @@ async def generate(
 
     await enqueue_generation(background, user.uid, job["id"], sku_id, styles)
     return job
+
+
+@router.post("/skus/{sku_id}/assets/{asset_id}/replay", response_model=JobOut, status_code=202)
+async def replay(
+    sku_id: str,
+    asset_id: str,
+    background: BackgroundTasks,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Re-run a generated asset from its stored manifest — provenance as the spec.
+
+    Same job machinery as /generate (hold → run → settle, quota, per-step progress), but
+    the pipeline step is rebuilt from the manifest rather than from the current prompt
+    templates. See originshot_pipelines/replay.py for what is and isn't carried over.
+
+    The refusals are specific on purpose: each names the reason the manifest can't drive
+    a run, because "409" alone teaches the caller nothing.
+    """
+    repo = get_repo()
+    sku = repo.get_sku(user.uid, sku_id)
+    if not sku:
+        raise HTTPException(404, "Not found")
+    asset = next((a for a in repo.list_assets(user.uid, sku_id) if a.get("id") == asset_id), None)
+    if not asset:
+        raise HTTPException(404, "Not found")
+    if asset.get("is_authentic"):
+        raise HTTPException(
+            409, "The authentic original is a photograph, not a generation — "
+            "there is no manifest to replay."
+        )
+    if asset.get("style") == Style.video.value:
+        raise HTTPException(
+            400, "Video assets can't be replayed: their input was a generated intermediate "
+            "(the hero frame), not the anchored original."
+        )
+    if not asset.get("manifest_key"):
+        raise HTTPException(
+            409, "No stored manifest for this asset — it predates provenance sidecars "
+            "or was produced by the dev mock."
+        )
+
+    assert_generation_available()
+    enforce_generation_quota(user.uid)
+    credits.ensure_signup_grant(user.uid)
+
+    job = submit_generation(user.uid, sku, sku_id, [asset["style"]], [])
+    # Recorded on the job so the UI can label the run, and so the replayed asset's
+    # `replay_of` lineage has a job-side counterpart an operator can query.
+    repo.update_job(user.uid, job["id"], {
+        "replay_of_sha256": asset["sha256"], "replay_of_asset_id": asset_id,
+    })
+    await enqueue_replay(background, user.uid, job["id"], sku_id, asset_id)
+    return repo.get_job(user.uid, job["id"]) or job
 
 
 @router.get("/jobs/{job_id}", response_model=JobOut)
