@@ -131,6 +131,99 @@ export interface VerifyResult {
   disclosure: string;
 }
 
+/** Catalog Mode — one generation run across many SKUs. Mirrors app/models.py. */
+export type BatchStatus = "queued" | "running" | "done" | "partial" | "failed";
+export type BatchItemStatus =
+  | "pending"
+  | "running"
+  | "done"
+  | "partial"
+  | "failed"
+  | "blocked";
+
+export interface BatchItem {
+  sku_id: string;
+  title?: string | null;
+  job_id?: string | null;
+  status: BatchItemStatus;
+  asset_count: number;
+  cost_actual?: number | null;
+  duration_ms?: number | null;
+  error?: string | null;
+}
+
+export interface Batch {
+  id: string;
+  owner_uid: string;
+  title?: string | null;
+  status: BatchStatus;
+  styles: Style[];
+  marketplaces: Marketplace[];
+  items: BatchItem[];
+  concurrency: number;
+  cost_estimate?: number | null;
+  cost_actual?: number | null;
+  eta_seconds?: number | null;
+  created_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+
+export interface BatchEstimate {
+  skus: number;
+  styles: Style[];
+  per_sku_usd: number;
+  total_estimate_usd: number;
+  balance_usd: number;
+  affordable: boolean;
+  eta_seconds: number;
+  quota_remaining: number;
+  basis: string;
+}
+
+/** Resolve — dispute evidence. Mirrors app/models.py::ResolveOut. */
+export type ResolveFinding =
+  | "listing_tampered"
+  | "item_mismatch"
+  | "condition_differences"
+  | "inconclusive"
+  | "no_provenance"
+  | "provenance_only"
+  | "consistent";
+
+export type ResolveSeverity = "critical" | "warning" | "info" | "ok";
+
+export interface ResolveReport {
+  id: string;
+  issued_at: string;
+  finding: ResolveFinding;
+  severity: ResolveSeverity;
+  headline: string;
+  detail: string;
+  listing: {
+    sha256?: string | null;
+    present: boolean;
+    verified: boolean;
+    content_bound?: boolean | null;
+    found: boolean;
+    is_authentic: boolean;
+    provider?: string | null;
+    model?: string | null;
+    created_at?: string | null;
+  };
+  anchor?: { sha256?: string | null; created_at?: string | null } | null;
+  received?: { sha256?: string | null } | null;
+  match?: {
+    score: number;
+    verdict: string;
+    differences: string[];
+    model: string;
+  } | null;
+  match_unavailable?: string | null;
+  report_sha256?: string | null;
+  report_url?: string | null;
+}
+
 export interface Analytics {
   total_assets: number;
   unique_objects: number;

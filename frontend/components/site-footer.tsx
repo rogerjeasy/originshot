@@ -8,6 +8,7 @@ const GROUPS: { heading: string; links: { href: string; label: string }[] }[] = 
     links: [
       { href: "/studio", label: "Studio" },
       { href: "/verify", label: "Verify" },
+      { href: "/resolve", label: "Resolve a dispute" },
       { href: "/analytics", label: "Analytics" },
     ],
   },

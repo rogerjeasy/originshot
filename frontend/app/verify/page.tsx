@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Hash, ShieldCheck, Upload } from "lucide-react";
+import { Hash, Scale, ShieldCheck, Upload } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -129,6 +130,25 @@ export default function VerifyHome() {
             )}
             <FadeIn delay={0.06}>
               <TamperDemo />
+            </FadeIn>
+            {/* Most people who verify a listing photo are already in an argument about it.
+                Hand them the tool built for that, rather than leaving them at a verdict. */}
+            <FadeIn delay={0.09}>
+              <Link
+                href="/resolve"
+                className="flex items-start gap-3 rounded-md border bg-card p-4 transition-colors hover:bg-secondary"
+              >
+                <Scale className="mt-0.5 size-4 shrink-0 text-accent" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">
+                    Received something that doesn&apos;t match the listing?
+                  </span>
+                  <span className="mt-0.5 block text-sm text-muted-foreground">
+                    Resolve compares the item that arrived against the seller&apos;s authentic
+                    original and issues an evidence report you can attach to a claim.
+                  </span>
+                </span>
+              </Link>
             </FadeIn>
           </div>
         ) : (
