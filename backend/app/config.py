@@ -85,6 +85,14 @@ class Settings(BaseSettings):
     # How generation jobs run: "inline" (BackgroundTasks) or "arq" (Redis worker).
     job_queue: str = "inline"
 
+    # Transparency log: an append-only hash chain over every manifest issued, with heads
+    # published to B2 as checkpoints. Appends are best-effort — a ledger outage must never
+    # fail a generation the provider already billed for. See app/transparency.py.
+    transparency_enabled: bool = True
+    # Cut a checkpoint every N entries. Low enough that a demo produces several; a real
+    # deployment would also cut on a timer so a quiet period still gets committed.
+    transparency_checkpoint_every: int = 10
+
     # Catalog Mode: how many SKUs generate at once within one batch. Generation is I/O-bound
     # on the provider so parallelism buys wall-clock cheaply, but each in-flight job also
     # holds decoded image bytes for QA scoring in this same process, and the deployment
