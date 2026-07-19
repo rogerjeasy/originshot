@@ -12,6 +12,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from originshot_pipelines import provenance
 
+from .. import transparency
 from ..config import get_settings
 from ..models import VerifyResult
 from ..repo import get_repo
@@ -87,6 +88,7 @@ async def verify_upload(file: UploadFile = File(...)):
         parent_sha256=asset.get("parent_sha256") if found else None,
         created_at=asset.get("created_at") if found else None,
         disclosure=disclosure_text,
+        ledger=transparency.position_for(sha),
     )
 
 
@@ -114,6 +116,7 @@ def verify(sha256: str):
         parent_sha256=asset.get("parent_sha256"),
         created_at=asset.get("created_at"),
         disclosure=disclosure(asset),
+        ledger=transparency.position_for(sha256),
     )
 
 
