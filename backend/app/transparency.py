@@ -51,11 +51,20 @@ def record_asset(asset: dict) -> dict | None:
     if not sha:
         return None
 
+    if asset.get("is_authentic"):
+        kind = "original"
+    elif asset.get("replay_of"):
+        # A replay is a generation whose spec came from an earlier manifest — logged as its
+        # own kind so "regenerated twelve times until the scratch disappeared" is exactly
+        # the pattern this log makes visible.
+        kind = "replay"
+    else:
+        kind = "generated"
     try:
         entry = get_repo().append_transparency_entry({
             "subject_sha256": sha,
             "manifest_hash": asset.get("manifest_key") or asset.get("manifest_hash"),
-            "kind": "original" if asset.get("is_authentic") else "generated",
+            "kind": kind,
             "recorded_at": _now(),
         })
     except Exception as exc:  # noqa: BLE001 — never fail a paid generation over the log
