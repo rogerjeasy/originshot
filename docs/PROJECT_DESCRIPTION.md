@@ -1,5 +1,14 @@
 # OriginShot — Project Description
 
+> ⚠️ **Historical document: the pre-build product plan (July 2026), kept for the record.**
+> It describes what we set out to build, including ambitions later cut or walked back once
+> tested against the real SDK and provider account — e.g. image-step fallback chains (no
+> same-signature model is entitled, so `IMAGE_EDIT_FALLBACKS` is deliberately empty) and
+> generated SFX/music (the audio modality is unreachable through the SDK; see
+> [`genblaze-issues/04`](./genblaze-issues/04-gmi-audio-modality-unreachable.md)). The
+> shipped system is documented in the [README](../README.md) — where this plan and the
+> README disagree, the README is the truth.
+
 > **One phone photo in. A full marketplace-ready catalog out — with cryptographic proof of what's real and what's AI.**
 
 OriginShot turns a single snapshot of a product into studio-quality white-background shots, lifestyle scenes, on-model images, color/angle variants, and a short product video — then stores every asset on Backblaze B2 with an embedded, verifiable provenance manifest that doubles as AI-disclosure compliance.
