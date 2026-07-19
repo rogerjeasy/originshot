@@ -4,12 +4,14 @@ from fastapi import APIRouter
 from . import (
     admin,
     analytics,
+    batches,
     brand_kit,
     compliance,
     credits,
     export,
     generate,
     listing,
+    resolve,
     skus,
     uploads,
     users,
@@ -21,7 +23,9 @@ api_router.include_router(users.router)
 api_router.include_router(skus.router)
 api_router.include_router(uploads.router)
 api_router.include_router(generate.router)
+api_router.include_router(batches.router)
 api_router.include_router(verify.router)
+api_router.include_router(resolve.router)
 api_router.include_router(analytics.router)
 api_router.include_router(export.router)
 api_router.include_router(brand_kit.router)
