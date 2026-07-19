@@ -286,6 +286,101 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
     return out, errors
 
 
+# ── Replay: re-run one asset from its stored manifest ──────────────────
+async def replay_asset(uid, sku, source_asset, original, *, storage,
+                       reporter: StepReporter | None = None):
+    """Re-run a generated asset from its manifest. Returns (asset_dicts, errors).
+
+    The manifest is the spec (originshot_pipelines/replay.py): prompt, model, seed and
+    params come from the stored record, never from the current prompt builders. The one
+    substitution is the reference image — the recorded presign expired long ago, so the
+    anchored authentic original is re-presigned by content hash instead.
+
+    Replay refuses outside real-generation mode: the mock fabricates passthrough copies,
+    and a passthrough copy presented as "the manifest, re-executed" would be the exact
+    lie this feature exists to make impossible.
+    """
+    from originshot_pipelines import replay as replay_mod
+
+    reporter = reporter or _NullReporter()
+    style = Style(source_asset["style"])
+    settings = get_settings()
+
+    mode = generation_mode()
+    if mode != "genblaze":
+        reason = (
+            "replay executes the recorded spec against the real provider — the dev mock "
+            "cannot honor a manifest"
+            if mode == "mock"
+            else "Generation is not configured — missing: "
+            + ", ".join(missing_generation_requirements())
+        )
+        reporter.skip(style, reason)
+        return [], [f"{style.value}: {reason}"]
+
+    reporter.start(style)
+    try:
+        manifest = _load_manifest_json(source_asset.get("manifest_key"), storage)
+        spec = replay_mod.parse_manifest_step(manifest)
+
+        from originshot_pipelines import storage as sink_module
+
+        source_uri = storage.presigned_get(original["b2_key"])
+        res = await replay_mod.build_replay_pipeline(spec, source_uri).arun(
+            sink=sink_module.make_sink(), timeout=settings.image_timeout_seconds
+        )
+        asset = _map(sku, res, style, original["sha256"], storage)
+        asset["replay_of"] = source_asset["sha256"]
+
+        # Score once, no retry: a fresh generation retries because its promise is "produce
+        # the style"; a replay's promise is "this exact spec", and re-rolling until QA is
+        # happier would be a different spec wearing the replay's name.
+        if settings.qa_enabled:
+            vlm_call = _make_vlm_call(settings)
+            ref_bytes = None
+            if vlm_call is not None:
+                try:
+                    ref_bytes = _fetch_bytes(source_uri)
+                except Exception as e:  # noqa: BLE001 — QA degrades, replay proceeds
+                    log.warning("QA reference fetch failed (%s); VLM tier disabled", e)
+            _score_batch(style, [asset], storage,
+                         reference=ref_bytes, vlm_call=vlm_call, attempt=1)
+
+        reporter.finish(style, [asset])
+        return [asset], []
+    except Exception as e:  # noqa: BLE001
+        reporter.fail(style, str(e))
+        return [], [f"{style.value}: {e}"]
+
+
+def _load_manifest_json(manifest_key: str | None, storage) -> dict:
+    """Fetch and parse the sidecar manifest an asset points at.
+
+    `manifest_key` is our own B2 key in the common case, but the sink may have recorded a
+    full URI (generation._map prefers `manifest.manifest_uri` when the sink set one) — so
+    recover a bucket key from a URL when possible and only fetch over HTTP as a last
+    resort. Raises ReplayUnavailable with the precise reason; replay must explain itself.
+    """
+    import json
+
+    from originshot_pipelines.replay import ReplayUnavailable
+
+    if not manifest_key:
+        raise ReplayUnavailable("asset has no stored manifest")
+    key = key_from_url(manifest_key) or manifest_key
+    try:
+        if key.startswith(("http://", "https://")):
+            data = _fetch_bytes(key)
+        else:
+            data = storage.get_bytes(key)
+    except Exception as e:  # noqa: BLE001
+        raise ReplayUnavailable(f"stored manifest could not be read ({e})") from e
+    try:
+        return json.loads(data)
+    except Exception as e:  # noqa: BLE001
+        raise ReplayUnavailable("stored manifest is not valid JSON") from e
+
+
 def _make_vlm_call(settings):
     """The injected VLM transport for qa.evaluate_image, or None when unavailable."""
     if not (settings.qa_enabled and settings.qa_vlm_enabled and settings.gmi_api_key):
