@@ -15,8 +15,14 @@ from __future__ import annotations
 import io
 from datetime import datetime, timezone
 
-_MUTED = 107          # grey for secondary text
-_VERIFIED = (59, 124, 61)   # the ColorChecker green the UI uses for "verified"
+MUTED = 107           # grey for secondary text
+VERIFIED = (59, 124, 61)    # the ColorChecker green the UI uses for "verified"
+DANGER = (168, 52, 45)      # ColorChecker red — a failed/contradicted claim
+CAUTION = (196, 146, 42)    # ColorChecker amber — inconclusive, needs a human
+INK = (31, 31, 29)          # the near-black the design system calls foreground
+
+_MUTED = MUTED              # retained: the module's own body reads better unprefixed
+_VERIFIED = VERIFIED
 
 
 def qr_png(url: str, *, box_size: int = 8) -> bytes:
@@ -32,9 +38,50 @@ def qr_png(url: str, *, box_size: int = 8) -> bytes:
     return buf.getvalue()
 
 
-def _latin(text: str) -> str:
+# Typographic characters that are NOT in latin-1 and would otherwise be replaced with "?"
+# mid-sentence. Model-written text (verdicts, listing copy) is full of these, and a stray
+# "?" in an evidence document reads as corruption. Transliterate before the lossy encode.
+_TRANSLITERATE = str.maketrans({
+    "—": "-", "–": "-", "−": "-",          # em/en dash, minus
+    "‘": "'", "’": "'", "‚": ",",          # single quotes
+    "“": '"', "”": '"', "„": '"',          # double quotes
+    "…": "...", "•": "-", "→": "->",       # ellipsis, bullet, arrow
+    "≥": ">=", "≤": "<=", "≠": "!=",
+    " ": " ", " ": " ", " ": " ",          # non-breaking / thin spaces
+    "⚠": "(!)", "✓": "OK", "✗": "X",
+})
+
+
+def latin(text: str) -> str:
     """fpdf core fonts are latin-1; degrade gracefully rather than crash on a title."""
-    return (text or "").encode("latin-1", errors="replace").decode("latin-1")
+    return (text or "").translate(_TRANSLITERATE).encode(
+        "latin-1", errors="replace").decode("latin-1")
+
+
+_latin = latin              # back-compat alias for this module's existing call sites
+
+
+def draw_header(pdf, subtitle: str, *, accent: tuple[int, int, int] = VERIFIED) -> None:
+    """The shared masthead: four-patch calibration glyph, wordmark, document kind.
+
+    `accent` strikes the fourth patch, so a document's own verdict is legible from the
+    glyph alone — green for a clean result, amber for inconclusive, red for a contradiction.
+    """
+    x0, y0, s, gap = 18, 16, 4.4, 1.4
+    for i, (dx, dy) in enumerate([(0, 0), (1, 0), (0, 1), (1, 1)]):
+        pdf.set_fill_color(*(accent if i == 3 else INK))
+        pdf.rect(x0 + dx * (s + gap), y0 + dy * (s + gap), s, s, style="F")
+
+    text_x = x0 + 2 * s + 3 * gap + 3
+    pdf.set_xy(text_x, y0)
+    pdf.set_font("helvetica", "B", 15)
+    pdf.cell(0, 6, "OriginShot", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_x(text_x)
+    pdf.set_font("helvetica", "", 8.5)
+    pdf.set_text_color(MUTED, MUTED, MUTED)
+    pdf.cell(0, 4, latin(subtitle), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(8)
 
 
 def build_certificate(sku: dict, assets: list[dict], *, verify_base_url: str) -> bytes:
@@ -49,21 +96,7 @@ def build_certificate(sku: dict, assets: list[dict], *, verify_base_url: str) ->
     pdf.add_page()
     pdf.set_margins(18, 16, 18)
 
-    # Brand glyph: the four-patch calibration mark, one patch struck in verified green.
-    x0, y0, s, gap = 18, 16, 4.4, 1.4
-    for i, (dx, dy) in enumerate([(0, 0), (1, 0), (0, 1), (1, 1)]):
-        pdf.set_fill_color(*(_VERIFIED if i == 3 else (31, 31, 29)))
-        pdf.rect(x0 + dx * (s + gap), y0 + dy * (s + gap), s, s, style="F")
-
-    pdf.set_xy(x0 + 2 * s + 3 * gap + 3, y0)
-    pdf.set_font("helvetica", "B", 15)
-    pdf.cell(0, 6, "OriginShot", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_x(x0 + 2 * s + 3 * gap + 3)
-    pdf.set_font("helvetica", "", 8.5)
-    pdf.set_text_color(_MUTED, _MUTED, _MUTED)
-    pdf.cell(0, 4, "Certificate of Provenance", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(8)
+    draw_header(pdf, "Certificate of Provenance")
 
     # Product + issue facts.
     pdf.set_font("helvetica", "B", 12.5)
