@@ -1,22 +1,41 @@
 # Render's free tier sleeps the API after ~15 minutes idle, and the ~50s cold start is the
-# single worst first impression a judge can get. This pings /healthz every 10 minutes so the
-# service never sleeps during the judging window. Shallow ping on purpose: ?deep=true does a
-# real B2 round-trip and there is no reason to spend bucket transactions on a heartbeat.
+# single worst first impression a judge can get.
+#
+# A naive `*/10` cron does NOT deliver ten-minute pings: GitHub's schedules are best-effort
+# and high-frequency crons get throttled hard — observed live on this repo as runs landing
+# 2–3 **hours** apart (2026-07-19), each one waking a service that had long gone to sleep.
+# GitHub throttles workflow *starts*, not running jobs, so the reliable shape is one hourly
+# start that keeps pinging from inside the run: 11 pings at 5-minute spacing ≈ 55 minutes of
+# coverage per start. Even a delayed next start then leaves a gap of minutes, not hours.
+# Runner time is free on a public repo; Render's free 750 instance-hours/month cover 24/7.
+#
+# Shallow ping on purpose: ?deep=true does a real B2 round-trip and there is no reason to
+# spend bucket transactions on a heartbeat.
 name: keep-warm
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "0 * * * *"
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 58
     steps:
-      - name: Ping the API health check
+      - name: Ping the API health check every 5 minutes for ~55 minutes
         run: |
-          code=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 90 \
-            https://originshot-api.onrender.com/healthz)
-          echo "healthz -> HTTP $code"
-          cat /tmp/health.json
+          # --retry rides out a cold start (curl retries HTTP 429/5xx as transient): three
+          # attempts 20s apart plus a 90s budget each is longer than Render's ~50s wake-up.
+          # One failed ping mid-loop must not abort the hour's coverage, so the loop keeps
+          # going; the step's verdict is the LAST ping, which makes a red X mean "the API
+          # was still down at the end of the window", not "it blinked once".
+          for i in $(seq 1 11); do
+            code=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 90 \
+              --retry 3 --retry-delay 20 \
+              https://originshot-api.onrender.com/healthz) || code=000
+            echo "$(date -u +%H:%M:%SZ) ping $i/11 -> HTTP $code"
+            if [ "$i" -lt 11 ]; then sleep 300; fi
+          done
+          cat /tmp/health.json || true
           test "$code" = "200"
