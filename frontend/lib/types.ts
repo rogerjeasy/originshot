@@ -41,6 +41,8 @@ export interface Asset {
   height?: number | null;
   duration?: number | null;
   qa?: QAReport | null;
+  /** SHA-256 of the asset this one was replayed from (its manifest supplied the spec). */
+  replay_of?: string | null;
   created_at: string;
 }
 
@@ -113,6 +115,8 @@ export interface Job {
   eta_seconds?: number | null;
   credits_held?: number | null;
   cost_actual?: number | null;
+  /** Set when the job is a replay: hash of the asset whose manifest is re-executed. */
+  replay_of_sha256?: string | null;
 }
 
 export interface VerifyResult {
@@ -159,6 +163,32 @@ export interface LedgerStatus {
   head: string;
   checkpoint?: LedgerCheckpoint | null;
   checkpoint_lag: number;
+}
+
+export interface LedgerAuditFailure {
+  sha256: string;
+  style?: string | null;
+  kind?: string;
+  checks?: Record<string, boolean>;
+  error?: string | null;
+}
+
+/** One pass of the scheduled integrity agent (GET /api/ledger/audit). */
+export interface LedgerAudit {
+  audit_id: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  assets_sampled: number;
+  assets_passed: number;
+  failures: LedgerAuditFailure[];
+  ledger_entries: number;
+  chain_consistent?: boolean | null;
+  checkpoint_reproduced?: boolean | null;
+  checkpoint?: LedgerCheckpoint | null;
+  b2_key?: string | null;
+  sha256?: string | null;
+  caveat: string;
 }
 
 export interface LedgerEntryRow {

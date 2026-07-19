@@ -168,6 +168,9 @@ class AssetOut(BaseModel):
     # vlm_score/verdict, attempt(s). None ⇒ QA didn't run for this asset (video, mock, or
     # the bytes couldn't be fetched) — absence of a report is never presented as a pass.
     qa: dict | None = None
+    # SHA-256 of the asset this one was replayed from (its manifest supplied the spec).
+    # Distinct from parent_sha256, which always points at the authentic original.
+    replay_of: str | None = None
     created_at: datetime
 
 
@@ -239,6 +242,9 @@ class JobOut(BaseModel):
     eta_seconds: int | None = None
     credits_held: float | None = None
     cost_actual: float | None = None
+    # Set when this job is a replay: the content hash of the asset whose manifest is being
+    # re-executed (see api/generate.replay).
+    replay_of_sha256: str | None = None
 
 
 # ── Catalog batches ───────────────────────────────────────────────────
@@ -411,6 +417,30 @@ class LedgerVerifyOut(BaseModel):
     broken_at: int | None = None
     reason: str | None = None
     checkpoint_reproduced: bool | None = None
+    caveat: str
+
+
+class LedgerAuditOut(BaseModel):
+    """One integrity-audit pass (app/auditor.py): what ran, what it verified, what it found.
+
+    `failures` rows carry {sha256, style, kind, checks, error?} — enough to name the exact
+    asset and the exact check that failed, because "1 failure" without a subject is an
+    alarm nobody can act on. `sha256` is the hash of the report as published to B2, so the
+    stored object can be checked against this very response.
+    """
+    audit_id: str
+    started_at: str
+    finished_at: str
+    duration_ms: int
+    assets_sampled: int
+    assets_passed: int
+    failures: list[dict] = Field(default_factory=list)
+    ledger_entries: int
+    chain_consistent: bool | None = None
+    checkpoint_reproduced: bool | None = None
+    checkpoint: LedgerCheckpointOut | None = None
+    b2_key: str | None = None
+    sha256: str | None = None
     caveat: str
 
 
