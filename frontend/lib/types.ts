@@ -129,6 +129,46 @@ export interface VerifyResult {
   parent_sha256?: string | null;
   created_at?: string | null;
   disclosure: string;
+  /** Null means "not in the log" — appends are best-effort, so that is not a negative. */
+  ledger?: LedgerPosition | null;
+}
+
+/** Transparency log — append-only hash chain. Mirrors app/models.py. */
+export interface LedgerPosition {
+  seq: number;
+  entry_hash: string;
+  recorded_at: string;
+  log_size: number;
+  checkpoint_hash?: string | null;
+  checkpoint_size?: number | null;
+  checkpoint_covers_entry: boolean;
+}
+
+export interface LedgerCheckpoint {
+  log_id: string;
+  size: number;
+  head: string;
+  issued_at: string;
+  checkpoint_hash: string;
+  b2_key?: string | null;
+}
+
+export interface LedgerStatus {
+  log_id: string;
+  size: number;
+  head: string;
+  checkpoint?: LedgerCheckpoint | null;
+  checkpoint_lag: number;
+}
+
+export interface LedgerEntryRow {
+  seq: number;
+  prev_hash: string;
+  subject_sha256: string;
+  manifest_hash: string;
+  kind: string;
+  recorded_at: string;
+  entry_hash: string;
 }
 
 /** Catalog Mode — one generation run across many SKUs. Mirrors app/models.py. */

@@ -190,6 +190,31 @@ export function VerifyPanel({ result }: { result: VerifyResult }) {
         {result.provider && <Row label="provider">{result.provider}</Row>}
         {result.model && <Row label="model">{result.model}</Row>}
         {created && <Row label="created">{created}</Row>}
+
+        {/* Position in the append-only log. Shown only when present: absence proves
+            nothing (appends are best-effort), so rendering a "not logged" row would
+            invent a negative signal the data doesn't support. */}
+        {result.ledger && (
+          <Row label="log entry">
+            <span className="flex flex-wrap items-baseline gap-x-2">
+              <span className="tabular">
+                #{result.ledger.seq} of {result.ledger.log_size}
+              </span>
+              {result.ledger.checkpoint_covers_entry ? (
+                <Link
+                  href="/ledger"
+                  className="text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
+                >
+                  covered by checkpoint {result.ledger.checkpoint_hash?.slice(0, 12)}…
+                </Link>
+              ) : (
+                <span className="text-muted-foreground">
+                  not yet in a published checkpoint
+                </span>
+              )}
+            </span>
+          </Row>
+        )}
       </dl>
 
       <p
