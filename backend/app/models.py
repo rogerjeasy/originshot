@@ -241,6 +241,82 @@ class JobOut(BaseModel):
     cost_actual: float | None = None
 
 
+# ── Catalog batches ───────────────────────────────────────────────────
+class BatchItemStatus(str, Enum):
+    """Per-SKU state within a catalog run.
+
+    `blocked` is distinct from `failed` on purpose: it means the run never started for this
+    item (credit exhausted, daily quota reached), so nothing was spent and re-running it
+    later is the obvious fix. Collapsing the two would tell a seller their photos failed
+    when in fact they simply ran out of balance.
+    """
+    pending = "pending"
+    running = "running"
+    done = "done"
+    partial = "partial"
+    failed = "failed"
+    blocked = "blocked"
+
+
+class BatchStatus(str, Enum):
+    queued = "queued"
+    running = "running"
+    done = "done"
+    partial = "partial"
+    failed = "failed"
+
+
+class BatchCreate(BaseModel):
+    """SKUs are created and their photos uploaded through the existing per-SKU routes, then
+    handed here as ids. That keeps one hardened upload path rather than a second bulk one,
+    and keeps a 10-photo catalog off a single multi-hundred-megabyte request."""
+    sku_ids: list[str] = Field(min_length=1, max_length=100)
+    styles: list[Style] = Field(default_factory=lambda: [Style.studio, Style.lifestyle])
+    marketplaces: list[Marketplace] = Field(default_factory=list)
+    title: str | None = Field(default=None, max_length=140)
+
+
+class BatchItemOut(BaseModel):
+    sku_id: str
+    title: str | None = None
+    job_id: str | None = None
+    status: BatchItemStatus = BatchItemStatus.pending
+    asset_count: int = 0
+    cost_actual: float | None = None
+    duration_ms: int | None = None
+    error: str | None = None
+
+
+class BatchOut(BaseModel):
+    id: str
+    owner_uid: str
+    title: str | None = None
+    status: BatchStatus
+    styles: list[Style]
+    marketplaces: list[Marketplace] = Field(default_factory=list)
+    items: list[BatchItemOut] = Field(default_factory=list)
+    concurrency: int = 1
+    cost_estimate: float | None = None
+    cost_actual: float | None = None
+    eta_seconds: int | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class BatchEstimateOut(BaseModel):
+    """Pre-flight quote for a whole catalog, so the cost is on screen before committing."""
+    skus: int
+    styles: list[Style]
+    per_sku_usd: float
+    total_estimate_usd: float
+    balance_usd: float
+    affordable: bool
+    eta_seconds: int
+    quota_remaining: int
+    basis: str
+
+
 # ── Marketplace compliance ────────────────────────────────────────────
 class ComplianceOut(BaseModel):
     """Scorecard for the SKU's main image across marketplace presets. `items` entries:
@@ -283,6 +359,55 @@ class VerifyResult(BaseModel):
     parent_sha256: str | None = None
     created_at: datetime | None = None
     disclosure: str
+
+
+# ── Resolve (dispute evidence) ────────────────────────────────────────
+class ResolveListing(BaseModel):
+    """What the listing file's own bytes say about themselves."""
+    sha256: str | None = None
+    present: bool = False           # an embedded manifest was found
+    verified: bool = False          # that manifest passes verify()
+    content_bound: bool | None = None
+    found: bool = False             # a matching record exists in this ledger
+    is_authentic: bool = False
+    provider: str | None = None
+    model: str | None = None
+    created_at: datetime | None = None
+
+
+class ResolveAnchor(BaseModel):
+    """The authentic original the listing descends from — the comparison reference."""
+    sha256: str | None = None
+    created_at: datetime | None = None
+
+
+class ResolveReceived(BaseModel):
+    """The delivered-item photo. Hash only: the bytes are never stored (see resolve.py)."""
+    sha256: str | None = None
+
+
+class ResolveMatch(BaseModel):
+    score: int
+    verdict: str
+    differences: list[str] = Field(default_factory=list)
+    model: str
+
+
+class ResolveOut(BaseModel):
+    """A Dispute Evidence Report. `report_url` is a short-lived presigned link to the PDF."""
+    id: str
+    issued_at: str
+    finding: str
+    severity: str
+    headline: str
+    detail: str
+    listing: ResolveListing
+    anchor: ResolveAnchor | None = None
+    received: ResolveReceived | None = None
+    match: ResolveMatch | None = None
+    match_unavailable: str | None = None
+    report_sha256: str | None = None
+    report_url: str | None = None
 
 
 # ── Analytics ─────────────────────────────────────────────────────────
