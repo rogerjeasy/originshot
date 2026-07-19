@@ -160,11 +160,18 @@ def _elapsed_ms(started) -> int | None:
         return None
 
 
-async def process_generation(uid: str, job_id: str, sku_id: str, styles: list[str]) -> None:
+async def _run_job(uid: str, job_id: str, sku_id: str, styles: list[str], runner) -> None:
+    """The job lifecycle shared by generation and replay.
+
+    `runner(reporter, job) -> (assets, errors)` does the actual work; everything around it
+    — status transitions, per-step asset bookkeeping, crash salvage, and exactly-once
+    credit settlement — is identical for both, and keeping one copy is what keeps the
+    settlement invariant single-sourced (the same argument batches.py makes for reusing
+    submit_generation).
+    """
     from . import credits
 
     repo = get_repo()
-    storage = get_storage()
     reporter = _JobStepReporter(uid, job_id, styles)
     repo.update_job(uid, job_id, {
         "status": JobStatus.running.value,
@@ -176,19 +183,7 @@ async def process_generation(uid: str, job_id: str, sku_id: str, styles: list[st
     actual: float | None = None
 
     try:
-        sku = repo.get_sku(uid, sku_id)
-        if not sku:
-            raise RuntimeError("SKU not found")
-        original = next((a for a in repo.list_assets(uid, sku_id) if a.get("is_authentic")), None)
-        if not original:
-            raise RuntimeError("No authentic original uploaded for this SKU")
-
-        marketplaces = job.get("marketplaces") or []
-        brand = repo.get_brand_kit(uid)
-        assets, errors = await generate_assets(
-            uid, sku, original, styles, storage=storage, brand=brand,
-            marketplaces=marketplaces, reporter=reporter,
-        )
+        assets, errors = await runner(reporter, job)
         # Already written per step by the reporter, so the client could show them as they
         # landed. Reading the ids back from it keeps a single writer for assets.
         asset_ids = list(reporter.asset_ids)
@@ -241,15 +236,67 @@ async def process_generation(uid: str, job_id: str, sku_id: str, styles: list[st
                 log.exception("credit settlement failed for job %s (held $%.4f)", job_id, held)
 
 
+def _require_sku_and_original(repo, uid: str, sku_id: str) -> tuple[dict, dict]:
+    sku = repo.get_sku(uid, sku_id)
+    if not sku:
+        raise RuntimeError("SKU not found")
+    original = next((a for a in repo.list_assets(uid, sku_id) if a.get("is_authentic")), None)
+    if not original:
+        raise RuntimeError("No authentic original uploaded for this SKU")
+    return sku, original
+
+
+async def process_generation(uid: str, job_id: str, sku_id: str, styles: list[str]) -> None:
+    async def runner(reporter: _JobStepReporter, job: dict):
+        repo = get_repo()
+        sku, original = _require_sku_and_original(repo, uid, sku_id)
+        return await generate_assets(
+            uid, sku, original, styles, storage=get_storage(),
+            brand=repo.get_brand_kit(uid), marketplaces=job.get("marketplaces") or [],
+            reporter=reporter,
+        )
+
+    await _run_job(uid, job_id, sku_id, styles, runner)
+
+
+async def process_replay(uid: str, job_id: str, sku_id: str, asset_id: str) -> None:
+    """Replay one asset from its manifest as an ordinary job (see generation.replay_asset).
+
+    The style list for the reporter comes from the job document — the submit path recorded
+    the source asset's style there, and reading it back keeps this function free of a
+    second lookup that could disagree with what was quoted and held.
+    """
+    from .generation import replay_asset
+
+    repo = get_repo()
+    job = repo.get_job(uid, job_id) or {}
+    styles = [str(s) for s in job.get("requested_styles") or []]
+
+    async def runner(reporter: _JobStepReporter, job: dict):
+        sku, original = _require_sku_and_original(repo, uid, sku_id)
+        source = next((a for a in repo.list_assets(uid, sku_id) if a.get("id") == asset_id), None)
+        if not source:
+            raise RuntimeError("Source asset not found")
+        return await replay_asset(
+            uid, sku, source, original, storage=get_storage(), reporter=reporter
+        )
+
+    await _run_job(uid, job_id, sku_id, styles, runner)
+
+
 # ── Production Arq worker ──────────────────────────────────────────────
 async def generate_task(ctx, uid: str, job_id: str, sku_id: str, styles: list[str]) -> None:
     await process_generation(uid, job_id, sku_id, styles)
 
 
+async def replay_task(ctx, uid: str, job_id: str, sku_id: str, asset_id: str) -> None:
+    await process_replay(uid, job_id, sku_id, asset_id)
+
+
 class WorkerSettings:
     """Run with: `arq app.worker.WorkerSettings` (needs Redis + the [worker] extra)."""
 
-    functions = [generate_task]
+    functions = [generate_task, replay_task]
 
     @staticmethod
     def redis_settings():
