@@ -78,6 +78,27 @@ GMI_CHAT_BASE_URL = "https://api.gmi-serving.com/v1"
 QA_VISION_MODEL = "x-ai/grok-4.5"
 LISTING_MODEL = "zai-org/GLM-5.1-FP8"
 
+# ── Resolve: the dispute-evidence comparison (originshot_pipelines/resolve.py) ───────
+# Reuses QA_VISION_MODEL rather than introducing an unproven one — a dispute report is the
+# last place to gamble on a model. Re-benchmarked 2026-07-19 for the *dispute* question,
+# which is harder than QA's: the second image is a real-world photo of a delivered item, and
+# the model must separate photography differences from product differences, then enumerate
+# condition damage. Live runs against real product photos, 10-19s each:
+#
+#   same mug, studio -> lifestyle shot        ->  9/10   "matching two-tone glaze, dual dark
+#                                                          horizontal lines, handle shape"
+#   same mug, held in hands (hard positive)   ->  9/10   correctly ignores hands/crop/lighting
+#   same mug, ARRIVED DAMAGED (scratch+chip)  ->  9/10   AND listed both defects:
+#                                                          "triangular mark on inner rim",
+#                                                          "diagonal line/scratch on lower body"
+#   wrong item shipped (green bottle)         ->  0/10   "entirely different products"
+#
+# The damaged row is the one that matters, and it is why the prompt asks for score and
+# condition differences SEPARATELY. A single "same product?" score cannot express "yes, the
+# right item, and it arrived broken" — which is the most common real dispute, and precisely
+# the failure the project's opening scenario describes (an AI quietly removing a scratch).
+# Thresholds live in resolve.py (MATCH_PASS / MATCH_FAIL), deliberately wider than QA's.
+
 # Aspect ratios per style (passed through as the `aspect_ratio` step param).
 ASPECT = {
     "studio": "1:1",
