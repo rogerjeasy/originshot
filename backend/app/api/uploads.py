@@ -1,6 +1,7 @@
 """Upload endpoint — validates the image, anchors it as the authentic original."""
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
+from .. import transparency
 from ..auth import CurrentUser, get_current_user
 from ..models import AssetOut, Modality, Style
 from ..repo import get_repo
@@ -45,4 +46,7 @@ async def upload_original(
         "height": norm["height"],
         "duration": None,
     })
+    # Anchoring an authentic original is itself a logged event: the transparency log's value
+    # comes from covering everything the instance issued, not only the AI output.
+    transparency.record_asset(asset)
     return with_presigned_url(asset)

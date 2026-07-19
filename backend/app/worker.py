@@ -99,10 +99,14 @@ class _JobStepReporter(StepReporter):
         empty. One failure does not abort the rest — the pack's per-style isolation applies
         to storage too — but it is recorded so the job reports `partial` instead of `done`.
         """
+        from . import transparency
+
         repo = get_repo()
         for asset in assets:
             try:
-                self.asset_ids.append(repo.add_asset(self._uid, asset)["id"])
+                stored = repo.add_asset(self._uid, asset)
+                self.asset_ids.append(stored["id"])
+                transparency.record_asset(stored)
             except Exception as exc:  # noqa: BLE001
                 log.exception("asset persist failed for job %s", self._job_id)
                 self.persist_errors.append(f"{asset.get('style', 'asset')}: not saved ({exc})")
