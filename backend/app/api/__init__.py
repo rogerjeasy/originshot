@@ -10,6 +10,7 @@ from . import (
     credits,
     export,
     generate,
+    ledger,
     listing,
     resolve,
     skus,
@@ -25,6 +26,7 @@ api_router.include_router(uploads.router)
 api_router.include_router(generate.router)
 api_router.include_router(batches.router)
 api_router.include_router(verify.router)
+api_router.include_router(ledger.router)
 api_router.include_router(resolve.router)
 api_router.include_router(analytics.router)
 api_router.include_router(export.router)

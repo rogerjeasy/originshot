@@ -359,6 +359,70 @@ class VerifyResult(BaseModel):
     parent_sha256: str | None = None
     created_at: datetime | None = None
     disclosure: str
+    # Position in the append-only transparency log, when this hash was recorded there.
+    # None means "not in the log", which is deliberately NOT presented as a negative signal:
+    # appends are best-effort, so absence proves nothing (see app/transparency.py).
+    ledger: LedgerPosition | None = None
+
+
+# ── Transparency log ──────────────────────────────────────────────────
+class LedgerEntryRow(BaseModel):
+    """One append-only log entry. Every field here is covered by `entry_hash`."""
+    seq: int
+    prev_hash: str
+    subject_sha256: str
+    manifest_hash: str = ""
+    kind: str
+    recorded_at: str
+    entry_hash: str
+
+
+class LedgerCheckpointOut(BaseModel):
+    """A published commitment to the log up to `size` entries."""
+    log_id: str
+    size: int
+    head: str
+    issued_at: str
+    checkpoint_hash: str
+    b2_key: str | None = None      # where the immutable copy was published
+
+
+class LedgerStatusOut(BaseModel):
+    log_id: str
+    size: int
+    head: str
+    checkpoint: LedgerCheckpointOut | None = None
+    # Entries appended since the last checkpoint: they are in the log but not yet committed
+    # to by any published head, which is a real distinction and shown rather than smoothed.
+    checkpoint_lag: int = 0
+
+
+class LedgerProofOut(BaseModel):
+    entry: LedgerEntryRow
+    following: list[LedgerEntryRow]
+    checkpoint: LedgerCheckpointOut
+    note: str
+
+
+class LedgerVerifyOut(BaseModel):
+    consistent: bool
+    size: int
+    head: str
+    broken_at: int | None = None
+    reason: str | None = None
+    checkpoint_reproduced: bool | None = None
+    caveat: str
+
+
+class LedgerPosition(BaseModel):
+    """Where an asset sits in the log — attached to a verification result."""
+    seq: int
+    entry_hash: str
+    recorded_at: str
+    log_size: int
+    checkpoint_hash: str | None = None
+    checkpoint_size: int | None = None
+    checkpoint_covers_entry: bool = False
 
 
 # ── Resolve (dispute evidence) ────────────────────────────────────────
