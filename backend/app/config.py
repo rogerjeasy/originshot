@@ -89,9 +89,22 @@ class Settings(BaseSettings):
     # published to B2 as checkpoints. Appends are best-effort — a ledger outage must never
     # fail a generation the provider already billed for. See app/transparency.py.
     transparency_enabled: bool = True
-    # Cut a checkpoint every N entries. Low enough that a demo produces several; a real
-    # deployment would also cut on a timer so a quiet period still gets committed.
+    # Cut a checkpoint every N entries. Low enough that a demo produces several; the
+    # Auditor (app/auditor.py) supplies the timer-based cut so a quiet period still gets
+    # committed.
     transparency_checkpoint_every: int = 10
+
+    # ── The Auditor: scheduled integrity agent (app/auditor.py) ────────
+    # POST /api/ledger/audit runs one audit pass: re-verify a sample of stored assets
+    # against their own B2 bytes, replay the ledger against the last published checkpoint,
+    # publish a fresh checkpoint, and write the report to B2. The trigger authenticates
+    # with this shared token because the caller is a scheduler (GitHub Actions cron), not
+    # a person — unset ⇒ the trigger endpoint refuses with 503.
+    audit_trigger_token: str | None = None
+    # How many assets one audit pass downloads and re-verifies. Bounds the B2 transaction
+    # cost of a scheduled run; a small random sample every few hours covers the library
+    # over time without ever making the audit itself expensive.
+    audit_sample_size: int = 25
 
     # Catalog Mode: how many SKUs generate at once within one batch. Generation is I/O-bound
     # on the provider so parallelism buys wall-clock cheaply, but each in-flight job also
