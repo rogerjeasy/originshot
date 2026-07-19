@@ -82,6 +82,17 @@ class Repo(Protocol):
     def get_platform_config(self) -> dict: ...
     def set_platform_config(self, patch: dict) -> dict: ...
 
+    # Transparency log — global, append-only, not per-seller. `append_transparency_entry`
+    # MUST be atomic: two concurrent appends that both read the same head would produce two
+    # entries claiming the same predecessor, which silently forks the chain.
+    def append_transparency_entry(self, body: dict) -> dict: ...
+    def list_transparency_entries(self, *, start: int = 0,
+                                  limit: int | None = None) -> list[dict]: ...
+    def transparency_size(self) -> int: ...
+    def find_transparency_entry(self, subject_sha256: str) -> dict | None: ...
+    def save_checkpoint(self, checkpoint: dict) -> dict: ...
+    def latest_checkpoint(self) -> dict | None: ...
+
     # Dispute evidence reports. Deliberately NOT under sellers/{uid}: a report is issued to
     # whoever ran the check — usually a buyer or a marketplace with no account here — and its
     # entire purpose is being resolvable by a third party from the id printed on the PDF.
@@ -109,6 +120,10 @@ class InMemoryRepo:
         self._platform: dict = {}
         self._reports: dict[str, dict] = {}
         self._batches: dict[str, dict] = {}
+        self._log: list[dict] = []
+        self._checkpoints: list[dict] = []
+        # Serializes the read-head/append cycle, mirroring the Firestore transaction.
+        self._log_lock = threading.Lock()
         # Serializes read-modify-write on balances, mirroring the Firestore transaction.
         self._credit_lock = threading.Lock()
 
@@ -253,6 +268,34 @@ class InMemoryRepo:
     def set_platform_config(self, patch: dict) -> dict:
         self._platform.update(patch)
         return dict(self._platform)
+
+    # ── Transparency log ──────────────────────────────────────────────
+    def append_transparency_entry(self, body: dict) -> dict:
+        from originshot_pipelines import transparency
+
+        with self._log_lock:
+            prev = self._log[-1]["entry_hash"] if self._log else transparency.GENESIS_HASH
+            entry = transparency.make_entry(seq=len(self._log), prev_hash=prev, **body)
+            self._log.append(entry)
+            return entry
+
+    def list_transparency_entries(self, *, start: int = 0,
+                                  limit: int | None = None) -> list[dict]:
+        rows = self._log[start:]
+        return rows[:limit] if limit is not None else rows
+
+    def transparency_size(self) -> int:
+        return len(self._log)
+
+    def find_transparency_entry(self, subject_sha256: str) -> dict | None:
+        return next((e for e in self._log if e["subject_sha256"] == subject_sha256), None)
+
+    def save_checkpoint(self, checkpoint: dict) -> dict:
+        self._checkpoints.append(checkpoint)
+        return checkpoint
+
+    def latest_checkpoint(self) -> dict | None:
+        return self._checkpoints[-1] if self._checkpoints else None
 
     # ── Dispute reports ───────────────────────────────────────────────
     def add_dispute_report(self, report: dict) -> dict:
@@ -473,6 +516,72 @@ class FirestoreRepo:
         ref = self._db.collection("platform").document("config")
         ref.set(patch, merge=True)
         return ref.get().to_dict() or {}
+
+    # ── Transparency log ──────────────────────────────────────────────
+    def append_transparency_entry(self, body: dict) -> dict:
+        """Atomically extend the chain.
+
+        The head read and the entry write happen in one transaction. A plain read-then-write
+        would let two concurrent generations both see head N and both write entry N+1 with
+        the same `prev_hash` — forking the chain into two competing histories, which is
+        precisely the failure an append-only log exists to make impossible. Firestore retries
+        the transaction on contention.
+
+        Entries are keyed by zero-padded sequence so `stream()` returns them in log order
+        without a sort: replay depends on order, and ordering by a timestamp would be wrong
+        the first time two entries shared a millisecond.
+        """
+        from google.cloud import firestore  # type: ignore[attr-defined]
+
+        from originshot_pipelines import transparency
+
+        head_ref = self._db.collection("transparency").document("head")
+        entries = self._db.collection("transparency").document("head").collection("entries")
+
+        @firestore.transactional
+        def _append(txn) -> dict:
+            snap = head_ref.get(transaction=txn)
+            cur = snap.to_dict() if snap.exists else {}
+            seq = int(cur.get("size") or 0)
+            prev = cur.get("head") or transparency.GENESIS_HASH
+            entry = transparency.make_entry(seq=seq, prev_hash=prev, **body)
+            txn.set(entries.document(f"{seq:012d}"), entry)
+            txn.set(head_ref, {"size": seq + 1, "head": entry["entry_hash"],
+                               "updated_at": utcnow()}, merge=True)
+            return entry
+
+        return _append(self._db.transaction())
+
+    def _entries_col(self):
+        return self._db.collection("transparency").document("head").collection("entries")
+
+    def list_transparency_entries(self, *, start: int = 0,
+                                  limit: int | None = None) -> list[dict]:
+        query = self._entries_col().order_by("seq").offset(start)
+        if limit is not None:
+            query = query.limit(limit)
+        return [d.to_dict() for d in query.stream()]
+
+    def transparency_size(self) -> int:
+        snap = self._db.collection("transparency").document("head").get()
+        return int((snap.to_dict() or {}).get("size") or 0) if snap.exists else 0
+
+    def find_transparency_entry(self, subject_sha256: str) -> dict | None:
+        rows = list(self._entries_col()
+                    .where("subject_sha256", "==", subject_sha256).limit(1).stream())
+        return rows[0].to_dict() if rows else None
+
+    def save_checkpoint(self, checkpoint: dict) -> dict:
+        (self._db.collection("transparency").document("head")
+         .collection("checkpoints").document(f"{int(checkpoint['size']):012d}")
+         .set(checkpoint))
+        return checkpoint
+
+    def latest_checkpoint(self) -> dict | None:
+        rows = list(self._db.collection("transparency").document("head")
+                    .collection("checkpoints")
+                    .order_by("size", direction="DESCENDING").limit(1).stream())
+        return rows[0].to_dict() if rows else None
 
     # ── Dispute reports ───────────────────────────────────────────────
     def add_dispute_report(self, report: dict) -> dict:
