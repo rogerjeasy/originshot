@@ -54,6 +54,49 @@ def test_user_cannot_reach_another_users_sku(client, png_bytes):
         fastapi_app.dependency_overrides.clear()
 
 
+def test_client_ip_prefers_forwarded_for():
+    """Behind Render's proxy `request.client.host` is the proxy for every visitor.
+
+    Keying the limiter on it would put the whole internet in one bucket, so the first burst
+    of traffic would lock everyone out. This is the guard against that regression.
+    """
+    from starlette.requests import Request
+
+    from app.security import client_ip
+
+    def _req(headers: dict, client_host: str) -> Request:
+        scope = {
+            "type": "http", "http_version": "1.1", "method": "GET", "scheme": "http",
+            "path": "/", "raw_path": b"/", "query_string": b"", "root_path": "",
+            "headers": [(k.lower().encode(), v.encode()) for k, v in headers.items()],
+            "client": (client_host, 1234), "server": ("test", 80),
+        }
+        return Request(scope)
+
+    assert client_ip(_req({"x-forwarded-for": "203.0.113.9, 10.0.0.1"}, "10.0.0.1")) \
+        == "203.0.113.9"
+    assert client_ip(_req({}, "198.51.100.4")) == "198.51.100.4"
+
+
+def test_resolve_is_rate_limited(client, monkeypatch, png_bytes):
+    """Resolve is public AND spends a provider call — the per-IP limit must actually bite.
+
+    The limit is read per-request through a callable, so pinning it here exercises the real
+    decorator rather than a stand-in.
+    """
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "resolve_rate_limit", "3/hour")
+
+    codes = [
+        client.post("/api/resolve",
+                    files={"listing_file": ("x.png", png_bytes(), "image/png")}).status_code
+        for _ in range(5)
+    ]
+    assert codes[:3] == [200, 200, 200]
+    assert 429 in codes, f"the limiter never engaged: {codes}"
+
+
 def test_auth_required_without_dev_bypass(monkeypatch):
     monkeypatch.setenv("AUTH_DEV_BYPASS", "false")
     from app.config import get_settings

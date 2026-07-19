@@ -50,6 +50,14 @@ os.environ["MOCK_STEP_DELAY_SECONDS"] = "0"
 # distorting put/call counts. QA logic itself is covered hermetically in tests/test_qa.py.
 os.environ["QA_ENABLED"] = "false"
 
+# The per-IP rate limiter is process-global and every TestClient request arrives from the
+# same address, so counts accumulate across the WHOLE session rather than per test. Left at
+# the production ceiling the suite would start 429-ing partway through for reasons that have
+# nothing to do with the code under test. Raised here; the limiter's own behaviour is tested
+# explicitly in tests/test_security.py with a limit pinned for that test.
+os.environ["RATE_LIMIT_PER_MINUTE"] = "1000000"
+os.environ["RESOLVE_RATE_LIMIT"] = "1000000/hour"
+
 
 @pytest.fixture
 def client():
