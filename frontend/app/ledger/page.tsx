@@ -1,15 +1,27 @@
 "use client";
 
-import { Boxes, Terminal } from "lucide-react";
+import { AlertTriangle, Boxes, ShieldCheck, Terminal } from "lucide-react";
 
 import { useApiData } from "@/lib/use-api";
-import type { LedgerEntryRow, LedgerStatus } from "@/lib/types";
+import type { LedgerAudit, LedgerEntryRow, LedgerStatus } from "@/lib/types";
 import { AdaptiveChrome } from "@/components/adaptive-chrome";
 import { FadeIn } from "@/components/motion/fade-in";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+
+/** "2h ago" from an ISO timestamp — coarse on purpose; the exact time is shown alongside. */
+function relativeTime(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms) || ms < 0) return iso;
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
 
 /**
  * The public transparency log.
@@ -24,8 +36,17 @@ export default function LedgerPage() {
   const { data: entries } = useApiData<LedgerEntryRow[]>(
     "/api/ledger/entries?start=0&limit=50",
   );
+  // 404 until the first audit has run — a real, distinct state, so the card simply
+  // doesn't render rather than showing a default-green placeholder.
+  const { data: audit } = useApiData<LedgerAudit>("/api/ledger/audit");
 
   const recent = entries ? [...entries].reverse() : [];
+  const auditClean =
+    audit &&
+    audit.failures.length === 0 &&
+    audit.assets_passed === audit.assets_sampled &&
+    audit.chain_consistent !== false &&
+    audit.checkpoint_reproduced !== false;
 
   return (
     <AdaptiveChrome>
@@ -94,6 +115,68 @@ export default function LedgerPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* The Auditor's heartbeat: the scheduled agent that re-verifies stored bytes
+                and replays this chain. Renders only once a pass has actually run. */}
+            {audit && (
+              <Card>
+                <CardContent className="p-5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      {auditClean ? (
+                        <ShieldCheck className="size-4 text-verified" />
+                      ) : (
+                        <AlertTriangle className="size-4 text-danger" />
+                      )}
+                      Last audit · {relativeTime(audit.finished_at)}
+                    </p>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {audit.finished_at}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <p className="label text-muted-foreground">Assets re-verified</p>
+                      <p className="tabular mt-1 font-mono text-sm">
+                        {audit.assets_passed} / {audit.assets_sampled} passed
+                      </p>
+                    </div>
+                    <div>
+                      <p className="label text-muted-foreground">Chain replay</p>
+                      <p className="mt-1 font-mono text-sm">
+                        {audit.chain_consistent === false ? "BROKEN" : "consistent"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="label text-muted-foreground">Published head</p>
+                      <p className="mt-1 font-mono text-sm">
+                        {audit.checkpoint_reproduced === false
+                          ? "NOT REPRODUCED"
+                          : audit.checkpoint_reproduced === true
+                            ? "reproduced"
+                            : "first pass"}
+                      </p>
+                    </div>
+                  </div>
+                  {audit.failures.length > 0 && (
+                    <ul className="mt-3 space-y-1">
+                      {audit.failures.map((f) => (
+                        <li key={f.sha256} className="break-all font-mono text-xs text-danger">
+                          ✗ {f.sha256} {f.error ?? "— stored bytes no longer match the record"}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Every few hours this instance re-downloads a random sample of its own
+                    stored media, re-derives each file&apos;s integrity from bytes alone,
+                    replays this chain against the last published head, and commits a fresh
+                    checkpoint. {audit.b2_key && <>Report on B2 · <span className="font-mono">{audit.b2_key}</span>.</>}{" "}
+                    It audits itself — independent verification is the command below.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* The actual verification story. Deliberately more prominent than the table. */}
             <Card>
