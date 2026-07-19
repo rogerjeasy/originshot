@@ -51,6 +51,7 @@ offline, with no call back to our servers.
 | **Health check** | https://originshot-api.onrender.com/healthz |
 | **Public verifier** (no login) | https://originshot.vercel.app/verify |
 | **Resolve a dispute** (no login) | https://originshot.vercel.app/resolve |
+| **Transparency log** (no login) | https://originshot.vercel.app/ledger |
 
 > The API runs on Render's **free tier**, which sleeps after ~15 minutes idle. A
 > [keep-warm workflow](.github/workflows/keep-warm.yml) pings `/healthz` every 10 minutes so
@@ -119,6 +120,67 @@ to. See [`originshot_pipelines/provenance.py`](backend/originshot_pipelines/prov
 > — that half of our workaround has been fixed in the SDK. **WebP still re-encodes** and
 > still loses content-binding, so our embedder remains load-bearing there. We kept one code
 > path for both formats rather than making it release-conditional.*
+
+---
+
+## The Transparency Log — What A Per-File Manifest Can't Tell You
+
+A manifest proves how *that* file was made. It says nothing about **what else was made**. A
+seller who regenerated a product photo twelve times until an inconvenient scratch disappeared
+leaves no trace in any individual file: each one is honest, and the history is invisible.
+
+So every manifest this instance issues is appended to a hash chain, and the head is published
+to B2 as a **checkpoint**:
+
+```
+entry_hash[n] = SHA256({ seq, prev_hash, subject_sha256, manifest_hash, kind, recorded_at })
+```
+
+Each entry commits to its predecessor, so an entry cannot be altered, reordered or removed
+without changing every hash after it. Once a checkpoint is published, the history it commits
+to is fixed. Browse it at [`/ledger`](https://originshot.vercel.app/ledger) — then don't
+believe that page, because it is rendered by the same server that wrote the log:
+
+```bash
+python scripts/verify_ledger.py --save checkpoint.json     # today
+python scripts/verify_ledger.py --against checkpoint.json  # a week later
+```
+
+[`scripts/verify_ledger.py`](scripts/verify_ledger.py) talks only to the public
+`/api/ledger` endpoints and recomputes every hash locally. Its chain logic is vendored into
+the file rather than imported, so it can be handed to a sceptic on its own — reading forty
+lines of hashing is a much lower bar than trusting an installed package. Run against a log
+whose history had been rewritten, it reports exactly that:
+
+```
+  OK   chain replays over 8 entries
+  OK   checkpoint hash matches its own contents (size=6, 57cbab90082c89f7…)
+ FAIL  replaying the first 6 entries reproduces the published head
+ FAIL  history before entry 6 is unchanged — EARLIER ENTRIES WERE REWRITTEN
+```
+
+That output is the whole idea in four lines. The rewritten chain **replays perfectly** — a
+forger rebuilt every hash after the edit, so internal consistency proves nothing on its own.
+What catches it is the previously published checkpoint, which the doctored history can no
+longer reproduce.
+
+### What this does not prove
+
+Stated as plainly as the rest, because a transparency log that overstates itself is worse
+than none:
+
+- **No signatures.** There is no issuing keypair, so a checkpoint proves integrity against a
+  published record, not authorship. Real CT logs sign their heads; that is the next step and
+  is not claimed here.
+- **No witnesses, so a split view is undetectable.** A dishonest operator could keep two
+  chains and show different checkpoints to different people. CT solves this with gossip
+  between independent auditors; a single-operator log cannot.
+- **Absence proves little.** Appends are best-effort so a ledger outage can never fail a
+  generation the provider already billed for. Presence plus a consistent chain is the
+  load-bearing claim; absence is not evidence, and `/verify` deliberately shows no negative
+  signal for an unlogged file.
+- **Inclusion proofs are O(n−k), not O(log n).** This is a chain, not a Merkle tree. Correct,
+  and honest about its cost.
 
 ---
 
@@ -272,6 +334,13 @@ offers: **provable authenticity**. That matters for used and high-value goods, f
 marketplace policy compliance, and for the EU AI Act's transparency rules — the export ships
 a ready-to-file `disclosure.txt` and per-asset statements automatically.
 
+The economics are not close. Professional product photography runs **$25–150 per product**;
+a default OriginShot pack costs **$0.12 at list price**, and a studio pack completes in
+**74.6s** (126.5s when the QA loop retried a style). Those are measured numbers with their
+sample sizes, caveats and one honest gap recorded in
+[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) — including why the provider-billed figure is
+unavailable rather than quietly substituted with the estimate.
+
 It also serves **two audiences, not one**. The Studio is for the seller; [Resolve](#resolve--provenance-that-shows-up-for-the-argument)
 is for the buyer and the marketplace, and needs no account because they don't have one. That
 is what turns provenance from a feature the seller enjoys into an asset the seller can spend
@@ -290,7 +359,7 @@ photography.
 - **Graceful degradation** — partial job results, provider fallback chains, and a storage/repo abstraction that runs fully offline in dev.
 - **A health check that doesn't lie.** `/healthz` *exercises* each dependency rather than checking that an env var is set — it initializes the Firebase Admin SDK and (with `?deep=true`) round-trips to the B2 bucket, reporting `status: degraded` plus the failing exception type. It deliberately still returns **200** while the process is alive, because a failing health check makes the platform restart-loop the service; degradation belongs in the body. Config problems surface as **503**, never as an unhandled 500 — a 500 escapes the CORS middleware and reaches browsers disguised as a CORS error.
 - **Denial-of-wallet, actually enforced.** Per-user daily quotas, plus a global per-IP ceiling and a tight dedicated limit on the one public endpoint that spends provider money (`/api/resolve`). The limiter keys on the left-most `X-Forwarded-For` entry — behind Render's proxy `request.client.host` is the same address for every visitor, so limiting on it would put the whole internet in one bucket and let the first burst lock everyone out.
-- **171 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), dispute-report findings, incremental asset delivery, and the export ZIP.
+- **204 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), transparency-log tampering and concurrent appends, dispute-report findings, catalog credit and concurrency, incremental asset delivery, and the export ZIP.
 
 ### B2 Storage and Data Orchestration
 
@@ -303,6 +372,13 @@ B2 is the system of record for every byte, not an afterthought:
 | **Embedded deliverables** | After the manifest is embedded, the re-hashed bytes are stored under their *new* content address |
 | **Sidecar manifests** | `manifests/<run_id>/<style>.json` — canonical provenance JSON |
 | **Analytics** | Genblaze `ParquetSink` metadata export |
+| **Transparency checkpoints** | `ledger/checkpoints/<size>-<hash>.json` — the published head of the append-only log |
+
+**B2 is the trust anchor, not just the blob store.** A transparency checkpoint kept only in
+our own database would be worth nothing — the party you are being asked to trust is the same
+party who could rewrite it. Publishing each head to object storage under a content-addressed
+key gives it an existence independent of the application's own data, and the bucket's own
+listing becomes a second record of when each head appeared.
 
 **Content-addressing is the cost story.** The key *is* the SHA-256 of the content, so
 identical bytes — a re-uploaded original, a repeated generation, a shared scene plate — are
@@ -472,7 +548,7 @@ npm run dev                                    # http://localhost:3000
 **Tests:**
 
 ```bash
-cd backend && poetry run python -m pytest -q   # 171 passing
+cd backend && poetry run python -m pytest -q   # 204 passing
 ```
 
 > **Auth is always enforced** — there is no production bypass. Signing in locally requires
@@ -516,6 +592,8 @@ Full list with defaults in [`.env.example`](.env.example).
 | `GET` | `/api/analytics` | Assets, dedup savings, cost, provider mix |
 | `POST` | `/api/verify` | **Public** — verify an uploaded file from its bytes |
 | `GET` | `/api/verify/{sha256}` | **Public** — look up provenance by hash |
+| `GET` | `/api/ledger` · `/api/ledger/entries` · `/api/ledger/checkpoint` | **Public** — the transparency log, its raw entries and the published head |
+| `GET` | `/api/ledger/proof/{sha256}` | **Public** — offline-verifiable inclusion proof |
 | `POST` | `/api/resolve` | **Public** — issue a Dispute Evidence Report (rate-limited) |
 | `GET` | `/api/resolve/{id}` | **Public** — resolve a report by the id on its PDF |
 | `GET` | `/api/assets/{sha256}/manifest` | **Public** — non-sensitive manifest view |
@@ -531,6 +609,7 @@ originshot/
 │   │   ├── api/            skus · uploads · generate · batches · export · verify · resolve · analytics · brand_kit · users
 │   │   ├── auth.py         Firebase ID-token verification (uid only from verified token)
 │   │   ├── batches.py      Catalog Mode runner — bounded concurrency, per-item credit
+│   │   ├── transparency.py log appends + checkpoint publication to B2
 │   │   ├── config.py       pydantic settings + env mirroring for SDKs reading os.environ
 │   │   ├── generation.py   pipeline orchestration, manifest embedding, per-style isolation
 │   │   ├── security.py     headers · XFF-aware rate limits · upload validation · quotas
@@ -540,14 +619,15 @@ originshot/
 │   ├── originshot_pipelines/
 │   │   ├── registry.py     ⭐ canonical providers/models (runtime-verified)
 │   │   ├── provenance.py   ⭐ embed / extract / verify / content-binding
+│   │   ├── transparency.py ⭐ append-only hash chain · checkpoints · proofs
 │   │   ├── resolve.py      ⭐ dispute findings · item comparison · evidence PDF
 │   │   ├── storage.py      Genblaze ObjectStorageSink → B2 + ParquetSink
 │   │   ├── presets.py      marketplace dimensions + rendition rendering
 │   │   └── studio · lifestyle · onmodel · variants · video
-│   └── tests/              171 tests
+│   └── tests/              204 tests
 ├── frontend/               Next.js 15 App Router · Tailwind v4 · Radix primitives · Firebase Auth
 ├── infra/                  Dockerfile.backend · docker-compose · firestore.rules
-├── docs/                   PROJECT_DESCRIPTION · BUILD_PLAN · SECURITY · DESIGN_SYSTEM
+├── docs/                   PROJECT_DESCRIPTION · BUILD_PLAN · SECURITY · DESIGN_SYSTEM · BENCHMARKS
 └── render.yaml             Render Blueprint
 ```
 
@@ -580,6 +660,8 @@ Stated plainly, because a submission that hides these is worse than one that nam
 - **Jobs run inline** on the web service (`JOB_QUEUE=inline`). The Arq/Redis worker path is implemented and tested but not provisioned, to keep the free-tier footprint lean.
 - **Dispute reports are hash-anchored, not signed.** There is no issuing keypair, so a report proves it is unaltered against the record this instance holds — not who issued it. An offline-verifiable signature is the obvious next step and is deliberately not claimed until it exists.
 - **The delivered-item comparison is a vision-model judgement.** It is evidence for a human decision, never a determination of fault, and every report says so on its face. It reads two photographs: it cannot assess working order, brand authenticity, or anything not visible in them. The provenance half of each report needs no model and is reproducible by anyone.
+- **The transparency log is unsigned and unwitnessed.** It proves the published history is internally consistent and append-only against a saved checkpoint; it cannot prove authorship, and a single-operator log cannot rule out a split view. Both are spelled out above and in the tool's own output rather than left for a reader to discover.
+- **Provider credit is exhaustible.** GMI Cloud returns `402 Insufficient credits` when the account balance runs out, and generation then fails cleanly with that message rather than degrading. Top up before a demo.
 - **No audio modality.** Not a scoping choice — GMI's TTS and music models cannot be invoked through `genblaze-gmicloud` 0.3.3 at all ([issue 04](docs/genblaze-issues/04-gmi-audio-modality-unreachable.md)). We cut the planned voiceover step rather than bypass the SDK to fake the capability.
 
 ---
