@@ -57,6 +57,12 @@ class Repo(Protocol):
 
     def count_generations_today(self, uid: str) -> int: ...
 
+    # Catalog batches — a run across many SKUs at once.
+    def create_batch(self, uid: str, batch: dict) -> dict: ...
+    def get_batch(self, uid: str, batch_id: str) -> dict | None: ...
+    def list_batches(self, uid: str, limit: int = 50) -> list[dict]: ...
+    def update_batch(self, uid: str, batch_id: str, patch: dict) -> dict | None: ...
+
     def get_brand_kit(self, uid: str) -> dict | None: ...
     def set_brand_kit(self, uid: str, data: dict) -> dict: ...
 
@@ -76,6 +82,13 @@ class Repo(Protocol):
     def get_platform_config(self) -> dict: ...
     def set_platform_config(self, patch: dict) -> dict: ...
 
+    # Dispute evidence reports. Deliberately NOT under sellers/{uid}: a report is issued to
+    # whoever ran the check — usually a buyer or a marketplace with no account here — and its
+    # entire purpose is being resolvable by a third party from the id printed on the PDF.
+    def add_dispute_report(self, report: dict) -> dict: ...
+    def get_dispute_report(self, report_id: str) -> dict | None: ...
+    def update_dispute_report(self, report_id: str, patch: dict) -> dict | None: ...
+
     # Admin — cross-user reads. Only ever called behind require_admin.
     def list_users(self) -> list[dict]: ...
     def list_all_jobs(self, limit: int = 200) -> list[dict]: ...
@@ -94,6 +107,8 @@ class InMemoryRepo:
         self._users: dict[str, dict] = {}
         self._ledger: list[dict] = []
         self._platform: dict = {}
+        self._reports: dict[str, dict] = {}
+        self._batches: dict[str, dict] = {}
         # Serializes read-modify-write on balances, mirroring the Firestore transaction.
         self._credit_lock = threading.Lock()
 
@@ -168,6 +183,26 @@ class InMemoryRepo:
             if j["owner_uid"] == uid and _today_key(j["created_at"]) == today
         )
 
+    # ── Batches ───────────────────────────────────────────────────────
+    def create_batch(self, uid: str, batch: dict) -> dict:
+        doc = {"id": _new_id(), "owner_uid": uid, "created_at": utcnow(), **batch}
+        self._batches[doc["id"]] = doc
+        return doc
+
+    def get_batch(self, uid: str, batch_id: str) -> dict | None:
+        batch = self._batches.get(batch_id)
+        return batch if batch and batch["owner_uid"] == uid else None
+
+    def list_batches(self, uid: str, limit: int = 50) -> list[dict]:
+        rows = [b for b in self._batches.values() if b["owner_uid"] == uid]
+        return sorted(rows, key=lambda b: b["created_at"], reverse=True)[:limit]
+
+    def update_batch(self, uid: str, batch_id: str, patch: dict) -> dict | None:
+        batch = self.get_batch(uid, batch_id)
+        if batch:
+            batch.update(patch)
+        return batch
+
     def get_brand_kit(self, uid: str) -> dict | None:
         return self._brand.get(uid)
 
@@ -218,6 +253,21 @@ class InMemoryRepo:
     def set_platform_config(self, patch: dict) -> dict:
         self._platform.update(patch)
         return dict(self._platform)
+
+    # ── Dispute reports ───────────────────────────────────────────────
+    def add_dispute_report(self, report: dict) -> dict:
+        doc = {"id": _new_id(), "created_at": utcnow(), **report}
+        self._reports[doc["id"]] = doc
+        return doc
+
+    def get_dispute_report(self, report_id: str) -> dict | None:
+        return self._reports.get(report_id)
+
+    def update_dispute_report(self, report_id: str, patch: dict) -> dict | None:
+        report = self._reports.get(report_id)
+        if report:
+            report.update(patch)
+        return report
 
     # ── Admin ─────────────────────────────────────────────────────────
     def list_users(self) -> list[dict]:
@@ -325,6 +375,29 @@ class FirestoreRepo:
         today = _today_key()
         return sum(1 for j in jobs if _today_key(j.to_dict().get("created_at")) == today)
 
+    # ── Batches ───────────────────────────────────────────────────────
+    def create_batch(self, uid: str, batch: dict) -> dict:
+        ref = self._seller(uid).collection("batches").document()
+        doc = {"id": ref.id, "owner_uid": uid, "created_at": utcnow(), **batch}
+        ref.set(doc)
+        return doc
+
+    def get_batch(self, uid: str, batch_id: str) -> dict | None:
+        snap = self._seller(uid).collection("batches").document(batch_id).get()
+        return snap.to_dict() if snap.exists else None
+
+    def list_batches(self, uid: str, limit: int = 50) -> list[dict]:
+        rows = [d.to_dict() for d in self._seller(uid).collection("batches").stream()]
+        return sorted(rows, key=lambda b: b["created_at"], reverse=True)[:limit]
+
+    def update_batch(self, uid: str, batch_id: str, patch: dict) -> dict | None:
+        ref = self._seller(uid).collection("batches").document(batch_id)
+        if not ref.get().exists:
+            return None
+        ref.update(patch)
+        snap = ref.get()
+        return snap.to_dict() if snap.exists else None
+
     def get_brand_kit(self, uid: str) -> dict | None:
         snap = self._seller(uid).get()
         return (snap.to_dict() or {}).get("brand_kit") if snap.exists else None
@@ -400,6 +473,25 @@ class FirestoreRepo:
         ref = self._db.collection("platform").document("config")
         ref.set(patch, merge=True)
         return ref.get().to_dict() or {}
+
+    # ── Dispute reports ───────────────────────────────────────────────
+    def add_dispute_report(self, report: dict) -> dict:
+        ref = self._db.collection("dispute_reports").document()
+        doc = {"id": ref.id, "created_at": utcnow(), **report}
+        ref.set(doc)
+        return doc
+
+    def get_dispute_report(self, report_id: str) -> dict | None:
+        snap = self._db.collection("dispute_reports").document(report_id).get()
+        return snap.to_dict() if snap.exists else None
+
+    def update_dispute_report(self, report_id: str, patch: dict) -> dict | None:
+        ref = self._db.collection("dispute_reports").document(report_id)
+        if not ref.get().exists:
+            return None
+        ref.update(patch)
+        snap = ref.get()
+        return snap.to_dict() if snap.exists else None
 
     # ── Admin ─────────────────────────────────────────────────────────
     # Cross-user reads via collection-group queries. These scan; at real scale they'd be
