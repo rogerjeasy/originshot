@@ -30,19 +30,33 @@ log = logging.getLogger("originshot.worker")
 
 
 class _JobStepReporter(StepReporter):
-    """Persists step transitions onto the job document.
+    """Persists step transitions — and each step's assets — as the run advances.
 
     Holds the step list in memory and rewrites the whole array on each event. The array is
     small (≤5 entries) and this avoids a read-modify-write race against the worker's own
     status updates — this object is the sole writer of `steps` for its job.
 
-    Every method swallows its own exceptions: progress reporting is cosmetic, and losing a
-    UI update must never fail a run the provider has already been paid for.
+    Progress reporting is cosmetic and every reporting path swallows its own exceptions:
+    losing a UI update must never fail a run the provider has already been paid for.
+    **Asset persistence is not cosmetic**, so it is handled separately — per-asset failures
+    are collected in `persist_errors` and surfaced on the job rather than silently dropped.
+
+    Assets are written when their style finishes rather than when the whole job does. A pack
+    with a video step takes minutes; waiting for the last one to land before showing the
+    first is the difference between watching a product work and watching a spinner. The
+    client already reloads its grid whenever the completed-step count moves, so the write
+    has to happen *before* the step flips to `done` — see `finish`.
     """
 
     def __init__(self, uid: str, job_id: str, styles: list[str]) -> None:
         self._uid = uid
         self._job_id = job_id
+        self.asset_ids: list[str] = []
+        self.persist_errors: list[str] = []
+        # Provider spend accumulated per completed step. Tracked here because assets are now
+        # durable before the job ends: if the run dies afterwards, the work was still billed,
+        # and settling as if nothing happened would hand out those assets for free.
+        self.cost_total: float = 0.0
         self._steps: dict[str, dict] = {}
         self._order: list[str] = []
         for s in styles:
@@ -77,13 +91,31 @@ class _JobStepReporter(StepReporter):
     def start(self, style: Style) -> None:
         self._patch(style, status=StepStatus.running.value, started_at=utcnow())
 
+    def _persist(self, assets: list[dict]) -> None:
+        """Write this step's assets, so they are readable the moment the step reads `done`.
+
+        Ordering matters: the client reloads its grid on seeing a step complete, so a write
+        that happened after the status flip would be raced and the grid would come back
+        empty. One failure does not abort the rest — the pack's per-style isolation applies
+        to storage too — but it is recorded so the job reports `partial` instead of `done`.
+        """
+        repo = get_repo()
+        for asset in assets:
+            try:
+                self.asset_ids.append(repo.add_asset(self._uid, asset)["id"])
+            except Exception as exc:  # noqa: BLE001
+                log.exception("asset persist failed for job %s", self._job_id)
+                self.persist_errors.append(f"{asset.get('style', 'asset')}: not saved ({exc})")
+
     def finish(self, style: Style, assets: list[dict]) -> None:
+        self._persist(assets)
         step = self._steps.get(style.value) or {}
         started = step.get("started_at")
         # Provider/model/cost come from the assets the step produced — they're only known
         # after the call returns, which is the whole reason these are reported per step.
         first = assets[0] if assets else {}
         cost = sum(c for a in assets if (c := a.get("cost_usd")) is not None)
+        self.cost_total += cost
         # QA rollup: only over assets that actually carry a report — no report, no claim.
         reports = [a["qa"] for a in assets if a.get("qa")]
         self._patch(
@@ -153,9 +185,12 @@ async def process_generation(uid: str, job_id: str, sku_id: str, styles: list[st
             uid, sku, original, styles, storage=storage, brand=brand,
             marketplaces=marketplaces, reporter=reporter,
         )
-        asset_ids = [repo.add_asset(uid, a)["id"] for a in assets]
+        # Already written per step by the reporter, so the client could show them as they
+        # landed. Reading the ids back from it keeps a single writer for assets.
+        asset_ids = list(reporter.asset_ids)
+        errors = errors + reporter.persist_errors
 
-        if not assets:
+        if not asset_ids:
             status = JobStatus.failed
         elif errors:
             status = JobStatus.partial
@@ -178,9 +213,16 @@ async def process_generation(uid: str, job_id: str, sku_id: str, styles: list[st
         log.info("job %s %s: %d assets, %d errors", job_id, status.value, len(asset_ids), len(errors))
     except Exception as exc:  # noqa: BLE001
         log.exception("job %s failed", job_id)
-        actual = 0.0  # nothing was produced ⇒ the whole hold is refunded below
+        # Steps that completed before the crash already wrote their assets, and the provider
+        # already billed for them. Settle against what was actually produced rather than
+        # refunding the whole hold — and keep those assets attached to the job, because they
+        # are real and the user can use them.
+        salvaged = list(reporter.asset_ids)
+        actual = round(reporter.cost_total, 4)
         repo.update_job(uid, job_id, {
-            "status": JobStatus.failed.value,
+            "status": (JobStatus.partial if salvaged else JobStatus.failed).value,
+            "asset_ids": salvaged,
+            "cost_actual": actual,
             "error": str(exc),
             "finished_at": utcnow(),
         })
