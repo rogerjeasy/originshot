@@ -94,18 +94,22 @@ def ensure_signup_grant(uid: str) -> None:
     """Give a brand-new user their starting credit, exactly once.
 
     Keyed off a `signup_grant_at` marker rather than "balance == 0", which would re-grant
-    every time a user spent down to zero.
+    every time a user spent down to zero. The marker is *claimed atomically before* the
+    money moves: a fresh account's first page load hits several endpoints that all call
+    this, and a read-check here would let each of them grant. Claim-first also picks the
+    safer crash mode — a process dying mid-way shorts the user one welcome credit an admin
+    can re-issue, instead of minting duplicates nobody notices.
     """
     repo = get_repo()
     user = repo.get_user(uid) or {}
     if user.get("signup_grant_at"):
-        return
+        return  # fast path: already granted, skip the transactional claim
+    if not repo.claim_signup_grant(uid):
+        return  # lost the race to a concurrent request that is doing the grant
     amount = get_settings().signup_credit_grant
     if amount <= 0:
-        repo.set_user(uid, {"signup_grant_at": utcnow()})
         return
     balance, seq = repo.adjust_credits(uid, amount, granted_delta=amount)
-    repo.set_user(uid, {"signup_grant_at": utcnow()})
     _record(uid, LedgerKind.grant, amount, balance, seq,
             note="Welcome credit", actor_uid="system")
     log.info("signup grant: %s +$%.2f", uid, amount)

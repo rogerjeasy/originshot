@@ -76,6 +76,9 @@ class Repo(Protocol):
     def adjust_credits(self, uid: str, delta: float, *, granted_delta: float = 0.0,
                        spent_delta: float = 0.0,
                        held_delta: float = 0.0) -> tuple[float, int]: ...
+    # Atomically set `signup_grant_at` iff unset; True means this caller won and owes the
+    # user their welcome credit. MUST be atomic — the grant endpoints race on first load.
+    def claim_signup_grant(self, uid: str) -> bool: ...
     def add_ledger_entry(self, uid: str, entry: dict) -> dict: ...
     def list_ledger(self, uid: str, limit: int = 50) -> list[dict]: ...
 
@@ -258,6 +261,14 @@ class InMemoryRepo:
             seq = int(user.get("ledger_seq") or 0) + 1
             user["ledger_seq"] = seq
             return balance, seq
+
+    def claim_signup_grant(self, uid: str) -> bool:
+        with self._credit_lock:
+            user = self._users.setdefault(uid, {"uid": uid})
+            if user.get("signup_grant_at"):
+                return False
+            user["signup_grant_at"] = utcnow()
+            return True
 
     def add_ledger_entry(self, uid: str, entry: dict) -> dict:
         doc = {"id": _new_id(), **entry}
@@ -514,6 +525,28 @@ class FirestoreRepo:
             return balance, seq
 
         return _apply(self._db.transaction())
+
+    def claim_signup_grant(self, uid: str) -> bool:
+        """Transactional check-and-set on the marker.
+
+        The read and the write share one transaction, so of N concurrent first requests
+        exactly one sees the marker unset — a plain get() → set() here is how the same
+        account ends up with three welcome credits.
+        """
+        from google.cloud import firestore  # type: ignore[attr-defined]
+
+        ref = self._db.collection("users").document(uid)
+
+        @firestore.transactional
+        def _claim(txn) -> bool:
+            snap = ref.get(transaction=txn)
+            cur = snap.to_dict() if snap.exists else {}
+            if cur.get("signup_grant_at"):
+                return False
+            txn.set(ref, {"uid": uid, "signup_grant_at": utcnow()}, merge=True)
+            return True
+
+        return _claim(self._db.transaction())
 
     def add_ledger_entry(self, uid: str, entry: dict) -> dict:
         ref = self._seller(uid).collection("ledger").document()

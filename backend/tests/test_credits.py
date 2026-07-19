@@ -1,7 +1,7 @@
 """Credit ledger: hold/settle accounting, refunds, and the pre-flight affordability gate."""
 import pytest
 
-from app.credits import InsufficientCredit, get_balance, grant, hold, settle
+from app.credits import InsufficientCredit, ensure_signup_grant, get_balance, grant, hold, settle
 from app.models import LedgerKind
 
 
@@ -34,6 +34,30 @@ def test_signup_grant_not_reissued_after_spending_to_zero(client, repo):
 
     client.get("/api/credits")  # would re-grant if the check were `balance == 0`
     assert get_balance(UID) == pytest.approx(0.0)
+
+
+def test_signup_grant_survives_a_concurrent_first_load(client, repo):
+    """A fresh account's first page load hits several granting endpoints at once;
+    exactly one may win the welcome credit — three did, before the atomic claim."""
+    import threading
+
+    uid = "race-user"
+    barrier = threading.Barrier(6)
+
+    def first_request() -> None:
+        barrier.wait()
+        ensure_signup_grant(uid)
+
+    threads = [threading.Thread(target=first_request) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    grants = [e for e in repo.list_ledger(uid) if e["kind"] == LedgerKind.grant.value]
+    assert len(grants) == 1
+    assert get_balance(uid) == pytest.approx(5.0)
+    assert repo.get_user(uid)["credits_granted_total"] == pytest.approx(5.0)
 
 
 def test_hold_then_settle_under_estimate_refunds_difference(client, repo):
