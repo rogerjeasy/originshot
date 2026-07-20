@@ -103,6 +103,27 @@ back, so components inside render correctly without knowing where they are.
 Inside the app shell the content area sits beside a themed sidebar, where a
 permanently dark panel reads as a rendering fault rather than a choice.
 
+#### The app stays on paper — deliberately
+
+Signing in moves you from a permanently-ink public surface to an app that
+follows the system preference (`--background`: `#F6F5F2` light, `#0E1823` dark).
+On a light-preference machine that is a visible flip at the moment of sign-in.
+
+**This is intended, and it follows the thesis at the top of this document:** ink
+is the ground you *look at* photographs on, paper is the ground you *study*
+records on. The app is where records are studied. You leave the gallery and
+enter the workroom.
+
+Do not "fix" the flip by darkening the app without deciding to move the whole
+signed-in product into the viewing room — half-darkening it (ink chrome, paper
+content) trades one discontinuity for a smaller one in more places.
+
+**Theme selection is system-only.** The toggle is gone, so nothing can write a
+stored preference; the pre-paint script clears any legacy `theme` key it finds.
+Preferring a stored value over the system was correct while a control existed to
+change it, but once the control was removed it pinned anyone who had ever chosen
+light to light permanently, with no way to reach the setting.
+
 The reason is structural, not stylistic: `/verify`, `/ledger` and `/resolve`
 render inside `AdaptiveChrome`, so the same file is a public page for a
 signed-out buyer *and* an app screen inside the sidebar shell. A full-bleed
