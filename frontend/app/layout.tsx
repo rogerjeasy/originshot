@@ -35,24 +35,34 @@ export const metadata: Metadata = {
     "Turn one phone photo into studio shots, lifestyle scenes, variants, and a product video — each with verifiable provenance. Generated with Genblaze, stored on Backblaze B2.",
 };
 
-// Set the theme class before paint to avoid a flash.
+// The product runs in the viewing room, permanently. `dark` is set statically on
+// <html> rather than resolved at runtime, so there is no pre-paint script for it,
+// no flash, and no theme state anywhere.
 //
-// System preference only. This used to prefer a stored 'theme' key, which was
-// correct while a toggle existed to write it — but the toggle is gone, so a
-// stored value became state nothing could reach: anyone who had ever chosen
-// light was pinned to light forever, with no control to undo it. The key is
-// cleared on sight so a returning visitor isn't left on a dead preference.
-const themeScript = `(function(){try{localStorage.removeItem('theme')}catch(e){}try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.classList.add('dark')}catch(e){}})();`;
+// Why the whole palette rather than just a darker --background: the light tokens
+// are tuned as a set for a near-white ground. Darkening only the background would
+// leave --card #ffffff, --border #e3e1db and every muted/input value beside it —
+// a combination nothing in the system validates. The .dark set is coherent and
+// already passes the contrast gate.
+//
+// The one remaining script clears a legacy 'theme' key from the removed toggle.
+// It is dead state, and leaving it would strand a returning visitor on a
+// preference no control can reach.
+const clearLegacyTheme = `(function(){try{localStorage.removeItem('theme')}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${plexMono.variable} ${bricolage.variable} ${interTight.variable}`}
+      className={`dark ${plexMono.variable} ${bricolage.variable} ${interTight.variable}`}
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {/* Keeps the browser's own form controls, scrollbars and autofill
+            styling on the dark palette — without it they render light against
+            every surface in the product. */}
+        <meta name="color-scheme" content="dark" />
+        <script dangerouslySetInnerHTML={{ __html: clearLegacyTheme }} />
       </head>
       {/* Browser extensions (Grammarly is the usual culprit) inject attributes
           like data-gr-ext-installed onto <body> before React hydrates, which
