@@ -78,7 +78,7 @@ export function UploadDropzone({
       )}
     >
       {busy ? (
-        <Loader2 className="size-8 animate-spin text-accent" />
+        <Loader2 className="size-8 animate-spin t-accent" />
       ) : (
         <UploadCloud className="size-8 text-muted-foreground" />
       )}

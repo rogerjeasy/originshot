@@ -32,7 +32,7 @@ export function CreditsCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Wallet className="size-4 text-accent" /> Credits
+          <Wallet className="size-4 t-accent" /> Credits
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
