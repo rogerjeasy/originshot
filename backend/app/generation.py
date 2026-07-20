@@ -40,11 +40,17 @@ class GenerationUnavailable(RuntimeError):
 
 
 def missing_generation_requirements() -> list[str]:
-    """Which prerequisites for real generation are absent. Empty ⇒ ready to generate."""
+    """Which prerequisites for real generation are absent. Empty ⇒ ready to generate.
+
+    Image generation needs *an* image provider, not one specific vendor — since 2026-07-20
+    either `OPENAI_API_KEY` or `GMI_API_KEY` satisfies it (see providers.image_chain). Naming
+    only GMI here would report a fully-working OpenAI-served deployment as "unconfigured"
+    and refuse every request with a 503.
+    """
     s = get_settings()
     missing = []
-    if not s.gmi_api_key:
-        missing.append("GMI_API_KEY")
+    if not (s.openai_api_key or s.gmi_api_key):
+        missing.append("an image provider key (OPENAI_API_KEY or GMI_API_KEY)")
     if not s.b2_configured:
         missing.append("B2 storage (B2_KEY_ID / B2_APP_KEY / B2_BUCKET)")
     if not genblaze_available():
@@ -173,6 +179,7 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
         lifestyle,
         onmodel,
         presets,
+        providers,
         storage as sink_module,
         studio,
         variants,
@@ -198,11 +205,21 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
     # isolated so the remaining styles still run (that's what makes a run "partial" rather
     # than lost). Studio must run before video, which consumes its output as the hero frame;
     # GENERATED_STYLES fixes that order, so iterate it rather than the caller's list.
+    # Every image style runs through the cross-provider chain (originshot_pipelines/
+    # providers.py): the first configured provider serves, and a provider that actually
+    # fails — a 402 on an exhausted account, an outage — falls across to the next rather
+    # than failing the style. `run_image_edit` returns the provider that served alongside
+    # the result; the asset document records it from the SDK's own Step.provider, so a pack
+    # assembled from two providers explains itself asset by asset.
+    src_mime = original.get("mime_type") or "image/png"
+
     async def _studio() -> list[dict]:
         nonlocal hero_url
-        res = await studio.build_studio_pipeline(
-            source_uri, desc, brand_suffix=brand_tone, aspect=studio_aspect
-        ).arun(sink=sink, timeout=img_t)
+        req = studio.studio_request(
+            source_uri, desc, brand_suffix=brand_tone, aspect=studio_aspect,
+            source_sha256=parent, source_media_type=src_mime,
+        )
+        res, _adapter = await providers.run_image_edit(req, sink=sink, timeout=img_t)
         asset = _map(sku, res, Style.studio, parent, storage)
         # The hero image feeds the image-to-video step. After embedding we store the
         # studio image under our own key, so presign that; else use the sink URL.
@@ -213,21 +230,26 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
         return [asset]
 
     async def _lifestyle() -> list[dict]:
-        results = await lifestyle.run_lifestyle(source_uri, desc, sink, brand_suffix=brand_full)
-        return [_map(sku, r, Style.lifestyle, parent, storage) for r in results]
+        results = await lifestyle.run_lifestyle(
+            source_uri, desc, sink, brand_suffix=brand_full, timeout=img_t,
+            source_sha256=parent,
+        )
+        return [_map(sku, r, Style.lifestyle, parent, storage) for r, _ in results]
 
     async def _onmodel() -> list[dict]:
-        res = await onmodel.build_onmodel_pipeline(
-            source_uri, desc, brand_suffix=brand_full
-        ).arun(sink=sink, timeout=img_t)
+        req = onmodel.onmodel_request(
+            source_uri, desc, brand_suffix=brand_full,
+            source_sha256=parent, source_media_type=src_mime,
+        )
+        res, _adapter = await providers.run_image_edit(req, sink=sink, timeout=img_t)
         return [_map(sku, res, Style.onmodel, parent, storage)]
 
     async def _variant() -> list[dict]:
         results = await variants.run_variants(
             source_uri, desc, sink, colors=VARIANT_COLORS, angles=VARIANT_ANGLES,
-            brand_suffix=brand_full,
+            brand_suffix=brand_full, timeout=img_t, source_sha256=parent,
         )
-        return [_map(sku, r, Style.variant, parent, storage) for r in results]
+        return [_map(sku, r, Style.variant, parent, storage) for r, _ in results]
 
     async def _video() -> list[dict]:
         res = await video.build_hero_video(
@@ -572,6 +594,16 @@ def _embed_and_store(result, out: dict, storage, mime_type: str | None, manifest
     if not url:
         return
     data = _fetch_bytes(url)
+
+    # Perceptual hash for "Verify in the Wild" — computed here, from the pixels, so a later
+    # marketplace re-encode that strips the manifest can still be matched back to this asset.
+    # Taken from the pre-embed bytes on purpose: embedding writes a metadata chunk (PNG iTXt /
+    # JPEG APP1 / WebP XMP) and does not touch pixels, so this pHash equals the delivered
+    # file's, and it is recorded even if the embed step below fails. Images only — a pHash of
+    # a video frame would be a single-frame claim the feature can't stand behind.
+    if (mime_type or "").lower().startswith("image/"):
+        from originshot_pipelines import perceptual
+        out["phash"] = perceptual.phash(data)
 
     mode = get_settings().manifest_embed_mode.lower()
     ext = _ext_for(mime_type)
