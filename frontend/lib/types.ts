@@ -177,6 +177,12 @@ export interface LedgerCheckpoint {
   issued_at: string;
   checkpoint_hash: string;
   b2_key?: string | null;
+  /**
+   * Set only when this checkpoint was published under B2 Object Lock — physically immutable
+   * (unalterable, undeletable, even by the operator) until this instant. Absent = published
+   * without a lock. Never overstates.
+   */
+  retained_until?: string | null;
 }
 
 export interface LedgerStatus {
