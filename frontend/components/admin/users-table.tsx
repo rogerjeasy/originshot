@@ -83,7 +83,7 @@ export function UsersTable({
                           className={cn(
                             "rounded-full px-2 py-0.5 text-xs",
                             r === "admin"
-                              ? "bg-accent/12 text-accent"
+                              ? "bg-accent/12 t-accent"
                               : "bg-secondary text-secondary-foreground",
                           )}
                         >

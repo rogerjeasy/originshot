@@ -8,7 +8,7 @@ const STATUS_STYLES: Record<JobStatus, string> = {
   done: "bg-verified/12 text-verified",
   partial: "bg-warning/12 text-warning",
   failed: "bg-danger/12 text-danger",
-  running: "bg-accent/12 text-accent",
+  running: "bg-accent/12 t-accent",
   queued: "bg-secondary text-secondary-foreground",
 };
 

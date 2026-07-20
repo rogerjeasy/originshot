@@ -33,7 +33,7 @@ export function LedgerFeed({ entries }: { entries: LedgerEntry[] }) {
                 className={cn(
                   "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
                   e.kind === "grant" && "bg-verified/12 text-verified",
-                  e.kind === "refund" && "bg-accent/12 text-accent",
+                  e.kind === "refund" && "bg-accent/12 t-accent",
                   e.kind === "hold" && "bg-secondary text-secondary-foreground",
                   e.kind === "debit" && "bg-secondary text-secondary-foreground",
                   e.kind === "adjust" && "bg-warning/12 text-warning",
