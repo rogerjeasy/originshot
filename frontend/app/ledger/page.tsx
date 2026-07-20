@@ -52,13 +52,14 @@ export default function LedgerPage() {
     <AdaptiveChrome>
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
         <FadeIn className="mb-8">
-          <span className="grid size-11 place-items-center rounded-md border bg-card text-accent shadow-raised">
-            <Boxes className="size-5" />
-          </span>
-          <h1 className="mt-5 text-3xl font-semibold tracking-[-0.03em]">
+          <p className="kicker t-verify inline-flex items-center gap-2">
+            <Boxes className="size-3.5" />
+            Append-only
+          </p>
+          <h1 className="display-face mt-4 text-[clamp(1.875rem,4.5vw,2.5rem)]">
             Transparency log
           </h1>
-          <p className="mt-3 text-muted-foreground">
+          <p className="mt-4 text-[16.5px] leading-relaxed text-muted-foreground">
             Every manifest this instance issues is appended to a hash chain, and the head is
             published to Backblaze B2 as a checkpoint. Each entry commits to the one before
             it, so an entry can&apos;t be altered, reordered or removed without breaking
@@ -182,7 +183,7 @@ export default function LedgerPage() {
             <Card>
               <CardContent className="p-5">
                 <p className="flex items-center gap-2 text-sm font-medium">
-                  <Terminal className="size-4 text-accent" /> Don&apos;t take our word for it
+                  <Terminal className="size-4 t-accent" /> Don&apos;t take our word for it
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   This page is rendered by the same server that wrote the log, so it proves

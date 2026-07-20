@@ -66,11 +66,14 @@ export default function VerifyHome() {
     <AdaptiveChrome>
       <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 sm:py-16">
         <FadeIn className="mb-8">
-          <span className="grid size-11 place-items-center rounded-md border bg-card text-verified shadow-raised">
-            <ShieldCheck className="size-5" />
-          </span>
-          <h1 className="mt-5 text-3xl font-semibold tracking-[-0.03em]">Verify provenance</h1>
-          <p className="mt-3 text-muted-foreground">
+          <p className="kicker t-verify inline-flex items-center gap-2">
+            <ShieldCheck className="size-3.5" />
+            Provenance check
+          </p>
+          <h1 className="display-face mt-4 text-[clamp(1.875rem,4.5vw,2.5rem)]">
+            Verify provenance
+          </h1>
+          <p className="mt-4 text-[16.5px] leading-relaxed text-muted-foreground">
             Drop a file and we re-hash the bytes and re-read its embedded manifest — no upload is
             kept. Or paste a SHA-256 to look it up in the ledger.
           </p>
@@ -138,7 +141,7 @@ export default function VerifyHome() {
                 href="/resolve"
                 className="flex items-start gap-3 rounded-md border bg-card p-4 transition-colors hover:bg-secondary"
               >
-                <Scale className="mt-0.5 size-4 shrink-0 text-accent" />
+                <Scale className="mt-0.5 size-4 shrink-0 t-accent" />
                 <span className="min-w-0">
                   <span className="block text-sm font-medium">
                     Received something that doesn&apos;t match the listing?

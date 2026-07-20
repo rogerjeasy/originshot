@@ -48,13 +48,14 @@ export default function ResolveHome() {
     <AdaptiveChrome>
       <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 sm:py-16">
         <FadeIn className="mb-8">
-          <span className="grid size-11 place-items-center rounded-md border bg-card text-accent shadow-raised">
-            <Scale className="size-5" />
-          </span>
-          <h1 className="mt-5 text-3xl font-semibold tracking-[-0.03em]">
+          <p className="kicker t-accent inline-flex items-center gap-2">
+            <Scale className="size-3.5" />
+            Evidence report
+          </p>
+          <h1 className="display-face mt-4 text-[clamp(1.875rem,4.5vw,2.5rem)]">
             Resolve a dispute
           </h1>
-          <p className="mt-3 text-muted-foreground">
+          <p className="mt-4 text-[16.5px] leading-relaxed text-muted-foreground">
             Two questions, answered together: was the listing photo honest about how it was
             made, and is the item that arrived the item it depicts? You don&apos;t need an
             account — this is for whoever is holding the parcel.
