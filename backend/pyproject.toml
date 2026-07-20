@@ -27,9 +27,14 @@ dependencies = [
 firebase = ["firebase-admin>=6.5"]
 worker = ["arq>=0.26", "redis>=5.0"]
 analytics = ["duckdb>=1.0", "pandas>=2.2", "pyarrow>=16.0"]
-# Genblaze SDK + the providers we use. GMI Cloud is primary (image edit + image→video);
-# google/luma ship as fallback providers. `genblaze[parquet]` (pyarrow) powers ParquetSink
-# analytics — also covered by the `analytics` extra above.
+# Genblaze SDK + the providers we use. GMI Cloud is primary (image edit + image→video); the
+# `openai` extra pulls genblaze-openai for the second image-edit provider that serves via the
+# cross-provider fallback when GMI is out of credit (originshot_pipelines/providers.py).
+# `genblaze[parquet]` (pyarrow) powers ParquetSink analytics — also covered by `analytics`.
+#
+# ⚠️ `openai` is LOAD-BEARING, not optional: with GMI's request queue at 402, it is the only
+# working image provider, so omitting it makes generation fail in production with
+# "No module named 'genblaze_openai'" even though it works in a dev venv that pip-installed it.
 #
 # Floor is 0.4.3 — the umbrella release carrying the GitHub "v0.5.0" changes (streaming
 # concurrency-safety, manifest schema_version validation, ReDoS/SSRF hardening, ParquetSink
@@ -37,7 +42,7 @@ analytics = ["duckdb>=1.0", "pandas>=2.2", "pyarrow>=16.0"]
 # happily resolve 0.4.0 with the OLD genblaze-core/gmicloud pinned underneath and none of
 # those fixes would reach production. NOTE: the GitHub release is tagged v0.5.0 but PyPI
 # publishes it as 0.4.3 — `genblaze==0.5.0` does not exist. Verified 2026-07-19.
-genblaze = ["genblaze[gmicloud,video,parquet]>=0.4.3,<0.5"]
+genblaze = ["genblaze[gmicloud,openai,video,parquet]>=0.4.3,<0.5"]
 
 [tool.poetry]
 packages = [
