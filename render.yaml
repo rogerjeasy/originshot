@@ -71,6 +71,17 @@ services:
         sync: false
       - key: GMI_API_KEY
         sync: false
+      # OpenAI images (gpt-image-1) — the second image-edit provider. With GMI's request
+      # queue out of credit, this is what actually serves generations today; the cross-
+      # provider chain (originshot_pipelines/providers.py) falls across to it automatically.
+      # Set the value in the dashboard.
+      - key: OPENAI_API_KEY
+        sync: false
+      # "auto" walks the provider chain (GMI then OpenAI), using the first CONFIGURED one and
+      # falling across on a real failure. Pin to "openai-dalle" to skip GMI's 402 round-trip
+      # entirely while its balance is zero; set back to "auto" after a GMI top-up.
+      - key: IMAGE_PROVIDER
+        value: auto
       # REQUIRED to reach the admin dashboard. Comma-separated emails granted the admin role
       # on their first authenticated request (verified emails only). Without this there is no
       # way to mint the first admin in production: every role-granting endpoint already
