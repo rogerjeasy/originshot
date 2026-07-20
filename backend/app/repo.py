@@ -50,6 +50,9 @@ class Repo(Protocol):
     def list_assets(self, uid: str, sku_id: str) -> list[dict]: ...
     def list_assets_for_user(self, uid: str) -> list[dict]: ...  # cross-SKU library view
     def find_asset_by_sha(self, sha256: str) -> dict | None: ...  # public verify (global)
+    # Verify in the Wild: nearest generated asset by perceptual hash, or None. Global, for the
+    # public verifier — a buyer checking a re-encoded listing photo has no account.
+    def find_similar_by_phash(self, phash: str, max_distance: int) -> dict | None: ...
 
     def create_job(self, uid: str, job: dict) -> dict: ...
     def get_job(self, uid: str, job_id: str) -> dict | None: ...
@@ -180,6 +183,19 @@ class InMemoryRepo:
             if a["sha256"] == sha256:
                 return a
         return None
+
+    def find_similar_by_phash(self, phash: str, max_distance: int) -> dict | None:
+        from originshot_pipelines.perceptual import hamming
+
+        best: dict | None = None
+        best_dist = max_distance + 1
+        for a in self._assets.values():
+            d = hamming(phash, a.get("phash"))
+            if d is not None and d < best_dist:
+                best, best_dist = a, d
+        if best is None:
+            return None
+        return {**best, "phash_distance": best_dist}
 
     def create_job(self, uid: str, job: dict) -> dict:
         doc = {"id": _new_id(), "owner_uid": uid, "status": JobStatus.queued.value,
@@ -355,6 +371,11 @@ class FirestoreRepo:
         from . import firebase
 
         self._db = firebase.get_db()
+        # Small TTL cache of the pHash index, so a burst of public /verify calls scans
+        # Firestore at most once per window instead of once per request. See
+        # find_similar_by_phash for why a scan is the right shape at this scale.
+        self._phash_cache: list[dict] | None = None
+        self._phash_cache_at: float = 0.0
 
     def _seller(self, uid: str):
         return self._db.collection("sellers").document(uid)
@@ -394,6 +415,18 @@ class FirestoreRepo:
         self._db.collection("asset_index").document(asset["sha256"]).set(
             {"uid": uid, "sku_id": sku_id, "asset_id": ref.id}
         )
+        # Perceptual-hash index for Verify in the Wild. A separate flat collection (rather than
+        # a field on the asset) so the public verifier can scan just the pHashes without
+        # touching per-seller subcollections or reading any private asset data. Keyed by sha so
+        # a regenerated-then-re-embedded asset overwrites cleanly.
+        if asset.get("phash"):
+            self._db.collection("phash_index").document(asset["sha256"]).set({
+                "phash": asset["phash"],
+                "sha256": asset["sha256"],
+                "uid": uid,
+                "sku_id": sku_id,
+                "asset_id": ref.id,
+            })
         return doc
 
     def list_assets(self, uid: str, sku_id: str) -> list[dict]:
@@ -420,6 +453,46 @@ class FirestoreRepo:
         snap = (self._seller(ref["uid"]).collection("skus").document(ref["sku_id"])
                 .collection("assets").document(ref["asset_id"]).get())
         return snap.to_dict() if snap.exists else None
+
+    # Refresh the pHash index at most this often (seconds). New assets appear a window late in
+    # the verifier, which is fine — Verify in the Wild matches images the marketplace has
+    # already published, so nothing being checked is ever seconds old.
+    _PHASH_CACHE_TTL = 120
+
+    def _phash_index(self) -> list[dict]:
+        import time
+
+        now = time.time()
+        if self._phash_cache is not None and now - self._phash_cache_at < self._PHASH_CACHE_TTL:
+            return self._phash_cache
+        rows = [d.to_dict() for d in self._db.collection("phash_index").stream()]
+        self._phash_cache, self._phash_cache_at = rows, now
+        return rows
+
+    def find_similar_by_phash(self, phash: str, max_distance: int) -> dict | None:
+        """Nearest generated asset within `max_distance` bits, or None.
+
+        This is a linear scan over the pHash index, deliberately. Sub-linear perceptual
+        nearest-neighbour (a BK-tree, or multi-index hashing over hash bands) is real and
+        well-understood, but it earns its complexity at millions of hashes; at this app's
+        scale a scan behind a TTL cache is both simpler and honest about its cost — the same
+        stance the transparency log takes on its O(n-k) inclusion proofs. The full-asset read
+        happens only for the single winning candidate, never for the whole library.
+        """
+        from originshot_pipelines.perceptual import hamming
+
+        best: dict | None = None
+        best_dist = max_distance + 1
+        for row in self._phash_index():
+            d = hamming(phash, row.get("phash"))
+            if d is not None and d < best_dist:
+                best, best_dist = row, d
+        if best is None:
+            return None
+        asset = self.find_asset_by_sha(best["sha256"])
+        if not asset:
+            return None
+        return {**asset, "phash_distance": best_dist}
 
     def create_job(self, uid: str, job: dict) -> dict:
         ref = self._seller(uid).collection("jobs").document()
