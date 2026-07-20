@@ -10,11 +10,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
-from originshot_pipelines import provenance
+from originshot_pipelines import perceptual, provenance
 
 from .. import transparency
 from ..config import get_settings
-from ..models import VerifyResult
+from ..models import PerceptualMatch, VerifyResult
 from ..repo import get_repo
 from ..util import disclosure
 
@@ -40,8 +40,36 @@ async def verify_upload(file: UploadFile = File(...)):
         path.write_bytes(data)
         extracted = provenance.verify_file(path)  # sniffs MIME, extracts + verifies
 
-    asset = get_repo().find_asset_by_sha(sha)
+    repo = get_repo()
+    asset = repo.find_asset_by_sha(sha)
     found = bool(asset)
+
+    # ── Verify in the Wild ─────────────────────────────────────────────
+    # Only when BOTH cryptographic tiers came up empty: no embedded manifest AND no exact-hash
+    # record. That is the fingerprint of a marketplace re-encode — the manifest stripped, the
+    # bytes (and so the SHA) changed — which is exactly the file the cryptographic tiers can
+    # say nothing about and the one a buyer is most likely to be holding. An honest,
+    # unmodified OriginShot file never reaches here, so this costs a pHash scan only on files
+    # that would otherwise get a flat "unknown".
+    perceptual_match: PerceptualMatch | None = None
+    if not extracted["present"] and not found:
+        query = perceptual.phash(data)
+        if query is not None:
+            near = repo.find_similar_by_phash(query, perceptual.MATCH_WEAK)
+            if near is not None:
+                dist = near["phash_distance"]
+                matched_sha = near["sha256"]
+                perceptual_match = PerceptualMatch(
+                    matched_sha256=matched_sha,
+                    distance=dist,
+                    confidence=perceptual.confidence(dist),
+                    strong=dist <= perceptual.MATCH_STRONG,
+                    style=near.get("style"),
+                    provider=near.get("provider"),
+                    model=near.get("model"),
+                    parent_sha256=near.get("parent_sha256"),
+                    matched_in_ledger=transparency.position_for(matched_sha) is not None,
+                )
 
     if extracted["present"]:
         verified = extracted["verified"]                       # integrity proven from bytes
@@ -71,6 +99,22 @@ async def verify_upload(file: UploadFile = File(...)):
             + ("verified" if verified else "invalid")
             + " OriginShot provenance manifest, but no matching record exists in this instance."
         )
+    elif perceptual_match is not None:
+        # No cryptographic provenance survived, but the pixels match a known asset. Stated as
+        # a likeness, with the distance in the text, so it can never be mistaken for the
+        # byte-exact guarantee the other branches make.
+        strength = "closely matches" if perceptual_match.strong else "resembles"
+        lineage = (
+            f" It traces to authentic original {perceptual_match.parent_sha256[:12]}…"
+            if perceptual_match.parent_sha256 else ""
+        )
+        disclosure_text = (
+            f"No provenance manifest survives in this file (marketplaces re-encode images and "
+            f"strip it), but it {strength} a known OriginShot asset "
+            f"({perceptual_match.matched_sha256[:12]}…, perceptual distance "
+            f"{perceptual_match.distance}/64).{lineage} This is a visual-similarity match — "
+            f"evidence, not a cryptographic guarantee."
+        )
     else:
         disclosure_text = "No embedded manifest and no record found for this file."
 
@@ -89,6 +133,7 @@ async def verify_upload(file: UploadFile = File(...)):
         created_at=asset.get("created_at") if found else None,
         disclosure=disclosure_text,
         ledger=transparency.position_for(sha),
+        perceptual=perceptual_match,
     )
 
 
