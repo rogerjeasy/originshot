@@ -8,9 +8,12 @@ Keys are content-addressable: assets/<sha[:2]>/<sha[2:4]>/<sha><ext>  → dedup 
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from .config import get_settings
+
+log = logging.getLogger("originshot.storage")
 
 
 def storage_key(sha256: str, ext: str) -> str:
@@ -60,6 +63,22 @@ class LocalStorage:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
         return key
+
+    def put_immutable(
+        self, key: str, data: bytes, content_type: str | None = None,
+        *, retain_days: int = 0, mode: str = "COMPLIANCE",
+    ):
+        """Dev fallback: no Object Lock on the local filesystem. Returns None (not retained).
+
+        Local dev has no immutability to offer, and saying so honestly (None) is the point —
+        the caller records `retained_until` only when a real lock was applied.
+        """
+        self.put_bytes(key, data, content_type)
+        return None
+
+    def object_lock_status(self) -> dict:
+        return {"capable": False, "reason": "local storage has no Object Lock",
+                "enabled": False}
 
     def get_bytes(self, key: str) -> bytes:
         return (self.root / key).read_bytes()
@@ -112,6 +131,81 @@ class B2Storage:
         extra = {"ContentType": content_type} if content_type else {}
         self.client.put_object(Bucket=self._settings.b2_bucket, Key=key, Body=data, **extra)
         return key
+
+    def put_immutable(
+        self, key: str, data: bytes, content_type: str | None = None,
+        *, retain_days: int = 0, mode: str = "COMPLIANCE",
+    ):
+        """Write an object under B2 Object Lock retention, returning the retain-until datetime.
+
+        With `retain_days > 0` the object is stored with `ObjectLockMode` +
+        `ObjectLockRetainUntilDate`, so B2 will refuse to alter or delete it before that date
+        — the guarantee that makes a published checkpoint trustworthy against the very party
+        that hosts it. Returns the `datetime` it is retained until.
+
+        Honest degradation: if `retain_days` is 0, or the locked write is rejected because the
+        bucket lacks file lock or the key lacks `writeFileRetentions`, the object is still
+        written (best-effort publication must not be lost) but **without** a lock, and the
+        method returns `None`. The caller records `retained_until` only on a real datetime, so
+        an object can never be *described* as immutable when it isn't. The distinction is
+        logged loudly so an operator sees that lock was requested and could not be applied.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        extra = {"ContentType": content_type} if content_type else {}
+        if retain_days and retain_days > 0:
+            retain_until = datetime.now(timezone.utc) + timedelta(days=retain_days)
+            try:
+                self.client.put_object(
+                    Bucket=self._settings.b2_bucket, Key=key, Body=data,
+                    ObjectLockMode=mode,
+                    ObjectLockRetainUntilDate=retain_until,
+                    **extra,
+                )
+                return retain_until
+            except Exception as exc:  # noqa: BLE001 — fall back to an unlocked publish
+                log.warning(
+                    "Object Lock requested but NOT applied for %s (%s: %s). Publishing "
+                    "unlocked. Enable file lock on the bucket and use a key with "
+                    "writeFileRetentions to make this immutable.",
+                    key, type(exc).__name__, exc,
+                )
+        self.client.put_object(Bucket=self._settings.b2_bucket, Key=key, Body=data, **extra)
+        return None
+
+    def object_lock_status(self) -> dict:
+        """Non-destructive self-check: can this key actually write file retentions?
+
+        Reads the key's own capabilities from the native B2 authorize response — no object is
+        written, nothing is enabled. Lets `/healthz` report whether the immutability claim is
+        real ("active"), merely requested ("configured but the key lacks writeFileRetentions"),
+        or off — instead of the app silently no-op'ing a guarantee it advertises.
+        """
+        s = self._settings
+        result = {
+            "capable": False,
+            "enabled": bool(s.b2_object_lock_days and s.b2_object_lock_days > 0),
+            "retain_days": s.b2_object_lock_days,
+            "mode": s.b2_object_lock_mode,
+        }
+        try:
+            import base64
+
+            import httpx
+
+            token = base64.b64encode(f"{s.b2_key_id}:{s.b2_app_key}".encode()).decode()
+            r = httpx.get(
+                "https://api.backblazeb2.com/b2api/v3/b2_authorize_account",
+                headers={"Authorization": f"Basic {token}"}, timeout=10,
+            )
+            r.raise_for_status()
+            caps = r.json()["apiInfo"]["storageApi"].get("capabilities", [])
+            result["capable"] = "writeFileRetentions" in caps
+            if not result["capable"]:
+                result["reason"] = "key lacks writeFileRetentions capability"
+        except Exception as exc:  # noqa: BLE001
+            result["reason"] = f"could not verify ({type(exc).__name__})"
+        return result
 
     def get_bytes(self, key: str) -> bytes:
         obj = self.client.get_object(Bucket=self._settings.b2_bucket, Key=key)
