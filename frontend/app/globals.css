@@ -315,6 +315,27 @@
     }
   }
 
+  /* ── Registration strip ───────────────────────────────────────────────────
+     The travelling highlight on a working strip. Same gesture as .developing
+     above — an exposure sweeping the element — so a strip animating next to a
+     loading placeholder reads as one system rather than two effects. */
+  @keyframes registration-v {
+    0% {
+      transform: translateY(-100%);
+    }
+    100% {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes registration-h {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
   /* Hairline rule that fades at both ends — used to separate page regions. */
   .rule-fade {
     height: 1px;
