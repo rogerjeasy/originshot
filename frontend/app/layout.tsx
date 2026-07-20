@@ -48,7 +48,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>
+      {/* Browser extensions (Grammarly is the usual culprit) inject attributes
+          like data-gr-ext-installed onto <body> before React hydrates, which
+          React reports as a hydration mismatch. It is not ours to fix and there
+          is nothing to patch up — the attributes are inert. The flag on <html>
+          does not cover <body>'s own attributes, so it is needed on both. */}
+      <body suppressHydrationWarning>
         {/* SessionProvider sits at the root, not in the (app) group, because
             /verify is public but renders the full AppShell for signed-in
             visitors — and AppShell reads the session. Mounting it here makes
