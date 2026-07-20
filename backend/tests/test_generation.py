@@ -74,37 +74,55 @@ class FakeStorage:
         return key
 
 
+class FakeAdapter:
+    """Stand-in for an ImageAdapter — run_image_edit returns (result, adapter)."""
+
+    provider_id = "gmicloud-image"
+    label = "GMI Cloud"
+
+
 @pytest.fixture
 def fake_sdk(monkeypatch):
-    """Replace pipeline builders with fakes; capture the kwargs they were called with."""
+    """Replace the provider-run seam with fakes; capture what each style asked for.
+
+    Studio and on-model go through `providers.run_image_edit`, so they are captured by the
+    *request* they built — prompt and aspect — rather than by builder kwargs. That is the
+    stronger assertion anyway: it checks the brand fragment reached the prompt a provider
+    would actually receive, not merely that a keyword was forwarded one layer down.
+    Lifestyle and variants fan out internally, so they are still faked at their runner.
+    """
     captured: dict[str, dict] = {}
     monkeypatch.setattr(generation, "generation_mode", lambda: "genblaze")
-    from originshot_pipelines import lifestyle, onmodel, storage, studio, variants, video
+    from originshot_pipelines import lifestyle, providers, storage, variants, video
 
     monkeypatch.setattr(storage, "make_sink", lambda: object())
 
-    def fake_studio(*a, **k):
-        captured["studio"] = k
-        return FakePipeline("aa11")
+    _SHA_BY_PIPELINE = {"originshot-studio": "aa11", "originshot-onmodel": "bb22"}
 
-    def fake_onmodel(*a, **k):
-        captured["onmodel"] = k
-        return FakePipeline("bb22")
+    async def fake_run_image_edit(req, *, sink=None, timeout=None, chain=None):
+        style = req.prompt_name.removeprefix("originshot-")
+        captured[style] = {
+            "prompt": req.prompt,
+            "aspect": req.aspect,
+            "source_sha256": req.source_sha256,
+        }
+        return FakeResult(_SHA_BY_PIPELINE.get(req.prompt_name, "zz00")), FakeAdapter()
 
     def fake_video(*a, **k):
         captured["video"] = k
         return FakePipeline("cc33")
 
-    async def fake_lifestyle(src, desc, sink, scenes=None, brand_suffix=""):
+    async def fake_lifestyle(src, desc, sink, scenes=None, brand_suffix="",
+                             timeout=None, source_sha256=None):
         captured["lifestyle"] = {"brand_suffix": brand_suffix}
-        return [FakeResult("dd44"), FakeResult("ee55")]
+        return [(FakeResult("dd44"), FakeAdapter()), (FakeResult("ee55"), FakeAdapter())]
 
-    async def fake_variants(src, desc, sink, colors=(), angles=(), brand_suffix=""):
+    async def fake_variants(src, desc, sink, colors=(), angles=(), brand_suffix="",
+                            timeout=None, source_sha256=None):
         captured["variant"] = {"brand_suffix": brand_suffix}
-        return [FakeResult("ff66")]
+        return [(FakeResult("ff66"), FakeAdapter())]
 
-    monkeypatch.setattr(studio, "build_studio_pipeline", fake_studio)
-    monkeypatch.setattr(onmodel, "build_onmodel_pipeline", fake_onmodel)
+    monkeypatch.setattr(providers, "run_image_edit", fake_run_image_edit)
     monkeypatch.setattr(video, "build_hero_video", fake_video)
     monkeypatch.setattr(lifestyle, "run_lifestyle", fake_lifestyle)
     monkeypatch.setattr(variants, "run_variants", fake_variants)
@@ -166,9 +184,11 @@ async def test_brand_kit_and_marketplace_applied(fake_sdk):
     )
     assert errors == []
     # studio gets the lighter "tone" fragment (vibe+lighting) and the social aspect (4:5)
-    assert "warm minimal" in fake_sdk["studio"]["brand_suffix"]
-    assert "earthy neutrals" not in fake_sdk["studio"]["brand_suffix"]
+    assert "warm minimal" in fake_sdk["studio"]["prompt"]
+    assert "earthy neutrals" not in fake_sdk["studio"]["prompt"]
     assert fake_sdk["studio"]["aspect"] == "4:5"
+    # lineage: the anchored original's hash rides along on the request
+    assert fake_sdk["studio"]["source_sha256"] == "origsha"
     # contextual styles get the full fragment incl. palette
     assert "earthy neutrals" in fake_sdk["lifestyle"]["brand_suffix"]
     assert "earthy neutrals" in fake_sdk["variant"]["brand_suffix"]
