@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     # Providers
     gmi_api_key: str | None = None
     openai_api_key: str | None = None
+    # Which image-edit provider serves a run: "auto" walks providers.AUTO_ORDER and uses the
+    # first CONFIGURED one, falling across to the next only when a run actually fails (so a
+    # provider that is out of credit costs one failed request, not a permanent misroute).
+    # Pin to "gmicloud-image" or "openai-dalle" to force one — a pinned provider that isn't
+    # configured refuses rather than quietly serving a different one, because provenance
+    # records which provider ran and that record has to be true.
+    image_provider: str = "auto"
     gemini_api_key: str | None = None
     luma_api_key: str | None = None
     elevenlabs_api_key: str | None = None
