@@ -36,7 +36,13 @@ export const metadata: Metadata = {
 };
 
 // Set the theme class before paint to avoid a flash.
-const themeScript = `(function(){try{var s=localStorage.getItem('theme');var d=s?s==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+//
+// System preference only. This used to prefer a stored 'theme' key, which was
+// correct while a toggle existed to write it — but the toggle is gone, so a
+// stored value became state nothing could reach: anyone who had ever chosen
+// light was pinned to light forever, with no control to undo it. The key is
+// cleared on sight so a returning visitor isn't left on a dead preference.
+const themeScript = `(function(){try{localStorage.removeItem('theme')}catch(e){}try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.classList.add('dark')}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
