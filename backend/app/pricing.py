@@ -57,6 +57,64 @@ _ETA_SECONDS: dict[Style, int] = {
 }
 
 
+# ── Settlement: what a finished run actually costs ────────────────────
+# Providers that genuinely cost nothing. The dev mock fabricates assets by copying the
+# upload; charging for that would be inventing revenue.
+FREE_PROVIDERS = frozenset({"mock-dev"})
+
+
+def unit_usd(style: Style) -> float:
+    """List price for ONE output of `style` — the per-asset unit, not the per-style total."""
+    return _UNIT.get(style, IMAGE_UNIT_USD)
+
+
+def billable_cost(assets: list[dict]) -> tuple[float, str]:
+    """What a finished run should be settled at, and where that number came from.
+
+    Returns ``(total_usd, source)`` with source in ``provider`` / ``estimate`` / ``mixed`` /
+    ``none``.
+
+    **A missing cost is not a free run.** `Step.cost_usd` is authoritative when the provider
+    reports it, but not every provider does: genblaze-core 0.3.0 removed OpenAI pricing, so
+    every `openai-dalle` step returns ``cost_usd=None``. Summing only the non-None values —
+    which is what this code used to do — would settle a real, billed OpenAI pack at $0.00,
+    refund the user's entire credit hold, and report $0 spend in analytics. The generation
+    happened and OpenAI charged for it; only *our* visibility of the price is missing.
+
+    So an unpriced asset from a real provider falls back to its list price and the result is
+    labelled ``estimate`` (or ``mixed``) rather than being passed off as provider-billed.
+    That distinction is the same one the module docstring opens with, carried through to
+    settlement: the number is still honest, and it no longer claims to be a provider's bill.
+    Only :data:`FREE_PROVIDERS` contributes a real zero.
+    """
+    total = 0.0
+    saw_provider = saw_estimate = False
+    for asset in assets:
+        cost = asset.get("cost_usd")
+        if cost is not None:
+            total += float(cost)
+            saw_provider = True
+            continue
+        if (asset.get("provider") or "") in FREE_PROVIDERS:
+            continue
+        try:
+            style = Style(asset.get("style"))
+        except ValueError:
+            style = Style.studio
+        total += unit_usd(style)
+        saw_estimate = True
+
+    if saw_provider and saw_estimate:
+        source = "mixed"
+    elif saw_provider:
+        source = "provider"
+    elif saw_estimate:
+        source = "estimate"
+    else:
+        source = "none"
+    return round(total, 4), source
+
+
 def estimate_style(style: Style) -> float:
     """Ceiling cost for one style, in USD."""
     return round(_OUTPUTS.get(style, 1) * _UNIT.get(style, IMAGE_UNIT_USD), 4)
