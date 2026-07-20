@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 
 import { apiDownload, apiFetch } from "@/lib/api";
 import { useApiData } from "@/lib/use-api";
@@ -19,8 +17,10 @@ import { GeneratePanel } from "@/components/studio/generate-panel";
 import { LineageGraph } from "@/components/studio/lineage-graph";
 import { ListingPanel } from "@/components/studio/listing-panel";
 import { UploadDropzone } from "@/components/upload-dropzone";
+import { PageToolbar } from "@/components/workbench/page-toolbar";
+import { RegistrationLabel } from "@/components/workbench/registration";
+import { Section, Stack } from "@/components/workbench/section";
 import { Alert } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MediaSkeleton } from "@/components/ui/skeleton";
 
 export default function SkuWorkspace() {
@@ -168,65 +168,57 @@ export default function SkuWorkspace() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/studio"
-          className="lift inline-grid size-9 place-items-center rounded-lg border bg-card text-muted-foreground hover:text-foreground"
-          aria-label="Back to Studio"
-        >
-          <ArrowLeft className="size-4" />
-        </Link>
-        <div className="min-w-0">
-          <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight">
-            {sku?.title ?? "Product"}
-          </h1>
-          {original && (
-            <p className="text-sm text-muted-foreground">
-              {generated.length > 0
-                ? `${generated.length} generated asset${generated.length === 1 ? "" : "s"}`
-                : "Pick styles and generate your pack"}
-            </p>
-          )}
-        </div>
-      </div>
+    <Stack gap="tight">
+      <PageToolbar
+        title={sku?.title ?? "Product"}
+        crumbs={[{ label: "Studio", href: "/studio" }]}
+        description={
+          original
+            ? generated.length > 0
+              ? `${generated.length} generated asset${generated.length === 1 ? "" : "s"} from one source photo.`
+              : "Pick styles on the right and generate your pack."
+            : undefined
+        }
+        meta={
+          busyJob ? (
+            <RegistrationLabel state="working">Generating</RegistrationLabel>
+          ) : generated.length > 0 ? (
+            <RegistrationLabel state="verified">Pack ready</RegistrationLabel>
+          ) : undefined
+        }
+      />
 
       {error && (
         <FadeIn>
-          <Alert>{error}</Alert>
+          <Alert title="Something went wrong">{error}</Alert>
         </FadeIn>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="min-w-0 space-y-6">
+      <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+        <div className="min-w-0 space-y-8">
           {/* "Still loading" and "no photo yet" are different states and must not render
               the same thing — treating them alike flashed the upload dropzone on every
               visit to a SKU that already has a photo. */}
           {assetsLoading && !assets ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Original</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="max-w-xs">
-                  <MediaSkeleton aspect="aspect-square" />
-                </div>
-              </CardContent>
-            </Card>
+            <Section label="Source photo">
+              <div className="max-w-xs">
+                <MediaSkeleton aspect="aspect-square" />
+              </div>
+            </Section>
           ) : !original ? (
-            <UploadDropzone onFile={upload} busy={uploading} />
+            <Section
+              label="Source photo"
+              description="Everything in the pack is generated from this one image, and stays bound to it."
+            >
+              <UploadDropzone onFile={upload} busy={uploading} />
+            </Section>
           ) : (
             <FadeIn>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Original</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="max-w-xs">
-                    <ImageTile asset={original} onClick={() => setActive(original)} />
-                  </div>
-                </CardContent>
-              </Card>
+              <Section label="Source photo" state="verified">
+                <div className="max-w-xs">
+                  <ImageTile asset={original} onClick={() => setActive(original)} />
+                </div>
+              </Section>
             </FadeIn>
           )}
 
@@ -255,7 +247,7 @@ export default function SkuWorkspace() {
           )}
         </div>
 
-        <FadeIn delay={0.08} className="space-y-6 lg:sticky lg:top-20 lg:self-start">
+        <FadeIn delay={0.08} className="space-y-8 lg:sticky lg:top-20 lg:self-start">
           <GeneratePanel
             styles={styles}
             onStylesChange={setStyles}
@@ -281,6 +273,6 @@ export default function SkuWorkspace() {
         onReplay={replayAsset}
         replayDisabled={busyJob}
       />
-    </div>
+    </Stack>
   );
 }
