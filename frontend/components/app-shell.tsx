@@ -19,7 +19,6 @@ import { useSession } from "@/lib/use-session";
 import { BrandMark } from "./brand-mark";
 import { useAuth } from "./auth-provider";
 import { CreditsPill } from "./credits-pill";
-import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/button";
 import { TooltipProvider } from "./ui/tooltip";
 
@@ -126,7 +125,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
             <div className="flex items-center gap-2">
               <CreditsPill />
-              <ThemeToggle />
             </div>
           </header>
 

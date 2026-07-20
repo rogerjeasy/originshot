@@ -8,7 +8,6 @@ import { ArrowRight, Database, Loader2, Lock, ShieldCheck, Sparkles } from "luci
 import { authError, type AuthField } from "@/lib/auth-errors";
 import { useAuth } from "@/components/auth-provider";
 import { BrandMark } from "@/components/brand-mark";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { FadeIn } from "@/components/motion/fade-in";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -138,15 +137,12 @@ export default function SignInPage() {
     <div className="band-ink viewing-light relative min-h-dvh overflow-hidden">
       <header className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
         <BrandMark href="/" />
-        <div className="flex items-center gap-2">
-          <Link
-            href="/how-it-works"
-            className="on-ink-mute hidden rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:text-[var(--ink-fg)] sm:inline-flex"
-          >
-            How it works
-          </Link>
-          <ThemeToggle />
-        </div>
+        <Link
+          href="/how-it-works"
+          className="on-ink-mute hidden rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:text-[var(--ink-fg)] sm:inline-flex"
+        >
+          How it works
+        </Link>
       </header>
 
       <main className="relative mx-auto flex min-h-[calc(100dvh-73px)] max-w-6xl items-center px-4 pb-16 sm:px-6 lg:px-8">
