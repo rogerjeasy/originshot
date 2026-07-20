@@ -42,6 +42,26 @@ class Settings(BaseSettings):
     b2_region: str = "us-west-000"
     b2_endpoint_url: str | None = None
 
+    # ── B2 Object Lock for the transparency ledger ────────────────────
+    # A transparency checkpoint published to object storage is only as trustworthy as the
+    # storage: an operator who controls the bucket could quietly overwrite a checkpoint that
+    # later proves inconvenient. B2 Object Lock (a B2-native capability, not generic S3)
+    # closes that hole — a locked object cannot be altered or deleted before its retention
+    # expires, by anyone, including the account owner with root credentials. We apply it to
+    # the two objects the whole trust argument rests on: transparency checkpoints and audit
+    # reports.
+    #
+    # `b2_object_lock_days = 0` DISABLES it (default) — it stays off until the bucket has file
+    # lock enabled and the app key carries `writeFileRetentions`, because a locked write with
+    # a key that lacks the capability just fails. When those are in place, set the retention
+    # period here. See docs: README "Backblaze B2 differentiators" and app/storage.py.
+    b2_object_lock_days: int = 0
+    # COMPLIANCE (default) can be bypassed by no one until expiry — the strong claim, and the
+    # only mode that actually upgrades "trust us" to "you don't have to". GOVERNANCE can be
+    # bypassed with a privileged key, so it is a weaker guarantee offered only for operators
+    # who need an escape hatch.
+    b2_object_lock_mode: str = "COMPLIANCE"
+
     # Redis / worker
     redis_url: str = "redis://localhost:6379"
 
