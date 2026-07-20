@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Images, Search } from "lucide-react";
+import { Images, Search, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useApiData } from "@/lib/use-api";
@@ -10,8 +10,10 @@ import { EmptyState } from "@/components/empty-state";
 import { FadeIn } from "@/components/motion/fade-in";
 import { ImageTile } from "@/components/image-tile";
 import { Lightbox } from "@/components/lightbox";
-import { PageHeader } from "@/components/page-header";
+import { PageToolbar } from "@/components/workbench/page-toolbar";
+import { Section, Stack } from "@/components/workbench/section";
 import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MediaSkeleton } from "@/components/ui/skeleton";
 
@@ -108,63 +110,117 @@ export default function LibraryPage() {
   const { data: assets, loading, error } = useApiData<Asset[]>(query);
   const filtered = style !== "all" || source !== "all" || qa !== "all" || hash !== "";
 
+  function clearFilters() {
+    setStyle("all");
+    setSource("all");
+    setQa("all");
+    setHashInput("");
+  }
+
   return (
-    <div className="space-y-6">
-      <PageHeader
+    <Stack gap="tight">
+      <PageToolbar
         title="Library"
         description="Every asset in your catalog — searchable by style, provenance, QA verdict, or content hash."
+        meta={
+          assets && assets.length > 0 ? (
+            <span className="label-mono text-muted-foreground">
+              {assets.length} asset{assets.length === 1 ? "" : "s"}
+              {filtered ? " matching" : ""}
+            </span>
+          ) : undefined
+        }
       />
 
-      <FadeIn className="space-y-3">
-        <div className="relative max-w-md">
-          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={hashInput}
-            onChange={(e) => setHashInput(e.target.value)}
-            placeholder="Search by content hash (sha256 prefix)…"
-            className="ps-9 font-mono text-sm"
-            aria-label="Search by content hash"
-          />
-        </div>
-        <ChipRow label="Style" options={STYLE_FILTERS} value={style} onChange={setStyle} />
-        <div className="flex flex-wrap gap-x-6 gap-y-2">
-          <ChipRow label="Source" options={SOURCE_FILTERS} value={source} onChange={setSource} />
-          <ChipRow label="QA verdict" options={QA_FILTERS} value={qa} onChange={setQa} />
-        </div>
+      <FadeIn>
+        <Section
+          label="Filters"
+          action={
+            filtered ? (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X /> Clear filters
+              </Button>
+            ) : undefined
+          }
+        >
+          <div className="space-y-4">
+            <div className="relative max-w-md">
+              <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={hashInput}
+                onChange={(e) => setHashInput(e.target.value)}
+                placeholder="Search by content hash (sha256 prefix)…"
+                className="ps-9 font-mono text-sm"
+                aria-label="Search by content hash"
+              />
+            </div>
+
+            {/* Each row gets a visible legend. The groups were previously
+                distinguishable only by their aria-label, so a sighted user had
+                to infer that three chip rows meant three independent axes. */}
+            <FilterRow legend="Style">
+              <ChipRow label="Style" options={STYLE_FILTERS} value={style} onChange={setStyle} />
+            </FilterRow>
+            <div className="flex flex-wrap gap-x-10 gap-y-4">
+              <FilterRow legend="Source">
+                <ChipRow label="Source" options={SOURCE_FILTERS} value={source} onChange={setSource} />
+              </FilterRow>
+              <FilterRow legend="QA verdict">
+                <ChipRow label="QA verdict" options={QA_FILTERS} value={qa} onChange={setQa} />
+              </FilterRow>
+            </div>
+          </div>
+        </Section>
       </FadeIn>
 
-      {error && <Alert>{error}</Alert>}
+      {error && <Alert title="Couldn't load your library">{error}</Alert>}
 
-      {loading && !assets ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <MediaSkeleton key={i} aspect="aspect-square" />
-          ))}
-        </div>
-      ) : !assets || assets.length === 0 ? (
-        <EmptyState
-          icon={Images}
-          title={filtered ? "Nothing matches these filters" : "Nothing in the library yet"}
-          description={
-            filtered
-              ? "Loosen a filter, or clear the hash search."
-              : "Upload a product photo in the Studio and generate your first pack."
-          }
-        />
-      ) : (
-        <FadeIn className="space-y-3">
-          <p className="font-mono text-xs text-muted-foreground">
-            {assets.length} asset{assets.length === 1 ? "" : "s"}
-          </p>
+      <Section label={filtered ? "Matching assets" : "All assets"}>
+        {loading && !assets ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-            {assets.map((a) => (
-              <ImageTile key={a.id} asset={a} onClick={() => setActive(a)} />
+            {Array.from({ length: 8 }).map((_, i) => (
+              <MediaSkeleton key={i} aspect="aspect-square" />
             ))}
           </div>
-        </FadeIn>
-      )}
+        ) : !assets || assets.length === 0 ? (
+          <EmptyState
+            icon={Images}
+            title={filtered ? "Nothing matches these filters" : "Nothing in the library yet"}
+            description={
+              filtered
+                ? "Loosen a filter, or clear the hash search."
+                : "Upload a product photo in the Studio and generate your first pack."
+            }
+            action={
+              filtered ? (
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  <X /> Clear filters
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <FadeIn>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+              {assets.map((a) => (
+                <ImageTile key={a.id} asset={a} onClick={() => setActive(a)} />
+              ))}
+            </div>
+          </FadeIn>
+        )}
+      </Section>
 
       <Lightbox asset={active} onClose={() => setActive(null)} linkToProduct />
+    </Stack>
+  );
+}
+
+/** A labelled filter axis. The legend is what tells you the rows are independent. */
+function FilterRow({ legend, children }: { legend: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="label text-muted-foreground/70">{legend}</p>
+      {children}
     </div>
   );
 }

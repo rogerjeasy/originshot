@@ -19,7 +19,7 @@ import { ProviderBudgetPanel } from "@/components/admin/provider-budget-panel";
 import { StoragePanel } from "@/components/admin/storage-panel";
 import { EmptyState } from "@/components/empty-state";
 import { FadeIn } from "@/components/motion/fade-in";
-import { PageHeader } from "@/components/page-header";
+import { PageToolbar } from "@/components/workbench/page-toolbar";
 import { ProviderChart } from "@/components/provider-chart";
 import { StatCard, StatGrid } from "@/components/stat-card";
 import { UsersTable } from "@/components/admin/users-table";
@@ -80,14 +80,20 @@ export default function AdminPage() {
     void load();
   }, [isAdmin, sessionLoading, load]);
 
-  const header = (
-    <PageHeader title="Admin" description="Platform operations, spend, and health." />
+  // The error/loading/denied states render the head without a Refresh control;
+  // the loaded state passes one in.
+  const header = (action?: React.ReactNode) => (
+    <PageToolbar
+      title="Admin"
+      description="Platform operations, spend, and health."
+      action={action}
+    />
   );
 
   if (sessionLoading || (loading && isAdmin)) {
     return (
-      <div className="space-y-8">
-        {header}
+      <div className="space-y-10">
+        {header()}
         <div className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="bg-card p-5">
@@ -105,8 +111,8 @@ export default function AdminPage() {
   // for a non-admin who navigated here directly.
   if (!isAdmin) {
     return (
-      <div className="space-y-8">
-        {header}
+      <div className="space-y-10">
+        {header()}
         <EmptyState
           icon={ShieldAlert}
           title="Admin access required"
@@ -118,8 +124,8 @@ export default function AdminPage() {
 
   if (error || !data) {
     return (
-      <div className="space-y-8">
-        {header}
+      <div className="space-y-10">
+        {header()}
         <Alert
           title="Couldn't load the dashboard"
           action={
@@ -178,9 +184,8 @@ export default function AdminPage() {
   ];
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        {header}
+    <div className="space-y-10">
+      {header(
         <Button
           variant="outline"
           size="sm"
@@ -190,8 +195,8 @@ export default function AdminPage() {
         >
           <RefreshCw className={refreshing ? "animate-spin" : undefined} />
           Refresh
-        </Button>
-      </div>
+        </Button>,
+      )}
 
       <FadeIn>
         <StatGrid>

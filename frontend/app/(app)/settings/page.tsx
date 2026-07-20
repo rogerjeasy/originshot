@@ -9,7 +9,9 @@ import type { BrandKit } from "@/lib/types";
 import { AccountPanel } from "@/components/account-panel";
 import { CreditsCard } from "@/components/credits-card";
 import { FadeIn } from "@/components/motion/fade-in";
-import { PageHeader } from "@/components/page-header";
+import { PageToolbar } from "@/components/workbench/page-toolbar";
+import { RegistrationLabel } from "@/components/workbench/registration";
+import { Stack } from "@/components/workbench/section";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -110,12 +112,18 @@ export default function SettingsPage() {
   const notes = form.notes ?? "";
 
   return (
-    <div className="space-y-8">
-      <PageHeader
+    <Stack>
+      <PageToolbar
         title="Settings"
         description="Your brand kit guides every generated scene — woven into studio, lifestyle, and variant prompts."
+        meta={
+          dirty ? <RegistrationLabel state="attention">Unsaved changes</RegistrationLabel> : undefined
+        }
       />
 
+      {/* The sidebar column is three peer panels, so everything in it stays a
+          Card — converting one to a borderless Section would leave it floating
+          between two bordered neighbours. */}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <FadeIn className="min-w-0">
           <Card>
@@ -226,6 +234,6 @@ export default function SettingsPage() {
           <AccountPanel />
         </FadeIn>
       </div>
-    </div>
+    </Stack>
   );
 }

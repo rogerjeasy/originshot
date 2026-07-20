@@ -6,11 +6,11 @@ import { useApiData } from "@/lib/use-api";
 import type { Analytics } from "@/lib/types";
 import { EmptyState } from "@/components/empty-state";
 import { FadeIn } from "@/components/motion/fade-in";
-import { PageHeader } from "@/components/page-header";
 import { ProviderChart } from "@/components/provider-chart";
 import { StatCard, StatGrid } from "@/components/stat-card";
+import { PageToolbar } from "@/components/workbench/page-toolbar";
+import { Section, Stack } from "@/components/workbench/section";
 import { Alert } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AnalyticsPage() {
@@ -66,14 +66,14 @@ export default function AnalyticsPage() {
     : [];
 
   return (
-    <div className="space-y-8">
-      <PageHeader
+    <Stack>
+      <PageToolbar
         title="Analytics"
         description="What you've generated, what it cost, and how much storage deduplication saved."
       />
 
       {loading ? (
-        <div className="space-y-8">
+        <div className="space-y-10">
           <div className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="bg-card p-5">
@@ -94,34 +94,39 @@ export default function AnalyticsPage() {
         />
       ) : (
         <>
+          {/* The two rows were previously unlabelled and identical in weight, so
+              the split between them carried no information. Naming each says why
+              there are two. */}
           <FadeIn>
-            <StatGrid>
-              {headline.map((s) => (
-                <StatCard key={s.label} {...s} />
-              ))}
-            </StatGrid>
+            <Section label="Output and cost">
+              <StatGrid>
+                {headline.map((s) => (
+                  <StatCard key={s.label} {...s} />
+                ))}
+              </StatGrid>
+            </Section>
           </FadeIn>
 
           <FadeIn delay={0.06}>
-            <StatGrid>
-              {secondary.map((s) => (
-                <StatCard key={s.label} {...s} />
-              ))}
-            </StatGrid>
+            <Section label="Breakdown">
+              <StatGrid>
+                {secondary.map((s) => (
+                  <StatCard key={s.label} {...s} />
+                ))}
+              </StatGrid>
+            </Section>
           </FadeIn>
 
           <FadeIn delay={0.12}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Provider mix</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ProviderChart data={data.provider_mix} />
-              </CardContent>
-            </Card>
+            <Section
+              label="Provider mix"
+              description="Which model actually produced each asset, including fallbacks."
+            >
+              <ProviderChart data={data.provider_mix} />
+            </Section>
           </FadeIn>
         </>
       )}
-    </div>
+    </Stack>
   );
 }
