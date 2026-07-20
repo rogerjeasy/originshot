@@ -217,6 +217,11 @@ class JobStep(BaseModel):
     provider: str | None = None
     model: str | None = None
     cost_usd: float | None = None
+    # Where `cost_usd` came from: "provider" (the provider billed it), "estimate" (the
+    # provider's SDK reports no cost — currently every OpenAI step — so this is list price),
+    # "mixed", or "none". Carried so the UI can label an estimate as an estimate instead of
+    # presenting it as a bill. See pricing.billable_cost.
+    cost_source: str | None = None
     asset_count: int = 0
     error: str | None = None
     # QA rollup for the step: None when no asset carried a report.
@@ -242,6 +247,8 @@ class JobOut(BaseModel):
     eta_seconds: int | None = None
     credits_held: float | None = None
     cost_actual: float | None = None
+    # Provenance of the cost figure above — see JobStep.cost_source.
+    cost_source: str | None = None
     # Set when this job is a replay: the content hash of the asset whose manifest is being
     # re-executed (see api/generate.replay).
     replay_of_sha256: str | None = None
@@ -349,6 +356,27 @@ class ListingOut(BaseModel):
 
 
 # ── Provenance / verify ───────────────────────────────────────────────
+class PerceptualMatch(BaseModel):
+    """A "Verify in the Wild" hit: the uploaded image looks like a known OriginShot asset.
+
+    The uploaded file carried no usable manifest and matched no stored hash — consistent with
+    a marketplace having re-encoded it — but its perceptual hash is close to a generated
+    asset we hold. Everything here is a *similarity* claim; the wording throughout says so,
+    and `distance`/`confidence` are always shown together so a reader can weigh it.
+    """
+    matched_sha256: str          # the known asset this resembles
+    distance: int                # Hamming distance over the 64-bit pHash (0 = identical)
+    confidence: float            # 0–1, for display; the honest signal is `distance`
+    strong: bool                 # distance ≤ the confident-match threshold
+    style: Style | None = None
+    provider: str | None = None
+    model: str | None = None
+    # Lineage of the matched asset — lets the buyer trace a re-encoded listing photo back to
+    # the authentic pre-AI original, which is the whole point of showing this.
+    parent_sha256: str | None = None
+    matched_in_ledger: bool = False
+
+
 class VerifyResult(BaseModel):
     sha256: str
     found: bool
@@ -369,6 +397,13 @@ class VerifyResult(BaseModel):
     # None means "not in the log", which is deliberately NOT presented as a negative signal:
     # appends are best-effort, so absence proves nothing (see app/transparency.py).
     ledger: LedgerPosition | None = None
+    # ── Verify in the Wild: the perceptual-match tier ─────────────────
+    # Populated ONLY when the cryptographic tiers found nothing (no manifest, no exact-hash
+    # record) but the image is perceptually close to a known asset — i.e. a re-encoded
+    # marketplace copy whose manifest was stripped. This is EVIDENCE, never proof: it never
+    # sets `content_bound` and is always reported with its raw bit-distance so the strength of
+    # the claim is visible. None on every cryptographically-resolved verification.
+    perceptual: PerceptualMatch | None = None
 
 
 # ── Transparency log ──────────────────────────────────────────────────
