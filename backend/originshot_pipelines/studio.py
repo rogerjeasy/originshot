@@ -1,12 +1,44 @@
-"""Studio shot pipeline: source photo → pure-white-background studio image."""
+"""Studio shot pipeline: source photo → pure-white-background studio image.
+
+This module owns the *prompt* and nothing else. How the reference photo is handed to a
+provider — a step param on GMI, `Step.inputs` on OpenAI — belongs to `providers.py`, so that
+the same studio prompt runs unchanged on whichever provider is serving.
+"""
 from __future__ import annotations
 
-from .registry import (
-    ASPECT,
-    IMAGE_EDIT_FALLBACKS,
-    IMAGE_EDIT_MODEL,
-    REFERENCE_IMAGE_KWARG,
-)
+from .providers import ImageEditRequest
+from .registry import ASPECT
+
+
+def build_studio_prompt(product_desc: str, *, brand_suffix: str = "") -> str:
+    prompt = (
+        f"Professional e-commerce product photograph of {product_desc}. "
+        "Pure white seamless background (#FFFFFF), soft even studio lighting, centered, "
+        "sharp focus, true-to-life color, no props, no text."
+    )
+    if brand_suffix:
+        prompt += f" Brand tone: {brand_suffix}."
+    return prompt
+
+
+def studio_request(
+    source_image_uri: str,
+    product_desc: str,
+    *,
+    brand_suffix: str = "",
+    aspect: str | None = None,
+    source_sha256: str | None = None,
+    source_media_type: str = "image/png",
+) -> ImageEditRequest:
+    """The provider-neutral studio request."""
+    return ImageEditRequest(
+        prompt=build_studio_prompt(product_desc, brand_suffix=brand_suffix),
+        source_uri=source_image_uri,
+        prompt_name="originshot-studio",
+        aspect=aspect or ASPECT["studio"],
+        source_sha256=source_sha256,
+        source_media_type=source_media_type,
+    )
 
 
 def build_studio_pipeline(
@@ -16,31 +48,20 @@ def build_studio_pipeline(
     provider=None,
     brand_suffix: str = "",
     aspect: str | None = None,
+    adapter=None,
+    source_sha256: str | None = None,
 ):
-    """Return a Genblaze Pipeline that produces a studio shot.
+    """Return a Genblaze Pipeline that produces a studio shot on a single provider.
 
-    `provider` may be injected for testing; otherwise the GMI Cloud image provider is used.
+    Retained for replay, tests and any caller that wants one explicit provider rather than
+    the fallback chain. `provider` may be injected for testing; `adapter` selects whose
+    parameter contract to build for (default: the first configured provider).
     """
-    from genblaze_core import Modality, Pipeline
+    from .providers import build_image_pipeline, default_adapter
 
-    if provider is None:
-        from genblaze_gmicloud import GMICloudImageProvider
-
-        provider = GMICloudImageProvider()
-
-    prompt = (
-        f"Professional e-commerce product photograph of {product_desc}. "
-        "Pure white seamless background (#FFFFFF), soft even studio lighting, centered, "
-        "sharp focus, true-to-life color, no props, no text."
+    adapter = adapter or default_adapter()
+    req = studio_request(
+        source_image_uri, product_desc, brand_suffix=brand_suffix, aspect=aspect,
+        source_sha256=source_sha256,
     )
-    if brand_suffix:
-        prompt += f" Brand tone: {brand_suffix}."
-    step_kwargs = {
-        "model": IMAGE_EDIT_MODEL,
-        "prompt": prompt,
-        "modality": Modality.IMAGE,
-        "aspect_ratio": aspect or ASPECT["studio"],
-        "fallback_models": IMAGE_EDIT_FALLBACKS,
-        REFERENCE_IMAGE_KWARG: source_image_uri,
-    }
-    return Pipeline("originshot-studio").step(provider, **step_kwargs)
+    return build_image_pipeline(req, adapter, provider=provider)
