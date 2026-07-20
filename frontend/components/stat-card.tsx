@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { CountUp } from "./motion/count-up";
+import { Lattice } from "./workbench/section";
 
 /**
  * A metric, not a card-in-a-card.
@@ -46,19 +47,17 @@ export function StatCard({
   );
 }
 
-/** The grid these live in: hairline divisions, no nested card borders. */
-export function StatGrid({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+/**
+ * The grid these live in: hairline divisions, no nested card borders.
+ *
+ * This was the original home of that pattern; it's now Lattice, which the rest
+ * of the app uses for any set of peer cells. StatGrid stays as the named
+ * four-column case so metric callers keep reading as metrics.
+ */
+export function StatGrid({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <div
-      className={cn(
-        "grid gap-px overflow-hidden rounded-lg border bg-border",
-        "sm:grid-cols-2 lg:grid-cols-4",
-        className,
-      )}
-      {...props}
-    />
+    <Lattice columns={4} className={className}>
+      {children}
+    </Lattice>
   );
 }
