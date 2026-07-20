@@ -135,15 +135,13 @@ export default function SignInPage() {
   const fieldErr = (f: AuthField) => (errField === f ? err : null);
 
   return (
-    <div className="relative min-h-dvh overflow-hidden">
-      <div aria-hidden className="patch-grid patch-grid-fade absolute inset-0 -z-10" />
-
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
+    <div className="band-ink viewing-light relative min-h-dvh overflow-hidden">
+      <header className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
         <BrandMark href="/" />
         <div className="flex items-center gap-2">
           <Link
             href="/how-it-works"
-            className="hidden rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+            className="on-ink-mute hidden rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:text-[var(--ink-fg)] sm:inline-flex"
           >
             How it works
           </Link>
@@ -151,27 +149,30 @@ export default function SignInPage() {
         </div>
       </header>
 
-      <main className="mx-auto flex min-h-[calc(100dvh-73px)] max-w-6xl items-center px-4 pb-16 sm:px-6 lg:px-8">
+      <main className="relative mx-auto flex min-h-[calc(100dvh-73px)] max-w-6xl items-center px-4 pb-16 sm:px-6 lg:px-8">
         <div className="grid w-full items-center gap-12 lg:grid-cols-2">
           {/* Brand pitch — large screens only */}
           <FadeIn className="hidden lg:block">
-            <p className="label text-muted-foreground">Product photography, calibrated</p>
-            <h1 className="mt-4 text-balance text-4xl font-semibold leading-[1.1] tracking-[-0.03em]">
+            <p className="kicker t-accent">Sign in</p>
+            <h1 className="display-face mt-4 text-[clamp(2.25rem,4vw,3rem)]">
               Your studio,
               <br />
-              <span className="text-muted-foreground">signed in.</span>
+              <span className="on-ink-mute">signed in.</span>
             </h1>
-            <p className="mt-5 max-w-md text-pretty text-muted-foreground">
+            <p className="on-ink-mute mt-5 max-w-md text-pretty text-[16.5px] leading-relaxed">
               Turn one phone photo into a full, marketplace-ready pack — every asset stored and
               provable, isolated to your account.
             </p>
             <ul className="mt-8 space-y-3.5">
               {PITCH.map(({ icon: Icon, text }) => (
                 <li key={text} className="flex items-start gap-3">
-                  <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border bg-card text-muted-foreground">
+                  <span
+                    className="t-verify mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border"
+                    style={{ backgroundColor: "var(--ink-2)" }}
+                  >
                     <Icon className="size-3.5" />
                   </span>
-                  <span className="text-sm text-muted-foreground">{text}</span>
+                  <span className="on-ink-mute text-sm">{text}</span>
                 </li>
               ))}
             </ul>
@@ -212,7 +213,7 @@ export default function SignInPage() {
                     </div>
                     <Link
                       href="/"
-                      className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
+                      className="inline-flex items-center gap-1 text-sm t-accent hover:underline"
                     >
                       Back to home <ArrowRight className="size-4" />
                     </Link>
@@ -336,7 +337,7 @@ export default function SignInPage() {
                               New to OriginShot?{" "}
                               <button
                                 type="button"
-                                className="font-medium text-accent hover:underline"
+                                className="font-medium t-accent hover:underline"
                                 onClick={() => go("up")}
                               >
                                 Create an account
@@ -347,7 +348,7 @@ export default function SignInPage() {
                               Already have an account?{" "}
                               <button
                                 type="button"
-                                className="font-medium text-accent hover:underline"
+                                className="font-medium t-accent hover:underline"
                                 onClick={() => go("in")}
                               >
                                 Sign in
