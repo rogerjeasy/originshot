@@ -45,6 +45,13 @@ class Repo(Protocol):
     def set_sku_original(self, uid: str, sku_id: str, sha256: str) -> None: ...
 
     def update_sku(self, uid: str, sku_id: str, patch: dict) -> dict | None: ...
+    # Delete a SKU and its assets (+ global sha/phash index entries). Returns the removed
+    # asset docs so the caller can clean up B2 media. Ledger entries are append-only and are
+    # NEVER touched — a deleted asset's provenance record staying in the log is correct: the
+    # log records that it was made, and deletion does not unmake that history.
+    def delete_sku(self, uid: str, sku_id: str) -> list[dict]: ...
+    # Global resolve by id (admin moderation only). Returns (owner_uid, sku) or None.
+    def find_sku_by_id(self, sku_id: str) -> tuple[str, dict] | None: ...
 
     def add_asset(self, uid: str, asset: dict) -> dict: ...
     def list_assets(self, uid: str, sku_id: str) -> list[dict]: ...
@@ -160,6 +167,20 @@ class InMemoryRepo:
         if sku:
             sku.update(patch)
         return sku
+
+    def delete_sku(self, uid: str, sku_id: str) -> list[dict]:
+        if not self.get_sku(uid, sku_id):
+            return []
+        removed = [a for a in self._assets.values()
+                   if a["owner_uid"] == uid and a.get("sku_id") == sku_id]
+        for a in removed:
+            self._assets.pop(a["id"], None)
+        self._skus.pop(sku_id, None)
+        return removed
+
+    def find_sku_by_id(self, sku_id: str) -> tuple[str, dict] | None:
+        sku = self._skus.get(sku_id)
+        return (sku["owner_uid"], sku) if sku else None
 
     def add_asset(self, uid: str, asset: dict) -> dict:
         doc = {"id": _new_id(), "owner_uid": uid, "created_at": utcnow(), **asset}
@@ -405,6 +426,39 @@ class FirestoreRepo:
         ref.update(patch)
         snap = ref.get()
         return snap.to_dict() if snap.exists else None
+
+    def delete_sku(self, uid: str, sku_id: str) -> list[dict]:
+        sku_ref = self._seller(uid).collection("skus").document(sku_id)
+        if not sku_ref.get().exists:
+            return []
+        assets_col = sku_ref.collection("assets")
+        removed: list[dict] = []
+        for snap in assets_col.stream():
+            a = snap.to_dict()
+            removed.append(a)
+            # Drop the global indexes keyed by this asset's content hash. Guarded by a match
+            # check so we never delete an index entry that a *different* asset (same bytes,
+            # content-addressable dedup) currently owns — that would blind the verifier to a
+            # file that still exists.
+            sha = a.get("sha256")
+            if sha:
+                for coll in ("asset_index", "phash_index"):
+                    idx = self._db.collection(coll).document(sha)
+                    doc = idx.get()
+                    if doc.exists and doc.to_dict().get("asset_id") == a.get("id"):
+                        idx.delete()
+            snap.reference.delete()
+        sku_ref.delete()
+        return removed
+
+    def find_sku_by_id(self, sku_id: str) -> tuple[str, dict] | None:
+        # Unfiltered collection-group stream — the same index-free shape list_all_skus uses.
+        # SKU ids are globally unique (Firestore auto-ids), so the first match is the only one.
+        for snap in self._db.collection_group("skus").stream():
+            doc = snap.to_dict()
+            if doc.get("id") == sku_id:
+                return doc.get("owner_uid"), doc
+        return None
 
     def add_asset(self, uid: str, asset: dict) -> dict:
         sku_id = asset["sku_id"]

@@ -134,6 +134,18 @@ class SkuCreate(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
 
 
+class SkuUpdate(BaseModel):
+    """Partial update — every field optional; only those supplied are changed.
+
+    Same length bounds as SkuCreate so an edit can't smuggle past validation that a create
+    enforces. `title` keeps its non-empty floor: a product with a blank title is not a valid
+    edit, only an omitted one.
+    """
+    title: str | None = Field(default=None, min_length=1, max_length=140)
+    category: str | None = Field(default=None, max_length=80)
+    description: str | None = Field(default=None, max_length=2000)
+
+
 class SkuOut(BaseModel):
     id: str
     owner_uid: str
