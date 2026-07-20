@@ -68,6 +68,32 @@ def check_b2(deep: bool = False) -> dict:
         return _fail(exc)
 
 
+def check_object_lock() -> dict:
+    """Whether the transparency ledger's immutability claim is actually backed.
+
+    Reports one of: disabled (not configured), active (configured AND the key can write
+    retentions), or misconfigured (retention days set but the key can't apply a lock — so
+    checkpoints publish unlocked and nothing should claim otherwise). This exists so the app
+    never advertises immutability it isn't delivering; the honesty is the point.
+    """
+    settings = get_settings()
+    if not settings.b2_configured:
+        return {"ok": True, "state": "disabled", "reason": "B2 not configured"}
+    if not (settings.b2_object_lock_days and settings.b2_object_lock_days > 0):
+        return {"ok": True, "state": "disabled"}
+    try:
+        from .storage import get_storage
+
+        status = get_storage().object_lock_status()
+        if status.get("capable"):
+            return {"ok": True, "state": "active", "mode": settings.b2_object_lock_mode,
+                    "retain_days": settings.b2_object_lock_days}
+        return {"ok": False, "state": "misconfigured",
+                "reason": status.get("reason", "key cannot write retentions")}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "state": "unknown", "error": type(exc).__name__}
+
+
 def check_generation() -> dict:
     """Report generation capability without spending money.
 
@@ -103,27 +129,25 @@ def collect_health(deep: bool = False) -> dict:
     b2_status = check_b2(deep)
     generation_status = check_generation()
 
+    checks = {
+        "firebase": firebase_status,
+        "b2": b2_status,
+        "generation": generation_status,
+    }
+    # Object Lock verification makes a native B2 call, so it runs only on the deep check
+    # (humans/monitoring), never on the platform's frequent shallow probe.
+    if deep:
+        checks["object_lock"] = check_object_lock()
+
     # The process is alive, so this endpoint stays 200 (a non-200 makes Render restart-loop
     # the service). Degradation is reported in the body instead.
-    degraded = [
-        name
-        for name, status in (
-            ("firebase", firebase_status),
-            ("b2", b2_status),
-            ("generation", generation_status),
-        )
-        if not status["ok"]
-    ]
+    degraded = [name for name, status in checks.items() if not status["ok"]]
 
     return {
         "status": "degraded" if degraded else "ok",
         "degraded": degraded,
         "env": settings.app_env,
-        "checks": {
-            "firebase": firebase_status,
-            "b2": b2_status,
-            "generation": generation_status,
-        },
+        "checks": checks,
         "job_queue": settings.job_queue,
         "auth_dev_bypass": settings.auth_dev_bypass and settings.is_dev,
         "depth": "deep" if deep else "shallow",
