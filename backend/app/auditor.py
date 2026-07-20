@@ -177,8 +177,19 @@ def run_audit(*, sample_size: int | None = None) -> dict:
     sha = hashlib.sha256(body).hexdigest()
     key = f"{AUDIT_PREFIX}/{audit_id}-{sha[:12]}.json"
     try:
-        storage.put_bytes(key, body, "application/json")
+        settings = get_settings()
+        # Same immutability as checkpoints: an audit report that could be quietly rewritten
+        # after the fact is a report you have to trust rather than verify. Under Object Lock
+        # it cannot be — retained_until is recorded only when a real lock was applied.
+        retained_until = storage.put_immutable(
+            key, body, "application/json",
+            retain_days=settings.b2_object_lock_days,
+            mode=settings.b2_object_lock_mode,
+        )
         report["b2_key"] = key
+        report["retained_until"] = (
+            retained_until.strftime("%Y-%m-%dT%H:%M:%SZ") if retained_until else None
+        )
     except Exception as exc:  # noqa: BLE001 — an unpublished report is still a record
         log.warning("audit report publish to B2 failed: %s", exc)
         report["b2_key"] = None
