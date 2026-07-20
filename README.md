@@ -196,6 +196,38 @@ exact hash and the exact check that failed. It is also, deliberately, the instan
 its own homework — the page says so, and independent verification remains the standalone
 script below.
 
+### B2 Object Lock — the published checkpoint you can't quietly rewrite
+
+Publishing a checkpoint to object storage only helps if the checkpoint itself can't be
+edited after the fact. The obvious objection writes itself: *the operator controls the
+bucket, so they could overwrite an inconvenient checkpoint and no one would know.* That was a
+real hole, stated plainly in the limitations below in earlier versions of this document.
+
+**Backblaze B2 Object Lock closes it** — and it is the one place this app reaches past the
+generic S3 API for a B2-native capability. When configured, every transparency checkpoint and
+every audit report is written with a **compliance-mode retention** (`ObjectLockMode`,
+`ObjectLockRetainUntilDate`): B2 will refuse to alter or delete that object until the
+retention expires — **not for the operator, not for a root credential, not for anyone.** A
+published checkpoint stops being "trust us not to rewrite history" and becomes "history that
+cannot be rewritten." The `/ledger` page shows the lock and its expiry; the checkpoint JSON
+carries `retained_until` — and *only* when a lock was genuinely applied.
+
+That last clause is the discipline that keeps this honest. The write path degrades safely: if
+the bucket has no file lock or the key lacks `writeFileRetentions`, the checkpoint still
+publishes (a best-effort log must never be *lost*), but it publishes **unlocked**, the event
+is logged loudly, and `retained_until` is omitted — so an object is never *described* as
+immutable when it isn't. `/healthz?deep=true` reports the true state
+(`object_lock: active | misconfigured | disabled`) rather than letting the app advertise a
+guarantee it isn't delivering.
+
+> **Enabling it** is a one-time B2 setup, deliberately off by default (`B2_OBJECT_LOCK_DAYS=0`)
+> until that setup exists: (1) enable Object Lock on the bucket (or a dedicated `…-ledger`
+> bucket — it's a one-way switch, so a fresh bucket is the clean choice), (2) mint an
+> application key carrying `writeFileRetentions` + `readFileRetentions`, and (3) set
+> `B2_OBJECT_LOCK_DAYS` to the retention period. The app then locks every new checkpoint and
+> audit report with zero further changes. See [`app/storage.py`](backend/app/storage.py)
+> (`put_immutable`) and [`.env.example`](.env.example).
+
 ### What this does not prove
 
 Stated as plainly as the rest, because a transparency log that overstates itself is worse
@@ -204,6 +236,10 @@ than none:
 - **No signatures.** There is no issuing keypair, so a checkpoint proves integrity against a
   published record, not authorship. Real CT logs sign their heads; that is the next step and
   is not claimed here.
+- **Object Lock stops rewriting, not withholding.** A compliance-mode lock makes a *published*
+  checkpoint physically immutable — the operator can no longer alter a bad result after
+  publishing it. It does **not** force the operator to run the Auditor or to publish at all;
+  that half of the problem is the witness gap below, which Object Lock does not close.
 - **The Auditor is self-audit.** It protects against silent corruption and drift, not
   against a dishonest operator, who could simply not run it or not publish a bad result.
   The load-bearing check remains the standalone verifier, which needs none of our code.
@@ -452,7 +488,21 @@ B2 is the system of record for every byte, not an afterthought:
 our own database would be worth nothing — the party you are being asked to trust is the same
 party who could rewrite it. Publishing each head to object storage under a content-addressed
 key gives it an existence independent of the application's own data, and the bucket's own
-listing becomes a second record of when each head appeared.
+listing becomes a second record of when each head appeared. And with **Object Lock** on the
+ledger prefix, that published head cannot be rewritten *even by us* until its retention
+expires (see below).
+
+#### Backblaze B2 capabilities used — not just generic S3
+
+| B2 capability | Where OriginShot uses it | Why it matters here |
+|---|---|---|
+| **Object Lock** (compliance-mode retention) | `put_immutable` on every transparency checkpoint + audit report ([`app/storage.py`](backend/app/storage.py)) | Turns "trust us not to rewrite history" into history that *cannot* be rewritten — unalterable even with root credentials. The tamper-proofing for the trust anchor. |
+| **Content-addressable keys** | Every asset, manifest, checkpoint and report is keyed by the SHA-256 of its own bytes | Physical dedup (identical bytes stored once) *and* a key that doubles as an integrity check — the key **is** the hash `/verify` recomputes. |
+| **Versioning** | Enabled on the bucket (the prerequisite Object Lock rides on) | A prior write is never silently lost under a re-PUT. |
+| **Private bucket + short-TTL presigned GET** | All media served only via 15-min presigned URLs ([`app/storage.py`](backend/app/storage.py)) | No public objects; a leaked URL expires. |
+| **Least-privilege, bucket-scoped keys** | `S3StorageBackend.for_backblaze(...)`, key scoped to one bucket | Blast radius of a compromised key is one bucket, and the ledger key adds only `writeFileRetentions`. |
+| **Server-side `list_objects_v2` accounting** | The admin storage panel's true object/byte totals ([`B2Storage.stats`](backend/app/storage.py)) | Honest bucket size — B2 exposes no cheap size metric, so it is counted, bounded, and labelled `truncated`. |
+| **Genblaze `ObjectStorageSink` + `ParquetSink` → B2** | The generation write path and analytics export | One storage backend for media, provenance and analytics. |
 
 **Organized and searchable, not just durable.** The
 [**Library**](https://originshot.vercel.app/library) is the cross-catalog view over
