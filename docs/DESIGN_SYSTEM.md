@@ -9,6 +9,13 @@ explains what they mean and why.
 > right and are carried forward verbatim, marked where they appear. The
 > migration ledger at the end records exactly what has moved and what hasn't.
 
+**Two layers, one system.** *Light Table* is the colour, type and material
+language, and governs everything. **"The Workbench"** (2026-07-20) is the
+*layout* language of the signed-in app only — it added no tokens and changed no
+colour. Public surfaces are paced by bands; the dashboard is built from regions.
+If you are working on a dashboard screen, read **Layout — "the Workbench"**
+first.
+
 ---
 
 ## The thesis
@@ -149,6 +156,117 @@ studio, so it is the one dark room you pass through on the way in.
 > band, `--accent-text` and `--verify-text` are bound at `:root` and `.dark` as
 > well as per band. Without the root binding, `.t-accent` fell through to its
 > `--tungsten-ink` fallback and measured **2.99:1** on the dark app ground.
+
+---
+
+## Layout — "the Workbench"
+
+Bands pace a page that argues. The signed-in app doesn't argue, it works, so it
+has its own layout system. Primitives live in `frontend/components/workbench/`.
+
+**The problem it replaced.** Every dashboard screen was `PageHeader`, then a
+`space-y-8` stack of bordered `Card`s. Because a card claims the same weight
+wherever it lands, a page of them has no hierarchy: the eye gets nothing for
+free, and the surface reads as unrelated widgets on a tinted ground rather than
+one instrument.
+
+### Regions, not boxes
+
+A **`Section`** divides with a hairline rule and names itself with a
+micro-label — the way a spec sheet or a contact sheet is organised. Continuous
+surface, hairline divisions, the content doing the talking.
+
+> **The rule: `Card` is only for genuinely detachable objects** — a media tile,
+> a SKU, something you could pick up and move elsewhere. If it can't be picked
+> up, it's a `Section`. `Section` takes `framed` for the rare content that
+> needs containment; a framed section draws no rule, so a doubled line never
+> appears.
+
+**Where `Card` is still correct**, and why the migration deliberately left it:
+
+- `/settings` — the sidebar column is three peer panels. Converting one to a
+  borderless `Section` leaves it floating between two bordered neighbours.
+- `/admin` operations — a two-column grid of peer panels, same reasoning.
+
+Consistency *within a column* outranks converting everything.
+
+### The pieces
+
+| Primitive | Role |
+| --- | --- |
+| `Section` | A region: hairline rule + micro-label, optional `state` and `action`. The default. |
+| `Step` | A **numbered** stage. See the constraint below. |
+| `Lattice` | The shared-hairline grid: N cells share N−1 rules via `gap-px` over `bg-border`, instead of 4N borders doubling at every seam. |
+| `Stack` | Page rhythm — `tight` / `normal` / `loose`. One knob, so screens can't drift apart on spacing. |
+| `PageToolbar` | The head of every screen: crumbs, title, `action`, `meta`. |
+| `RegistrationStrip` / `RegistrationLabel` | The state marker. |
+| `CommandPalette` | ⌘K navigation. |
+
+`StatGrid` is now a thin four-column caller of `Lattice`; it stays named so
+metric call sites still read as metrics.
+
+### ⚠ Numbering is a claim about order
+
+`Step` renders a numbered marker that becomes a check when `done`. Use it **only
+where order is information the reader needs.** Catalog Mode qualifies: there are
+no output formats to choose before photos exist, and no run before both are
+settled.
+
+Numbered markers on a set of peer regions are decoration pretending to be
+structure — that is the single most common way this system gets cheapened. Every
+other screen uses unnumbered `Section`s. The number is `aria-hidden` in the
+marker and restated as "Step N:" for screen readers, so it is never the only
+carrier.
+
+### The registration strip
+
+The app's one signature device, and the counterpart to `.viewing-light` on the
+public surface. Printers align colour separations against registration marks; if
+the marks line up, the plates are true — which is this product's whole claim, so
+the marker **carries state rather than decorating an edge**:
+
+| State | Fill | Means |
+| --- | --- | --- |
+| `idle` | `--border` | nothing in flight |
+| `working` | `--tungsten` | acting — a run in progress |
+| `verified` | `--daylight` | checked out |
+| `attention` | `--warning` | needs a decision |
+
+It reuses the existing temperature axis and introduces **no third accent**. Only
+`working` animates: a travelling highlight, the same gesture as `.developing`,
+suppressed entirely under reduced motion rather than merely slowed.
+
+> These are **fill** colours and obey the contrast law below. A strip never
+> shares its token with type — `RegistrationLabel` sets its wording in
+> `.t-accent` / `.t-verify`, so state is icon **plus** colour **plus** words.
+
+### Page heads
+
+`PageToolbar` replaces the deleted `PageHeader`, which set titles at `text-2xl`
+in the interface face — the same treatment as a section heading three levels
+down, so nothing signalled the page had changed. The title is now **the one
+place the display face appears inside the app**, at the size the system reserves
+it for (never below ~1.75rem). Crumbs are mono, because a path in this product is
+an address you can check — the face the hashes use.
+
+### Navigation
+
+The rail groups by intent: **Create** (Studio, Catalog Mode), **Inspect**
+(Library, Analytics, Verify, Ledger), **Account** (Settings, Admin). Six peer
+links put Verify — something you do to finished work — level with Studio, where
+work is made. Those two verbs are the product.
+
+One definition renders two shapes: a collapsing icon rail (labels vanish below
+`lg`, so the accessible name comes from the element), and a mobile drawer that
+keeps its labels. **Each nav landmark takes a distinct accessible name** — three
+landmarks all called "Primary" is noise in a landmark list.
+
+`CommandPalette` is hand-rolled on Radix Dialog; **there is no `cmdk`
+dependency**, and adding one for a filtered list with roving selection is not
+warranted. Matching is substring, not fuzzy: with ~10 destinations, fuzzy mostly
+produces confident wrong answers. Selection indexes the **grouped render order**,
+not the filter order — they diverge whenever a filter interleaves groups, and
+indexing the wrong one opens a different row than the one highlighted.
 
 ---
 
@@ -348,6 +466,11 @@ long enough to wrap mid-word belongs in sans.
   renders nothing at all in light mode. Use `bg-muted` for a paper empty state.
 - **`.developing`** — loading shimmer: a print coming up in the tray, not a grey
   bar. *(Carried forward.)*
+- **The registration strip** — the signed-in app's signature device, the
+  counterpart to `.viewing-light` on the public surface. Its `working` animation
+  is deliberately the same travelling-exposure gesture as `.developing`, so a
+  strip beside a loading placeholder reads as one system rather than two
+  effects. Full contract under **Layout — "the Workbench"**.
 
 ---
 
@@ -382,10 +505,15 @@ matters. Composite patterns to reuse rather than re-invent:
 | `ImageTile` | A generated asset as a mounted print, with caption strip. |
 | `AssetWorkbench` | The pack grouped by style, slots held for pending frames. |
 | `BrandMark` | Four-patch glyph, one patch struck in the verified colour. |
-| `StatCard` / `StatGrid` | Metrics in a hairline grid — no card-in-a-card. Figures mono and tabular. |
+| `StatCard` / `StatGrid` | Metrics in a hairline grid — no card-in-a-card. Figures mono and tabular. `StatGrid` is `Lattice` at four columns. |
 | `ProviderChart` | A real `<table>`. There is **no chart dependency**; don't add one for a handful of bars. |
 | `Field` | Label + control + hint/error, wiring `aria-describedby` and `aria-invalid`. |
-| `Card` | `CardTitle` is a **micro-label** (names a region); `CardHeading` names content. Easiest mistake in the codebase. |
+| `SkuCard` | A product tile. Deliberately **has no thumbnail**: `Sku` carries `original_sha256` but no URL, so one would cost a fetch per tile to render decoration. |
+| `Card` | `CardTitle` is a **micro-label** (names a region); `CardHeading` names content. Easiest mistake in the codebase. **Reach for `Section` first** — see Layout. |
+
+For app layout — `Section`, `Step`, `Lattice`, `Stack`, `PageToolbar`,
+`RegistrationStrip`, `CommandPalette` — see **Layout — "the Workbench"** above.
+Start there for any new dashboard screen.
 
 ---
 
@@ -458,7 +586,10 @@ read as a demo.
 | Neutrals, all surfaces | **Done.** App semantic tokens mapped onto ink/paper families, both themes. |
 | App `--accent` → tungsten | **Done.** The `--warning` collision was resolved in the same change; all 27 `text-accent` sites moved to `.t-accent`; `--accent-text`/`--verify-text` bound at `:root` and `.dark`. |
 | `components/marketing/*` | **Deleted.** `/about` was its last consumer; 10 of its 15 components were already dead. |
-| App (`/studio`, `/library`, `/analytics`, `/settings`, `/admin`) | Tokens and type current, and every accent surface now resolves through `.t-accent`. Layout is still Calibration-shaped, which is *allowed* by the rule above — but see the caveat below. |
+| App (`/studio`, `/studio/[skuId]`, `/studio/catalog`, `/library`, `/analytics`, `/settings`, `/admin`) | **Rebuilt on the Workbench.** The `PageHeader` + stacked-`Card` rhythm is gone; regions are `Section`s, Catalog Mode is a numbered `Step` sequence, page heads are `PageToolbar`. Token layer untouched — no colour, type or contrast change, gate still 25/25. Logic untouched: `jobId`-keyed polling, the loading-versus-empty distinction and the blob export are byte-identical. |
+| App shell | **Rebuilt.** Nav grouped Create / Inspect / Account, one definition rendering rail and drawer, ⌘K palette. Auth enforcement unchanged — still no dev bypass. |
+| `components/page-header.tsx` | **Deleted.** Superseded by `PageToolbar`; zero consumers remained. |
+| Library / Analytics detail | Library gained visible legends on its filter axes (previously distinguishable only by `aria-label`) and a clear-filters affordance it never had. Analytics names its two stat rows, so the split between them carries information. |
 
 ### ⚠ What has not been visually verified
 
@@ -468,8 +599,15 @@ browser.** Playwright is not installed in this repo, so the responsiveness
 protocol below — 390 / 820 / 1440, light and dark, asserting
 `scrollWidth <= innerWidth` — has *not* been run against these changes.
 
-Two things specifically warrant a screenshot before they are trusted:
+Three things specifically warrant a screenshot before they are trusted:
 
+- **The Workbench layout, everywhere.** The 2026-07-20 rewrite changed the
+  structure of all eight dashboard screens at once. It is verified by `tsc`,
+  `next build` (17/17) and the contrast gate only. Nothing about "does a
+  borderless region read as a region, or as content that lost its container"
+  can be settled by a build — that is exactly the question the rewrite is
+  betting on, and it is unanswered. Start with `/studio/[skuId]` and
+  `/studio/catalog`, which took the most structural change.
 - **The signed-in app under tungsten.** `--accent` changed underneath every app
   screen at once. The contrast maths passes, but nobody has looked at
   `/studio`, `/library`, `/analytics`, `/settings` or `/admin` since.
@@ -477,3 +615,7 @@ Two things specifically warrant a screenshot before they are trusted:
   `.band-ink *` repaints every descendant border to `--ink-line`. `Card` sets
   `text-card-foreground` explicitly so the type is safe, but the hairline
   weight against white is unreviewed.
+
+Note the protocol below says "light and dark". **The product is dark-only** —
+there is one theme to check, not two. The light palette is dormant and gated;
+see "The product is dark, permanently".

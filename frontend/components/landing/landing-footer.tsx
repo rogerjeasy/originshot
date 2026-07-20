@@ -22,6 +22,7 @@ const GROUPS = [
   {
     heading: "Learn",
     links: [
+      { href: "/pack", label: "See a real pack" },
       { href: "/how-it-works", label: "How it works" },
       { href: "/about", label: "About" },
       { href: "/style-guide", label: "Design system" },

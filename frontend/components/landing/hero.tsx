@@ -70,7 +70,7 @@ export function LandingHero() {
                 <ArrowRight className="size-4" />
               </Link>
               <Link
-                href="#pack"
+                href="/pack"
                 className="btn-on-ink inline-flex h-12 items-center justify-center rounded-lg px-7 text-[15px] font-medium"
               >
                 See a real pack

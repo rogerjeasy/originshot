@@ -6,7 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { DEMO_ASSETS } from "@/lib/demo-assets";
+import { PACK_GROUPS, framesFor } from "@/lib/pack";
 import { Reveal, SectionHead } from "./section";
 
 /**
@@ -14,56 +14,16 @@ import { Reveal, SectionHead } from "./section";
  * because that is how a seller decides whether this is worth their time. Every
  * frame is real output from a single source photo, which is also the argument:
  * switch tabs and it stays the same mug.
+ *
+ * This is the trailer for /pack, which shows the same run in full and lets you
+ * inspect a frame's hash. The group data is shared from lib/pack so the two
+ * surfaces can't disagree about what the run produced.
  */
-const GROUPS = [
-  {
-    id: "studio",
-    label: "Studio",
-    goes: "Amazon · eBay main image",
-    blurb:
-      "Clean white-background shots that clear marketplace main-image rules, with no lightbox and no tripod.",
-    slots: ["studio-01", "studio-03", "studio-02", "studio-04"],
-  },
-  {
-    id: "lifestyle",
-    label: "Lifestyle",
-    goes: "Etsy · Instagram",
-    blurb: "The product in a room someone recognises. This is the frame that earns the click.",
-    slots: ["lifestyle-02", "lifestyle-05", "lifestyle-04", "lifestyle-01"],
-  },
-  {
-    id: "scene",
-    label: "In context",
-    goes: "Listing gallery",
-    blurb:
-      "Desk, café and kitchen scenes, for the moment a buyer is working out how big the thing actually is.",
-    slots: ["scene-01", "scene-02", "lifestyle-03", "lifestyle-06"],
-  },
-  {
-    id: "onmodel",
-    label: "In hand",
-    goes: "Scale · detail shot",
-    blurb:
-      "The product held, so a buyer can read its size instantly. A pack also sweeps colour and angle variants, which this demo mug only ships in one of.",
-    slots: ["onmodel-01"],
-  },
-  {
-    id: "motion",
-    label: "Video",
-    goes: "Search · social",
-    blurb:
-      "A five-second product video made from the studio frame — the asset marketplaces now push hardest in search.",
-    slots: ["video-01"],
-  },
-] as const;
-
 export function PackGallery() {
-  const [active, setActive] = useState<string>(GROUPS[0].id);
+  const [active, setActive] = useState<string>(PACK_GROUPS[0].id);
   const reduce = useReducedMotion();
-  const group = GROUPS.find((g) => g.id === active) ?? GROUPS[0];
-  const frames = group.slots
-    .map((slot) => DEMO_ASSETS.find((a) => a.slot === slot))
-    .filter((a): a is (typeof DEMO_ASSETS)[number] => Boolean(a));
+  const group = PACK_GROUPS.find((g) => g.id === active) ?? PACK_GROUPS[0];
+  const frames = framesFor(group);
 
   return (
     <section id="pack" className="band-paper scroll-mt-20">
@@ -87,7 +47,7 @@ export function PackGallery() {
             role="tablist"
             aria-label="Pack contents"
           >
-            {GROUPS.map((g) => {
+            {PACK_GROUPS.map((g) => {
               const on = g.id === active;
               return (
                 <button
@@ -196,6 +156,14 @@ export function PackGallery() {
               4m 14s. The MP4 carries an embedded manifest and still verifies byte-for-byte.
             </p>
           )}
+
+          <Link
+            href="/pack"
+            className="t-accent mt-10 inline-flex items-center gap-1.5 text-[14.5px] font-medium"
+          >
+            See the whole pack, frame by frame
+            <ArrowUpRight className="size-4" />
+          </Link>
         </Reveal>
       </div>
     </section>
