@@ -135,6 +135,28 @@ export interface VerifyResult {
   disclosure: string;
   /** Null means "not in the log" — appends are best-effort, so that is not a negative. */
   ledger?: LedgerPosition | null;
+  /**
+   * "Verify in the Wild": set only when the cryptographic tiers found nothing but the image
+   * is perceptually close to a known asset (a re-encoded marketplace copy whose manifest was
+   * stripped). Evidence, never proof — never sets content_bound. See app/models.py.
+   */
+  perceptual?: PerceptualMatch | null;
+}
+
+/** A perceptual (visual-similarity) match — the third verify tier. Mirrors app/models.py. */
+export interface PerceptualMatch {
+  matched_sha256: string;
+  /** Hamming distance over the 64-bit pHash (0 = identical). The honest signal. */
+  distance: number;
+  /** 0–1, for display only; `distance` is the real signal. */
+  confidence: number;
+  /** distance <= the confident-match threshold. */
+  strong: boolean;
+  style?: Style | null;
+  provider?: string | null;
+  model?: string | null;
+  parent_sha256?: string | null;
+  matched_in_ledger?: boolean;
 }
 
 /** Transparency log — append-only hash chain. Mirrors app/models.py. */
