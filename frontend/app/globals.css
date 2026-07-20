@@ -481,6 +481,49 @@
     color: var(--paper-mute);
   }
 
+  /* The viewing room as a *ground* only.
+
+     Unlike .band-ink this deliberately does NOT repaint descendant hairlines.
+     A band assumes everything inside it is band-native; these pages carry
+     ordinary app panels (bg-card, Alert, Input, the dropzone) that keep their
+     own surface and their own light hairlines, so a card reads as a print
+     resting on the table. Cascading --ink-line into them would leave one card
+     mixing navy rules with the grey ones drawn by bg-border, which is why the
+     public tool pages use this and not .band-ink.
+
+     It still binds the accent text tokens, so .t-accent / .t-verify resolve to
+     the ink-legible member of each family for anything sitting directly on the
+     ground. */
+  .ink-ground {
+    background-color: var(--ink);
+    color: var(--ink-fg);
+    --accent-text: var(--tungsten);
+    --verify-text: var(--daylight);
+    --muted-foreground: var(--ink-mute);
+  }
+
+  /* A panel that keeps its own paper surface while resting on that ground.
+     .ink-ground shifts the inherited text tokens for things sitting directly on
+     the ink; anything with its own light surface has to shift them back, or
+     ordinary components inside it (Alert, Input, the dropzone, any
+     text-muted-foreground) render light-on-light.
+
+     This is what lets the same page work signed-out on ink and signed-in inside
+     the app shell without either version hardcoding a colour: on the app ground
+     .ink-ground is absent and the app's own tokens already apply. */
+  .ink-ground .surface {
+    color: var(--card-foreground);
+    --muted-foreground: var(--paper-mute);
+    --accent-text: var(--tungsten-ink);
+    --verify-text: var(--daylight-ink);
+  }
+  /* In dark the panel is itself dark, so the ink-legible members are correct. */
+  .dark .ink-ground .surface {
+    --muted-foreground: var(--ink-mute);
+    --accent-text: var(--tungsten);
+    --verify-text: var(--daylight);
+  }
+
   /* The only sanctioned way to set type in either temperature. Both resolve
      per-band, so they stay AA wherever they land. */
   .t-accent {
