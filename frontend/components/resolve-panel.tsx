@@ -91,7 +91,7 @@ function HashLink({ value }: { value: string }) {
     <span className="flex items-start gap-1.5">
       <Link
         href={`/verify/${value}`}
-        className="inline-flex min-w-0 items-start gap-1 break-all text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
+        className="inline-flex min-w-0 items-start gap-1 break-all t-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
       >
         <span className="min-w-0 break-all">{value}</span>
         <ArrowUpRight className="mt-px size-3.5 shrink-0" />

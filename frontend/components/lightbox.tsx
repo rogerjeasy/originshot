@@ -105,7 +105,7 @@ export function Lightbox({
                   {linkToProduct && (
                     <Link
                       href={`/studio/${asset.sku_id}`}
-                      className="text-accent hover:underline"
+                      className="t-accent hover:underline"
                     >
                       Open product →
                     </Link>
@@ -123,7 +123,7 @@ export function Lightbox({
                       Replay from manifest
                     </Button>
                   )}
-                  <Link href={`/verify/${asset.sha256}`} className="text-accent hover:underline">
+                  <Link href={`/verify/${asset.sha256}`} className="t-accent hover:underline">
                     Verify →
                   </Link>
                 </span>

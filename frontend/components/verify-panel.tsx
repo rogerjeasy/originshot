@@ -178,7 +178,7 @@ export function VerifyPanel({ result }: { result: VerifyResult }) {
             {/* Lineage is navigable — the point of a chain is following it. */}
             <Link
               href={`/verify/${result.parent_sha256}`}
-              className="inline-flex items-start gap-1 break-all text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
+              className="inline-flex items-start gap-1 break-all t-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
             >
               <span className="min-w-0 break-all">{result.parent_sha256}</span>
               <ArrowUpRight className="mt-px size-3.5 shrink-0" />
@@ -203,7 +203,7 @@ export function VerifyPanel({ result }: { result: VerifyResult }) {
               {result.ledger.checkpoint_covers_entry ? (
                 <Link
                   href="/ledger"
-                  className="text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
+                  className="t-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
                 >
                   covered by checkpoint {result.ledger.checkpoint_hash?.slice(0, 12)}…
                 </Link>
