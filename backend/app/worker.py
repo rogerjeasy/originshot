@@ -22,6 +22,7 @@ import logging
 from .config import get_settings
 from .generation import StepReporter, generate_assets
 from .models import JobStatus, StepStatus, Style, utcnow
+from . import pricing
 from .pricing import eta_seconds
 from .repo import get_repo
 from .storage import get_storage
@@ -118,7 +119,9 @@ class _JobStepReporter(StepReporter):
         # Provider/model/cost come from the assets the step produced — they're only known
         # after the call returns, which is the whole reason these are reported per step.
         first = assets[0] if assets else {}
-        cost = sum(c for a in assets if (c := a.get("cost_usd")) is not None)
+        # Falls back to list price for providers whose SDK reports no cost (OpenAI) — an
+        # unpriced step is unpriced, not free. See pricing.billable_cost.
+        cost, cost_source = pricing.billable_cost(assets)
         self.cost_total += cost
         # QA rollup: only over assets that actually carry a report — no report, no claim.
         reports = [a["qa"] for a in assets if a.get("qa")]
@@ -130,6 +133,7 @@ class _JobStepReporter(StepReporter):
             provider=first.get("provider"),
             model=first.get("model"),
             cost_usd=round(cost, 4) if cost else None,
+            cost_source=cost_source,
             asset_count=len(assets),
             qa_passed=all(r.get("passed") for r in reports) if reports else None,
             qa_attempts=max(
@@ -196,14 +200,17 @@ async def _run_job(uid: str, job_id: str, sku_id: str, styles: list[str], runner
         else:
             status = JobStatus.done
 
-        # Sum the per-step provider cost (Step.cost_usd, surfaced by generation._map).
-        cost = sum(c for a in assets if (c := a.get("cost_usd")) is not None)
-        actual = round(cost, 4) if cost else 0.0
+        # Per-step provider cost (Step.cost_usd, surfaced by generation._map), with list
+        # price substituted for providers that report none — see pricing.billable_cost.
+        # `cost_source` travels with the number so the UI and analytics can say whether the
+        # figure is a provider's bill or our estimate, instead of implying the former.
+        actual, cost_source = pricing.billable_cost(assets)
         patch = {
             "status": status.value,
             "asset_ids": asset_ids,
             "cost_estimate": actual or None,
             "cost_actual": actual,
+            "cost_source": cost_source,
             "finished_at": utcnow(),
         }
         if errors:
