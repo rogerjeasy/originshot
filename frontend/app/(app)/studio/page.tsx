@@ -121,7 +121,7 @@ export default function StudioPage() {
           <Stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {skus.map((s) => (
               <StaggerItem key={s.id}>
-                <SkuCard sku={s} />
+                <SkuCard sku={s} onChanged={reload} />
               </StaggerItem>
             ))}
           </Stagger>

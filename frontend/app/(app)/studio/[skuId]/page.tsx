@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 import { apiDownload, apiFetch } from "@/lib/api";
 import { useApiData } from "@/lib/use-api";
@@ -16,6 +16,7 @@ import { CompliancePanel } from "@/components/studio/compliance-panel";
 import { GeneratePanel } from "@/components/studio/generate-panel";
 import { LineageGraph } from "@/components/studio/lineage-graph";
 import { ListingPanel } from "@/components/studio/listing-panel";
+import { SkuSettings } from "@/components/studio/sku-settings";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { PageToolbar } from "@/components/workbench/page-toolbar";
 import { RegistrationLabel } from "@/components/workbench/registration";
@@ -25,7 +26,8 @@ import { MediaSkeleton } from "@/components/ui/skeleton";
 
 export default function SkuWorkspace() {
   const { skuId } = useParams<{ skuId: string }>();
-  const { data: sku, reload: reloadSku } = useApiData<Sku>(`/api/skus/${skuId}`);
+  const router = useRouter();
+  const { data: sku, reload: reloadSku, setData: setSku } = useApiData<Sku>(`/api/skus/${skuId}`);
   const {
     data: assets,
     loading: assetsLoading,
@@ -178,6 +180,16 @@ export default function SkuWorkspace() {
               ? `${generated.length} generated asset${generated.length === 1 ? "" : "s"} from one source photo.`
               : "Pick styles on the right and generate your pack."
             : undefined
+        }
+        action={
+          sku && !busyJob ? (
+            <SkuSettings
+              sku={sku}
+              assetCount={generated.length}
+              onSaved={(u) => setSku(u)}
+              onDeleted={() => router.push("/studio")}
+            />
+          ) : undefined
         }
         meta={
           busyJob ? (
