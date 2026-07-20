@@ -107,13 +107,22 @@ def publish_checkpoint() -> dict | None:
 
         import json
 
+        settings = get_settings()
         key = f"{CHECKPOINT_PREFIX}/{size:012d}-{checkpoint['checkpoint_hash'][:12]}.json"
-        get_storage().put_bytes(
+        # Publish under Object Lock when configured. `retained_until` is an annotation added
+        # AFTER the checkpoint hash is computed (like b2_key) — it describes where and how the
+        # commitment was stored, not the commitment itself. It is set ONLY when a real lock was
+        # applied, so a checkpoint that claims immutability always has it.
+        retained_until = get_storage().put_immutable(
             key,
             json.dumps(checkpoint, sort_keys=True, indent=2).encode("utf-8"),
             "application/json",
+            retain_days=settings.b2_object_lock_days,
+            mode=settings.b2_object_lock_mode,
         )
         checkpoint = {**checkpoint, "b2_key": key}
+        if retained_until is not None:
+            checkpoint["retained_until"] = retained_until.strftime("%Y-%m-%dT%H:%M:%SZ")
     except Exception as exc:  # noqa: BLE001 — an unpublished checkpoint is still a record
         log.warning("checkpoint publish to B2 failed: %s", exc)
 
