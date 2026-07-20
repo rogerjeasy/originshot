@@ -1,17 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Check,
-  Download,
-  Layers,
-  Loader2,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Check, Download, Loader2, Sparkles, X } from "lucide-react";
 
 import { apiDownload, apiFetch } from "@/lib/api";
 import { useSession } from "@/lib/use-session";
@@ -20,12 +10,13 @@ import type { Batch, BatchEstimate, Marketplace, Sku, Style } from "@/lib/types"
 import { CatalogBoard } from "@/components/studio/catalog-board";
 import { FadeIn } from "@/components/motion/fade-in";
 import { MarketplacePicker } from "@/components/marketplace-picker";
-import { PageHeader } from "@/components/page-header";
+import { PageToolbar } from "@/components/workbench/page-toolbar";
+import { RegistrationLabel } from "@/components/workbench/registration";
+import { Section, Stack, Step } from "@/components/workbench/section";
 import { StylePicker } from "@/components/style-picker";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type StagedStatus = "staged" | "uploading" | "ready" | "failed";
 
@@ -211,42 +202,46 @@ export default function CatalogPage() {
   const needsUpload = staged.some((s) => s.status === "staged" || s.status === "failed");
 
   return (
-    <div className="space-y-8">
-      <PageHeader
+    <Stack>
+      <PageToolbar
         title="Catalog Mode"
         description="Drop a folder of product photos and generate the whole shop in one run."
-        action={
-          <Link
-            href="/studio"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" /> Back to Studio
-          </Link>
+        crumbs={[{ label: "Studio", href: "/studio" }]}
+        meta={
+          live ? (
+            <RegistrationLabel state="working">Run in progress</RegistrationLabel>
+          ) : undefined
         }
       />
 
       {!batch && (
         <>
+          {/* Numbered because this genuinely is an order: no formats to choose
+              until there are photos, no run until both are settled. */}
           <FadeIn>
-            <UploadDropzone
-              onFiles={addFiles}
-              busy={uploading}
-              title="Drop your product photos"
-              subtitle="One product per photo · PNG / JPG / WebP · EXIF stripped on upload"
-              cta="Choose photos"
-            />
+            <Step
+              n={1}
+              label="Add photos"
+              description="One product per photo. EXIF is stripped on upload."
+              done={readyIds.length > 0}
+            >
+              <UploadDropzone
+                onFiles={addFiles}
+                busy={uploading}
+                title="Drop your product photos"
+                subtitle="One product per photo · PNG / JPG / WebP · EXIF stripped on upload"
+                cta="Choose photos"
+              />
+            </Step>
           </FadeIn>
 
           {staged.length > 0 && (
             <FadeIn>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Layers className="size-4 t-accent" />
-                    {staged.length} product{staged.length === 1 ? "" : "s"} staged
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
+              <Section
+                label={`${staged.length} product${staged.length === 1 ? "" : "s"} staged`}
+                state={uploading ? "working" : readyIds.length > 0 ? "verified" : undefined}
+              >
+                <div className="space-y-3">
                   <ul className="divide-y">
                     {staged.map((item) => (
                       <li key={item.id} className="flex items-center gap-3 py-2.5">
@@ -312,18 +307,19 @@ export default function CatalogPage() {
                       {staged.filter((s) => s.status !== "ready").length === 1 ? "" : "s"}
                     </Button>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </Section>
             </FadeIn>
           )}
 
           {readyIds.length > 0 && (
             <FadeIn>
-              <Card>
-                <CardHeader>
-                  <CardTitle>What to generate</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-5">
+              <Step
+                n={2}
+                label="Choose what to generate"
+                description="Applied to every product in the run."
+              >
+                <div className="space-y-5">
                   <div className="space-y-2">
                     <p className="label text-muted-foreground">Styles · per product</p>
                     <StylePicker value={styles} onChange={setStyles} />
@@ -383,8 +379,8 @@ export default function CatalogPage() {
                     {starting ? <Loader2 className="animate-spin" /> : <Sparkles />}
                     Generate {readyIds.length} product{readyIds.length === 1 ? "" : "s"}
                   </Button>
-                </CardContent>
-              </Card>
+                </div>
+              </Step>
             </FadeIn>
           )}
         </>
@@ -392,7 +388,9 @@ export default function CatalogPage() {
 
       {batch && (
         <FadeIn className="space-y-4">
-          <CatalogBoard batch={batch} />
+          <Step n={3} label="Run" done={!live}>
+            <CatalogBoard batch={batch} />
+          </Step>
           {!live && (
             <div className="flex flex-wrap gap-3">
               <Button variant="accent" onClick={downloadCatalog} disabled={exporting}>
@@ -415,6 +413,6 @@ export default function CatalogPage() {
       )}
 
       {error && <Alert title="Something went wrong">{error}</Alert>}
-    </div>
+    </Stack>
   );
 }
