@@ -1,239 +1,410 @@
-# OriginShot Design System — "Calibration"
+# OriginShot Design System — "Light Table"
 
-The source of truth for OriginShot's visual language. Tokens live in
-`frontend/app/globals.css`; this document explains what they mean and why.
+The source of truth for OriginShot's visual language, across the marketing site
+and the signed-in app. Tokens live in `frontend/app/globals.css`; this document
+explains what they mean and why.
+
+> **Supersedes "Calibration"** (the ColorChecker-patch system, 2026-07-18).
+> Calibration's neutrals and type have been retired; several of its rules were
+> right and are carried forward verbatim, marked where they appear. The
+> migration ledger at the end records exactly what has moved and what hasn't.
 
 ---
 
 ## The thesis
 
-Every semantic colour in this system is a patch from the **ColorChecker chart** —
-the 24-square reference card photographers shoot to prove their colour is
-truthful.
+The product's claim is that a photograph can be checked. So the interface is the
+room you check photographs in: **a photographer's light table.**
 
-For a product whose entire claim is *verifiable photographic authenticity*, the
-instrument of photographic truth is the right source material. It gives the
-system three things a chosen-from-nowhere palette can't:
+Two surfaces, alternating:
 
-1. **Colours with provenance of their own.** These are standardised, measured,
-   slightly desaturated values. They read as expensive precisely because they
-   aren't SaaS colours.
-2. **A neutral ramp that comes from somewhere.** The greys are the chart's own
-   greyscale patches (19–24), so the interface stays achromatic and the
-   generated photographs are the only real colour on screen.
-3. **A defensible chart palette.** Analytics uses patch hues in a fixed order,
-   so categorical series never need an arbitrary decision.
+- **Ink** — a deep, daylight-balanced viewing ground. Photographs and lit
+  objects sit on it. Nothing competes with them.
+- **Paper** — a near-white reading ground. Records, tables, prose, and anything
+  a person has to study rather than look at.
+
+And one chromatic axis, taken from photography's own vocabulary: **colour
+temperature.**
+
+| Temperature | Colour | Means |
+| --- | --- | --- |
+| 3200K tungsten | `#E9A13B` | **Do something.** Every primary action, and only those. |
+| 5600K daylight | `#46B6CF` | **This checked out.** Verification, provenance, machine-true values. |
+
+There is no third accent. A page that needs a third accent needs an edit
+instead. Because the palette is only two hues plus neutrals, the generated
+product photographs are the only other colour on any screen — which is the whole
+point of the product.
 
 **What this system deliberately is not:** no cream-and-terracotta editorial, no
-near-black-with-one-acid-accent, no broadsheet hairline pastiche, and no
+near-black-with-one-acid-accent, no broadsheet hairline pastiche, no
 Geist/cobalt developer-tool look. Those are defaults, not choices.
+
+---
+
+## Bands
+
+**The band is the unit of page layout.** A band is a full-bleed horizontal
+region that declares which room it is, using `.band-ink` or `.band-paper`. Pages
+are built by alternating them; sections do not float on an undifferentiated
+background.
+
+A band sets four things for everything inside it: surface colour, text colour,
+hairline colour, and — critically — the two **accent text tokens**. Author with
+`.t-accent` and `.t-verify` and the correct value resolves per band, without the
+component needing to know where it sits.
+
+```
+┌──────────────────────────────── ink ───┐   hero, mechanism, closing
+│  photographs, lit objects, the pitch   │
+├────────────────────────────── paper ───┤   records, tables, prose, FAQ
+│  things a person reads carefully       │
+└────────────────────────────────────────┘
+```
+
+In dark mode the paper band does **not** flip to white — it becomes a second,
+lighter room, so the two-band rhythm survives the theme.
+
+### Where bands apply — and where they don't
+
+Bands are a **narrative** device: they pace a page that argues. That makes them
+right for the marketing surface and wrong for a tool.
+
+| Surface | Treatment |
+| --- | --- |
+| `/`, `/how-it-works`, `/about`, `/signin` | **Full band rhythm.** Alternating ink and paper, `viewing-light`, `kelvin-rule`. |
+| `/verify`, `/ledger`, `/resolve` and the whole signed-in app | **Tokens, type and motifs — no bands.** Same neutrals, same `.t-accent`/`.t-verify`, same `.plate`/`.frame`, on the app's own surface. |
+
+The reason is structural, not stylistic: `/verify`, `/ledger` and `/resolve`
+render inside `AdaptiveChrome`, so the same file is a public page for a
+signed-out buyer *and* an app screen inside the sidebar shell. A full-bleed
+alternating band inside a sidebar layout reads as a broken container. `/signin`
+takes the full treatment because it has no shell — it is the threshold into the
+studio, so it is the one dark room you pass through on the way in.
+
+> **Consequence for `.t-accent`.** Because most of the app is *not* inside a
+> band, `--accent-text` and `--verify-text` are bound at `:root` and `.dark` as
+> well as per band. Without the root binding, `.t-accent` fell through to its
+> `--tungsten-ink` fallback and measured **2.99:1** on the dark app ground.
 
 ---
 
 ## Colour
 
-Tokens are semantic. **Never write a raw hex in a component** — if a new colour
-is needed, add it here first.
+Tokens are semantic. **Never write a raw hex in a component.**
 
-### Light — "Daylight" (the card shot at 5000K)
+### The temperature pair
 
-| Token | Value | Patch |
+| Token | Value | Use |
 | --- | --- | --- |
-| `background` | `#EDEDE9` | below patch 19 white, so white cards frame |
-| `foreground` | `#1A1A18` | below patch 24 black, for AA body contrast |
-| `card` / `popover` | `#FFFFFF` | — |
-| `primary` | `#1F1F1D` | studio ink |
-| `secondary` | `#E4E4E0` | — |
-| `muted` | `#E8E8E4` | — |
-| `muted-foreground` | `#6B6B64` | patch 22, darkened to AA |
-| `border` / `input` | `#DCDCD7` | — |
-| `accent` / `ring` | `#383D96` | **patch 13 · blue — the signal** |
-| `verified` / `success` | `#3B7C3D` | patch 14 green, darkened to AA |
-| `warning` | `#9E5A15` | patch 7 orange, darkened to AA |
-| `danger` | `#A83239` | patch 15 red |
-| `info` | `#06697F` | patch 18 cyan, darkened to AA |
+| `--tungsten` | `#E9A13B` | Fills and strokes on ink. Buttons, progress, nodes. |
+| `--tungsten-ink` | `#8A5512` | The same hue, legible as text on paper. |
+| `--daylight` | `#46B6CF` | Fills and strokes on ink. |
+| `--daylight-ink` | `#0F6D85` | The same hue, legible as text on paper. |
 
-Each status colour also has a `-surface` companion (`verified-surface`,
-`warning-surface`, `danger-surface`, `info-surface`) for tinted badge and alert
-grounds.
+### ⚠ The contrast law
 
-### Dark — "Darkroom" (the card under safelight)
+`--tungsten` and `--daylight` are **light colours**. As text on paper they
+measure **2.00:1** and **2.18:1** — both far below the 4.5:1 AA floor. This is
+not a theoretical risk; it shipped once and had to be fixed across six
+components.
 
-Same roles, patches lifted for legibility against `#121211`. See `.dark` in
-`globals.css`.
+> **Never set text to `--tungsten` or `--daylight` directly. Use `.t-accent` and
+> `.t-verify`,** which each band binds to the legible member of that family
+> (5.68:1 and 5.43:1 on paper; 8.48:1 and 7.80:1 on ink).
 
-### Chart ramp
+Using the full-chroma tokens as a **fill** — a button, a dot, a progress bar, a
+1px rule — is correct and intended. The law is about type.
 
-**The raw patches fail as a data palette.** Validated with the six checks, patch
-13 sits below the lightness band, patches 5 and 22 read as grey, and patches
-18/5 are indistinguishable under protanopia (ΔE 2.6). Aesthetic provenance
-doesn't buy accessibility.
+> **`--accent` is now tungsten, and `--accent` is a fill.** The app's primary
+> action was moved onto the temperature axis, so `bg-accent` is `#E9A13B` with
+> `--accent-foreground` `#16110a` on top (8.60:1 — white would have been 2.18:1).
+> There is deliberately **no `text-accent`**: the 27 sites that used it were
+> migrated to `.t-accent`, because the moment `--accent` became tungsten every
+> one of them would have measured 2.00:1. This is the second time this exact
+> failure was caught; the checker below exists so there is no third.
+>
+> `--ring` is `--tungsten-ink`, not `--tungsten` — a focus ring has to hold its
+> own against paper.
 
-`--chart-1` … `--chart-4` are those patch hues **re-stepped until every check
-passes**, in this fixed order — orange, blue, green, magenta:
+Check any new pair before shipping it:
 
 ```
-node scripts/validate_palette.js "#C67B1E,#3F49BE,#1E8A4E,#B563A6" --mode light
-node scripts/validate_palette.js "#C4822C,#6F78DD,#35A65E,#C574B6" --mode dark
+node -e 'function L(h){const c=[1,3,5].map(i=>parseInt(h.substr(i,2),16)/255).map(v=>v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4));return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2]}
+function CR(a,b){const x=L(a),y=L(b);return ((Math.max(x,y)+0.05)/(Math.min(x,y)+0.05)).toFixed(2)}
+console.log(CR("#8a5512","#f6f5f2"))'
 ```
+
+### Neutrals
+
+| Role | Ink band | Paper band |
+| --- | --- | --- |
+| surface | `--ink` `#0B1420` | `--paper` `#F6F5F2` |
+| raised | `--ink-2` `#101C2B` | `--paper-2` `#FFFFFF` |
+| inset | `--ink-3` `#16273A` | — |
+| hairline | `--ink-line` `#23364A` | `--paper-line` `#E3E1DB` |
+| text | `--ink-fg` `#EEF3F8` | `--paper-fg` `#121A22` |
+| muted text | `--ink-mute` `#94A8BD` (7.32:1) | `--paper-mute` `#5C6A79` (5.08:1) |
+
+The app's semantic tokens (`--background`, `--card`, `--border`,
+`--muted-foreground`, …) are mapped onto these families in both themes, so an
+app screen and a marketing page are the same room. Component code keeps using
+the semantic names.
+
+### Status colours
+
+`--danger`, `--info` and `--verified` and their `-surface` companions are
+unchanged from Calibration and remain in use across the app.
+
+> **The collision, and how it was resolved.** Calibration's `--warning`
+> (`#9E5A15`) was a burnt amber sitting **ΔE 8.2** from `--tungsten-ink` — close
+> enough to be the same colour. It was harmless only while `--accent` was still
+> cobalt. When `--accent` moved to tungsten, `--warning` moved in the same
+> change, as required:
+>
+> | | Light | Dark |
+> | --- | --- | --- |
+> | `--warning` | `#A6431C` | `#E2703F` |
+> | `--warning-surface` | `#FBEFE9` | `#2A1A14` |
+>
+> The new sienna is ΔE 22.1 from tungsten and ΔE 21.0 from `--danger` in light,
+> ΔE 29.4 / 29.9 in dark — separable from both neighbours rather than trading one
+> collision for another. Warning and danger are additionally always
+> icon + text + colour, never colour alone.
+
+**Separation is now enforced, not remembered.** `frontend/scripts/validate-contrast.js`
+parses `globals.css` and fails on any AA breach *or* any pair of
+different-meaning hues drifting under ΔE 15:
+
+```
+node scripts/validate-contrast.js   # exits non-zero on failure
+```
+
+Run it after touching any colour token. It reads the real values rather than
+restating them, so it cannot drift from what ships.
+
+### Chart ramp *(carried forward from Calibration, unchanged)*
+
+The raw ColorChecker patches fail as a data palette. `--chart-1` … `--chart-4`
+are those hues re-stepped until every check passes, in fixed order — orange,
+blue, green, magenta:
+
+```
+light  #C67B1E  #3F49BE  #1E8A4E  #B563A6
+dark   #C4822C  #6F78DD  #35A65E  #C574B6
+```
+
+> ⚠ **Unverified.** Earlier revisions of this document invoked
+> `scripts/validate_palette.js` here. **That script was never committed** — the
+> command does not run, and the ramp above is the recorded output of a check
+> that can no longer be reproduced. The ramp is untouched by the tungsten
+> migration, so it is no more wrong than it was; but treat the four hues as
+> asserted rather than proven until a validator covering the colour-vision
+> checks exists. `validate-contrast.js` does **not** cover the ramp.
 
 Four slots, not eight: a fifth passing hue doesn't exist at this chroma without
-colliding with one already in the set. A fifth series folds into "Other" or gets
-faceted — it is never a generated hue.
+colliding. A fifth series folds into "Other" or gets faceted — never a generated
+hue. Dark steps are selected against the dark ground, not flipped. **Assign in
+fixed order, never cycled** — colour follows the entity, never its rank.
 
-Dark steps are **selected against the darkroom surface**, not flipped from light.
-
-**Assign in fixed order, never cycled.** Colour follows the entity, never its
-rank, so a filter that changes the series count must not repaint the survivors.
-
-### When not to use the ramp
-
-Most charts here are one series. Provider mix is counts by category — a
-magnitude comparison, so it takes **one hue** (the accent) and direct value
-labels. Colour that only restates the axis label is noise. Reach for the
-categorical ramp only when colour is genuinely carrying identity.
+Most charts here are one series. Provider mix is a magnitude comparison, so it
+takes one hue and direct value labels. Reach for the categorical ramp only when
+colour genuinely carries identity.
 
 ### Rules
 
-- **The accent is a signal, not decoration.** One `accent` action per screen. If
-  two things on a screen are cobalt, neither reads as the primary action.
-- **Colour is used flat.** No gradients on interactive surfaces. The only
-  gradients in the system are the calibration-grid backdrop and the `developing`
-  shimmer.
+- **The accent is a signal, not decoration.** One tungsten action per view. If
+  two things are tungsten, neither is the primary action.
+- **Colour is used flat.** The only gradients in the system are `.viewing-light`
+  (the ambient light source), the `.kelvin-rule` divider, media scrims, and the
+  `.developing` shimmer. Never on an interactive surface.
 - **Status is always icon + text + colour**, never colour alone.
 
 ---
 
 ## Type
 
-Two families, three roles.
+Three faces, three jobs.
 
-- **Archivo** (`--font-sans`) — a grotesk drawn for print and screen
-  performance. Carries the whole interface.
-- **IBM Plex Mono** (`--font-mono`) — carries everything machine-true: SHA-256
-  hashes, SKU codes, model names, dimensions, timestamps, prices, run IDs.
-
-The typographic signature is **width tension**:
+- **Bricolage Grotesque** (`--font-display`) — display only. It has the width
+  and weight to hold a full-bleed line. **Never below ~1.75rem**, where its
+  character reads as noise instead of voice. Class: `.display-face`.
+- **Inter Tight** (`--font-sans`) — the interface. Every word a person reads,
+  app and marketing alike.
+- **IBM Plex Mono** (`--font-mono`) — everything machine-true: SHA-256 hashes,
+  SKUs, model IDs, storage keys, dimensions, timestamps, prices, run IDs.
 
 | Class | Use |
 | --- | --- |
-| `.display` | Hero headlines. `-0.035em` tracking, line-height 1.02. |
-| `h1`–`h4` | `-0.022em` tracking, weight 600, balanced wrapping. |
-| `.label` | Micro-labels: 11px, uppercase, `0.14em` tracking, weight 600. |
-| `.label-mono` | Same, in mono — for technical legends and rebate strips. |
-| `.tabular` | `tabular-nums` for any figure that sits in a column. |
+| `.display-face` | Headlines. `-0.042em` tracking, line-height 0.98, balanced wrapping. |
+| `.kicker` | Section eyebrow: 11px mono, uppercase, `0.16em` tracking. Pair with `.t-accent`. |
+| `.tabular` | `tabular-nums` for any figure in a column. |
 
-Headlines are set tight and heavy; micro-labels are set small, wide, and
-uppercase — like the legend printed along the bottom edge of a calibration card.
+The signature is **width tension**: headlines tight and heavy against micro-labels
+small, wide, and uppercase — like the legend along the edge of a reference card.
 That contrast, not a decorative typeface, is what makes the system recognisable.
 
 **The mono/sans split carries meaning:** sans is what we claim, mono is what can
-be checked. Keep it honest — don't set marketing copy in mono for texture.
+be checked. Keep it honest — don't set marketing copy in mono for texture, and
+keep mono values terse. A mono panel is a log line, not a paragraph; anything
+long enough to wrap mid-word belongs in sans.
 
 ---
 
 ## Shape, depth, framing
 
-- `--radius: 0.5rem`. Panels `rounded-lg`, media `rounded-md`, pills
-  `rounded-full`.
-- Depth comes from a **hairline border first**, elevation second. Three shadow
-  tokens only: `shadow-hairline`, `shadow-raised`, `shadow-float`.
-- **`.frame`** — the media motif. A 1px inset ring so every generated asset
-  reads as a mounted print against the neutral ground. **`.frame-deep`** adds
-  float elevation for hero media.
+- `--radius: 0.5rem`. Panels `rounded-xl`, media and controls `rounded-lg`,
+  pills `rounded-full`.
+- Depth comes from a **hairline first**, elevation second.
+- **`.plate`** — the ink-band media motif: inset hairline plus a cast shadow, so
+  a photograph reads as an object resting on the table.
+- **`.frame` / `.frame-deep`** — the paper-band equivalent, a 1px inset ring so
+  assets read as mounted prints. *(Carried forward.)*
 - Aspect ratios are locked per style so grids never reflow as assets land:
-  `aspect-square` (studio, variant), `aspect-[4/5]` (lifestyle, on-model),
-  `aspect-video` (video).
+  `aspect-square` (studio, variant, video), `aspect-[4/5]` (lifestyle, on-model).
 
 ---
 
 ## Signature motifs
 
-- **`.patch-grid`** — the calibration lattice, at 72px. Pair with
-  `.patch-grid-fade` to mask it toward the edges. Used on the hero and the
-  closing CTA. This is the system's one piece of ambient decoration; don't add a
-  second.
-- **The contact sheet** (`components/marketing/contact-sheet.tsx`) — the hero's
-  centrepiece. Uniform frames, a mono rebate strip, and each frame's **real**
-  SHA-256 beneath it, linking to `/verify`. The proof on the marketing site is
-  checkable rather than claimed.
-- **`.developing`** — loading shimmer for anywhere media will land. A print
-  coming up in the tray, not a grey bar. Use `MediaSkeleton`, not `Skeleton`,
-  wherever an image is coming.
+- **`.viewing-light`** — the ambient light source: a tungsten pool low-left, a
+  daylight wash high-right. The system's one piece of ambient decoration. Ink
+  bands only, and not every one of them.
+- **`.kelvin-rule`** — a divider that runs tungsten → neutral → daylight. It
+  draws the system's chromatic axis, so it is used where a page turns, not as a
+  general separator.
+- **The light table** (`components/landing/light-table.tsx`) — the home page's
+  centrepiece. A real pack arrives frame by frame, each plate scanned as it
+  fills, with the job log naming the model and the frame's **real** SHA-256
+  beneath. The proof on the marketing site is checkable, not claimed.
+- **The run ledger** (`components/how-it-works/run-ledger.tsx`) — the explanation
+  counterpart. One real job entered stage by stage: prose on the left, a machine
+  column on the right carrying what a log would record.
+- **`.grain`** — the empty plate texture, for a slot waiting on media.
+- **`.developing`** — loading shimmer: a print coming up in the tray, not a grey
+  bar. *(Carried forward.)*
 
 ---
 
 ## Motion
 
-120–220ms, ease-out. Media reveals fade in with a slight scale from 0.98,
-staggered across a grid. Cards lift 2px on hover (`.lift`). Overlays animate off
-Radix `data-state` via `.anim-overlay` / `.anim-pop` / `.anim-pop-plain` — there
-is **no animation library beyond framer-motion**; don't add `tailwindcss-animate`.
+150–550ms, `cubic-bezier(0.2, 0, 0, 1)`. Reveals are **per band, not per
+element** — a whole section settling reads calmer than a dozen things arriving
+separately. Use `<Reveal>` (`components/landing/section.tsx`), which is
+`whileInView` with `once: true`.
 
-`prefers-reduced-motion` is honoured globally in `globals.css`. Never rely on a
-component to remember.
+Sequenced motion is reserved for things that genuinely are a sequence — the
+light table fills in pipeline order. Never animate to fill silence.
+
+`prefers-reduced-motion` is honoured globally in `globals.css`, and every
+sequenced component also takes `useReducedMotion()` and renders its finished
+state. There is **no animation library beyond framer-motion**.
 
 ---
 
 ## Components
 
-Primitives live in `frontend/components/ui/` and are Radix-backed where
-behaviour matters (dialog, tabs, tooltip, progress, label, separator).
-
-Composite patterns to reuse rather than re-invent:
+Primitives live in `frontend/components/ui/`, Radix-backed where behaviour
+matters. Composite patterns to reuse rather than re-invent:
 
 | Component | Role |
 | --- | --- |
+| `Reveal` / `SectionHead` | Band-aware section scaffolding. Start here for any new section. |
+| `LightTable` | The home hero's proof surface. |
+| `RunLedger` | A pipeline explained as a job record. |
+| `LandingHeader` / `LandingFooter` | Public chrome. Serves the whole public surface despite the folder name. |
 | `ProvenanceBadge` | The trust signal. Icon + text + colour + mono hash. |
 | `ImageTile` | A generated asset as a mounted print, with caption strip. |
-| `AssetWorkbench` | The pack grouped by style, with slots held for pending frames. |
-| `ContactSheet` | The marketing hero's proof surface. |
-| `BrandMark` | Four-patch calibration glyph, one patch struck in verified green. |
-| `StatCard` / `StatGrid` | Metrics in a hairline-divided grid — no card-in-a-card. Figures are mono and tabular. |
-| `ProviderChart` | A real `<table>`, not a charting library. There is **no chart dependency** in this project; don't reintroduce one for a handful of bars. |
-| `Field` | Label + control + hint/error. Wires `aria-describedby` and `aria-invalid` — use it instead of hand-assembling a `Label` and an `Input`. |
-| `AccountPanel` | Identity and sign-out on Settings. Sign-out is deliberately duplicated from the sidebar rail. |
-| `Card` | `CardTitle` is a **micro-label** (names a region); `CardHeading` is a real heading (names content). Picking the wrong one is the easiest mistake to make here. |
+| `AssetWorkbench` | The pack grouped by style, slots held for pending frames. |
+| `BrandMark` | Four-patch glyph, one patch struck in the verified colour. |
+| `StatCard` / `StatGrid` | Metrics in a hairline grid — no card-in-a-card. Figures mono and tabular. |
+| `ProviderChart` | A real `<table>`. There is **no chart dependency**; don't add one for a handful of bars. |
+| `Field` | Label + control + hint/error, wiring `aria-describedby` and `aria-invalid`. |
+| `Card` | `CardTitle` is a **micro-label** (names a region); `CardHeading` names content. Easiest mistake in the codebase. |
 
 ---
 
-## Responsiveness
-
-Must hold on every screen, no exceptions:
+## Responsiveness *(carried forward — still binding)*
 
 - Flawless 320px → 4K. **Zero horizontal page scroll, zero overflow, zero
   overlap** at any width.
 - `min-w-0` on flex/grid children so text truncates instead of pushing layout.
-- Tables scroll inside their own container (`Table` does this already) — the
-  page never scrolls sideways.
-- Hashes and SKUs truncate; they never force overflow.
+- Tables scroll inside their own container; the page never scrolls sideways.
+- Hashes, SKUs and storage keys truncate or wrap — they never force overflow.
 - Grids fold stepwise (4→2→1), never all at once.
-- Tablet gets a real intermediate layout — the sidebar collapses to an icon
-  rail, not a stretched phone view.
+- A three-column record (rail / prose / machine) collapses to one column below
+  `lg`; below that the rail eats the width the prose needs.
+- Media grids go two-up on phones, not three — a 120px product photo can't be
+  judged, and judging the output is why the panel exists.
 - Sticky bars are safe-area aware (`env(safe-area-inset-*)`).
 
-Verify with `scripts/` + Playwright at 390 / 820 / 1440, light and dark. The
-screenshot harness asserts no horizontal overflow.
+Verify with Playwright at 390 / 820 / 1440, light and dark. Assert
+`document.documentElement.scrollWidth <= window.innerWidth`.
 
 ---
 
 ## Accessibility
 
-WCAG AA. One focus treatment, defined once on `:focus-visible` in `globals.css`
-— don't re-style focus per component. 44px minimum touch targets. Status is
-never colour alone. Every form control has a label; `Field` wires up
-`aria-describedby` and `aria-invalid` for you. Generated media needs descriptive
-alt text.
+WCAG AA. **The contrast law above is the one most easily broken** — re-read it
+before adding a coloured label. One focus treatment, defined once on
+`:focus-visible`; don't re-style focus per component. 44px minimum touch
+targets. Status is never colour alone. Every form control has a label. Generated
+media needs descriptive alt text. Sequenced motion always has a static
+reduced-motion state.
 
 ---
 
 ## Content
 
 Words are design material. Name things by what the user controls. Active voice;
-a control says what happens when it's used, and keeps the same name through the
-flow. Errors state what happened and what to do — they don't apologise and
-they're never vague. Empty states are an invitation to act.
+a control says what happens when it's used and keeps that name through the flow.
+Errors state what happened and what to do. Empty states invite action.
 
 **Never state a number the code doesn't support.** Figures on the marketing site
-(assets per pack, timings) come from `backend/app/pricing.py`; if `_OUTPUTS` or
-`_ETA_SECONDS` change, the copy changes with them.
+come from `backend/app/pricing.py` (`_OUTPUTS`, `_UNIT`, `_ETA_SECONDS`) and
+model names from `originshot_pipelines/registry.py`. If those change, the copy
+changes with them.
+
+**Never illustrate a claim with an asset that contradicts it.** `variant-01.webp`
+is a green bottle — the wrong-item fixture from the resolve benchmark — and must
+never appear in a grid captioned as one product's pack. Look at the image; the
+slot name is not evidence.
+
+**Say what fails.** The how-it-works page names the step with no fallback and
+what a partial run costs the user. Hiding failure modes is what makes a tool
+read as a demo.
+
+---
+
+## Migration ledger
+
+| Surface | State |
+| --- | --- |
+| `/` (home) | **Light Table**, complete. |
+| `/how-it-works` | **Light Table**, complete. |
+| `/about` | **Light Table**, complete. Rebuilt on the band system; the four-icon-card grid is gone, principles now carry the mechanism that enforces them. |
+| `/signin` | **Light Table**, complete. Full ink band + `viewing-light`; the Calibration `patch-grid` motif is retired. |
+| `/verify`, `/ledger`, `/resolve` | **Migrated, bands intentionally not applied** — see "Where bands apply". Display type, kickers and `.t-accent`/`.t-verify` are in; layout stays tool-shaped because these render inside `AdaptiveChrome`. |
+| Type, all surfaces | **Done.** Inter Tight + Bricolage + Plex Mono globally; Archivo retired. |
+| Neutrals, all surfaces | **Done.** App semantic tokens mapped onto ink/paper families, both themes. |
+| App `--accent` → tungsten | **Done.** The `--warning` collision was resolved in the same change; all 27 `text-accent` sites moved to `.t-accent`; `--accent-text`/`--verify-text` bound at `:root` and `.dark`. |
+| `components/marketing/*` | **Deleted.** `/about` was its last consumer; 10 of its 15 components were already dead. |
+| App (`/studio`, `/library`, `/analytics`, `/settings`, `/admin`) | Tokens and type current, and every accent surface now resolves through `.t-accent`. Layout is still Calibration-shaped, which is *allowed* by the rule above — but see the caveat below. |
+
+### ⚠ What has not been visually verified
+
+The whole of the above is verified by `tsc`, `next build` (17/17 routes) and
+`validate-contrast.js` (25 checks). **None of it has been verified in a
+browser.** Playwright is not installed in this repo, so the responsiveness
+protocol below — 390 / 820 / 1440, light and dark, asserting
+`scrollWidth <= innerWidth` — has *not* been run against these changes.
+
+Two things specifically warrant a screenshot before they are trusted:
+
+- **The signed-in app under tungsten.** `--accent` changed underneath every app
+  screen at once. The contrast maths passes, but nobody has looked at
+  `/studio`, `/library`, `/analytics`, `/settings` or `/admin` since.
+- **The auth card on `/signin`.** A paper `Card` now sits on an ink band, and
+  `.band-ink *` repaints every descendant border to `--ink-line`. `Card` sets
+  `text-card-foreground` explicitly so the type is safe, but the hairline
+  weight against white is unreviewed.
