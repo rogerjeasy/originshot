@@ -425,7 +425,11 @@ class LedgerCheckpointOut(BaseModel):
     head: str
     issued_at: str
     checkpoint_hash: str
-    b2_key: str | None = None      # where the immutable copy was published
+    b2_key: str | None = None      # where the published copy lives on B2
+    # Set only when this checkpoint was published under B2 Object Lock — i.e. it is physically
+    # immutable (cannot be altered or deleted, even by the operator) until this instant. Its
+    # absence means the checkpoint was published without a lock; the field never overstates.
+    retained_until: str | None = None
 
 
 class LedgerStatusOut(BaseModel):
