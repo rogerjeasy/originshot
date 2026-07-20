@@ -1,17 +1,9 @@
 import type { Metadata } from "next";
-import { Archivo, IBM_Plex_Mono } from "next/font/google";
+import { Bricolage_Grotesque, IBM_Plex_Mono, Inter_Tight } from "next/font/google";
 
 import { AuthProvider } from "@/components/auth-provider";
 import { SessionProvider } from "@/lib/use-session";
 import "./globals.css";
-
-// Archivo carries the interface: a grotesk drawn for print and screen
-// performance, set tight and heavy for headlines, wide and tracked for labels.
-const archivo = Archivo({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-archivo",
-});
 
 // Plex Mono carries everything machine-true — hashes, SKUs, models, dimensions.
 const plexMono = IBM_Plex_Mono({
@@ -19,6 +11,22 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
   display: "swap",
   variable: "--font-plex-mono",
+});
+
+// The two Light Table faces, now the whole product's type (Archivo was retired
+// with the Calibration system). Bricolage has the width and weight to hold a
+// full-bleed display line and is used for nothing else; Inter Tight sets every
+// word a person actually reads, app and marketing alike.
+const bricolage = Bricolage_Grotesque({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-bricolage",
+});
+
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter-tight",
 });
 
 export const metadata: Metadata = {
@@ -34,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${archivo.variable} ${plexMono.variable}`}
+      className={`${plexMono.variable} ${bricolage.variable} ${interTight.variable}`}
       suppressHydrationWarning
     >
       <head>

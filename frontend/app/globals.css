@@ -23,33 +23,49 @@
 
   /* ── Light · "Daylight" (the card shot at 5000K) ───────────────────────── */
 
-  /* Neutrals — ColorChecker greyscale ramp, patches 19-24 */
-  --background: #edede9; /* just below patch 19 white, so white cards frame */
-  --foreground: #1a1a18; /* below patch 24 black, for AA body contrast */
+  /* Neutrals — the Light Table paper family, so app surfaces and marketing
+     surfaces are the same room. (Was the ColorChecker greyscale ramp; the
+     greige read warm next to the ink bands.) */
+  --background: #f6f5f2; /* --paper */
+  --foreground: #121a22; /* --paper-fg */
   --card: #ffffff;
-  --card-foreground: #1a1a18;
+  --card-foreground: #121a22;
   --popover: #ffffff;
-  --popover-foreground: #1a1a18;
-  --primary: #1f1f1d; /* studio ink */
+  --popover-foreground: #121a22;
+  --primary: #16222e; /* studio ink, cooled to match the viewing room */
   --primary-foreground: #ffffff;
-  --secondary: #e4e4e0;
-  --secondary-foreground: #1f1f1d;
-  --muted: #e8e8e4;
-  --muted-foreground: #6b6b64; /* patch 22 neutral-5, darkened to AA */
-  --border: #dcdcd7;
-  --input: #dcdcd7;
+  --secondary: #eae8e3;
+  --secondary-foreground: #16222e;
+  --muted: #eeece7;
+  --muted-foreground: #5c6a79; /* --paper-mute · 5.08:1 on paper */
+  --border: #e3e1db;
+  --input: #e3e1db;
 
   /* Chromatic patches — used flat, never as gradient */
-  --accent: #383d96; /* patch 13 · blue — the signal */
-  --accent-foreground: #ffffff;
-  --accent-hover: #2e327f;
-  --ring: #383d96;
+
+  /* The app's primary action is now tungsten, so the whole product acts under
+     one light. --accent is a FILL ONLY: as text on paper it measures 2.00:1.
+     Anything that needs accent-coloured *type* uses .t-accent, which resolves
+     to the legible member of the family (bound just below). */
+  --accent: #e9a13b; /* --tungsten */
+  --accent-foreground: #16110a; /* 8.48:1 on the fill — white would be 2.18:1 */
+  --accent-hover: #f2ae4e;
+  --ring: #8a5512; /* --tungsten-ink: a focus ring must hold its own on paper */
+
+  /* .t-accent / .t-verify are band-scoped, but most of the app is not inside a
+     band. Bind them at the root too, or the fallback lands at 2.99:1 in dark. */
+  --accent-text: var(--tungsten-ink); /* 5.68:1 on paper */
+  --verify-text: var(--daylight-ink); /* 5.43:1 on paper */
 
   --verified: #3b7c3d; /* patch 14 · green, darkened to AA on white */
   --verified-surface: #eaf3ea;
   --success: #3b7c3d;
-  --warning: #9e5a15; /* patch 7 · orange, darkened to AA */
-  --warning-surface: #fbf0e3;
+  /* Moved off amber in the same change that made --accent tungsten: the old
+     #9e5a15 sat ΔE 8.2 from --tungsten-ink, so the primary action and the
+     warning state were the same colour. This sienna is ΔE 22.1 from tungsten
+     and ΔE 21.0 from --danger — separable from both, 5.60:1 on paper. */
+  --warning: #a6431c;
+  --warning-surface: #fbefe9;
   --danger: #a83239; /* patch 15 · red */
   --danger-surface: #fbecec;
   --info: #06697f; /* patch 18 · cyan, darkened to AA */
@@ -78,33 +94,39 @@
 }
 
 .dark {
-  /* ── Dark · "Darkroom" (the card under safelight) ──────────────────────── */
-  --background: #121211;
-  --foreground: #ecece8;
-  --card: #1a1a18;
-  --card-foreground: #ecece8;
-  --popover: #1a1a18;
-  --popover-foreground: #ecece8;
-  --primary: #ecece8;
-  --primary-foreground: #121211;
-  --secondary: #262623;
-  --secondary-foreground: #ecece8;
-  --muted: #1f1f1d;
-  --muted-foreground: #9b9b93;
-  --border: #2e2e2a;
-  --input: #2e2e2a;
+  /* ── Dark · the viewing room ───────────────────────────────────────────── */
+  --background: #0e1823;
+  --foreground: #eef3f8;
+  --card: #14202e;
+  --card-foreground: #eef3f8;
+  --popover: #14202e;
+  --popover-foreground: #eef3f8;
+  --primary: #eef3f8;
+  --primary-foreground: #0e1823;
+  --secondary: #1d2c3d;
+  --secondary-foreground: #eef3f8;
+  --muted: #16222f;
+  --muted-foreground: #94a8bd; /* --ink-mute · 7.32:1 on the dark ground */
+  --border: #22344a;
+  --input: #22344a;
 
   /* Patches lifted for legibility against the darkroom base */
-  --accent: #7c84e8;
-  --accent-foreground: #121211;
-  --accent-hover: #949bf0;
-  --ring: #7c84e8;
+  --accent: #e9a13b; /* --tungsten reads correctly on the dark ground as-is */
+  --accent-foreground: #16110a;
+  --accent-hover: #f2ae4e;
+  --ring: #e9a13b;
+
+  /* Dark flips which member of each family is the legible one. */
+  --accent-text: var(--tungsten); /* 8.48:1 on ink */
+  --verify-text: var(--daylight); /* 7.80:1 on ink */
 
   --verified: #6cbc6e;
   --verified-surface: #1a251a;
   --success: #6cbc6e;
-  --warning: #e0a32e; /* patch 12 · orange-yellow */
-  --warning-surface: #262013;
+  /* Same collision, worse in dark: the old #e0a32e was ΔE 6.7 from --tungsten.
+     This is ΔE 29.4 from tungsten, 29.9 from --danger, 5.83:1 on ink. */
+  --warning: #e2703f;
+  --warning-surface: #2a1a14;
   --danger: #e8767c;
   --danger-surface: #2a1a1b;
   --info: #4fb8d0;
@@ -164,8 +186,12 @@
   --radius-xl: calc(var(--radius) + 6px);
   --radius-2xl: calc(var(--radius) + 12px);
 
-  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  /* Inter Tight is the system's interface face everywhere — app included — so a
+     signed-in screen and the marketing site read as one product. Bricolage is
+     display-only and never appears below ~1.75rem. */
+  --font-sans: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-display: var(--font-bricolage), var(--font-inter-tight), ui-sans-serif, sans-serif;
 
   --shadow-hairline: var(--shadow-hairline);
   --shadow-raised: var(--shadow-raised);
@@ -237,27 +263,9 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* ── The calibration grid ─────────────────────────────────────────────────
-     Signature motif. A patch lattice at card proportions, masked so it reads
-     as a reference surface the content sits on rather than wallpaper. */
-  .patch-grid {
-    background-image:
-      linear-gradient(
-        to right,
-        color-mix(in srgb, var(--color-foreground) 7%, transparent) 1px,
-        transparent 1px
-      ),
-      linear-gradient(
-        to bottom,
-        color-mix(in srgb, var(--color-foreground) 7%, transparent) 1px,
-        transparent 1px
-      );
-    background-size: 72px 72px;
-  }
-  .patch-grid-fade {
-    -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 20%, transparent 75%);
-    mask-image: radial-gradient(120% 80% at 50% 0%, #000 20%, transparent 75%);
-  }
+  /* The Calibration patch lattice (.patch-grid / .patch-grid-fade) was removed
+     when /signin — its last consumer — moved to an ink band with .viewing-light.
+     Light Table's ambient motif is the viewing light, not a grid. */
 
   /* ── Media framing ────────────────────────────────────────────────────────
      Every generated asset is a framed object: hairline + inner ring so photos
@@ -373,6 +381,217 @@
   .scroll-thin {
     scrollbar-width: thin;
     scrollbar-color: var(--color-border) transparent;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   "Light Table"
+
+   The public surface's art direction. These utilities are global, not scoped:
+   /, /how-it-works and /about all build on the same bands. The signed-in app
+   still carries Calibration layout on top of these neutrals — see the
+   migration ledger in docs/DESIGN_SYSTEM.md.
+
+   The environment is a photographer's viewing room: a deep, daylight-balanced
+   ink ground where the lit objects are the photographs, alternating with near-
+   white paper bands where the reading happens. Its single chromatic axis is
+   colour temperature — tungsten 3200K is the warm light you act under, daylight
+   5600K is the cool light you inspect under. So: amber = do something, cyan =
+   this checked out. No third accent exists, which keeps the product photos the
+   only other colour on the page.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ink: #0b1420; /* viewing room, daylight-balanced not neutral black */
+  --ink-2: #101c2b; /* raised slab */
+  --ink-3: #16273a; /* inset well */
+  --ink-line: #23364a;
+  --ink-fg: #eef3f8;
+  --ink-mute: #94a8bd;
+
+  --paper: #f6f5f2; /* the print, not cream — photos must stay the warmest thing */
+  --paper-2: #ffffff;
+  --paper-line: #e3e1db;
+  --paper-fg: #121a22;
+  --paper-mute: #5c6a79;
+
+  /* The two temperatures, at full chroma. These are LIGHT — they are correct on
+     ink and illegal as text on paper (2.0:1 and 2.2:1). Never use them directly
+     for text; use --accent-text / --verify-text, which each band sets to the
+     legible member of the same family. See the contrast law in
+     docs/DESIGN_SYSTEM.md. */
+  --tungsten: #e9a13b; /* 3200K — action */
+  --tungsten-deep: #c9821f;
+  --daylight: #46b6cf; /* 5600K — verification */
+
+  /* Same hues stepped down until they pass AA on paper: 5.68:1 and 5.43:1. */
+  --tungsten-ink: #8a5512;
+  --daylight-ink: #0f6d85;
+}
+
+/* In dark mode the paper bands don't flip to white — they become the second,
+   lighter room, so a page keeps its two-band rhythm either way. */
+.dark {
+  --paper: #0e1823;
+  --paper-2: #14202e;
+  --paper-line: #22344a;
+  --paper-fg: #eef3f8;
+  --paper-mute: #94a8bd;
+}
+
+@layer components {
+  /* A band is the unit of layout in this system: a full-bleed horizontal region
+     that declares which room it is. Besides surface and text colour, each band
+     sets the two accent *text* tokens to the member of each temperature family
+     that is legible against it — so `.t-accent` is correct on any band without
+     the author having to know which one they're inside. */
+  .band-ink {
+    background-color: var(--ink);
+    color: var(--ink-fg);
+    --accent-text: var(--tungsten);
+    --verify-text: var(--daylight);
+  }
+  .band-paper {
+    background-color: var(--paper);
+    color: var(--paper-fg);
+    --accent-text: var(--tungsten-ink);
+    --verify-text: var(--daylight-ink);
+  }
+  /* In dark mode a paper band is dark, so the full-chroma pair is legible again. */
+  .dark .band-paper {
+    --accent-text: var(--tungsten);
+    --verify-text: var(--daylight);
+  }
+  /* The global base rule paints every border with the app token; inside a band
+     the band's own hairline has to win, and one universal selector per band is
+     less error-prone than annotating several hundred elements. */
+  .band-ink *,
+  .band-ink {
+    border-color: var(--ink-line);
+  }
+  .band-paper *,
+  .band-paper {
+    border-color: var(--paper-line);
+  }
+
+  .on-ink-mute {
+    color: var(--ink-mute);
+  }
+  .on-paper-mute {
+    color: var(--paper-mute);
+  }
+
+  /* The only sanctioned way to set type in either temperature. Both resolve
+     per-band, so they stay AA wherever they land. */
+  .t-accent {
+    color: var(--accent-text, var(--tungsten-ink));
+  }
+  .t-verify {
+    color: var(--verify-text, var(--daylight-ink));
+  }
+
+  /* Display face, used only for headlines — its width and weight are the point,
+     so it never appears below ~1.75rem. */
+  .display-face {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.042em;
+    line-height: 0.98;
+    text-wrap: balance;
+  }
+
+  /* Micro-label, set like the exposure legend stamped along a sheet's edge. */
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.2;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+  }
+
+  .btn-tungsten {
+    background-color: var(--tungsten);
+    color: #16110a;
+    transition:
+      background-color 0.16s ease,
+      box-shadow 0.16s ease,
+      transform 0.16s ease;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.25) inset, 0 8px 24px -10px rgb(233 161 59 / 0.9);
+  }
+  .btn-tungsten:hover {
+    background-color: #f2ae4e;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.3) inset, 0 10px 30px -10px rgb(233 161 59 / 1);
+  }
+  .btn-tungsten:active {
+    transform: translateY(1px);
+  }
+
+  .btn-on-ink {
+    border: 1px solid var(--ink-line);
+    background-color: color-mix(in srgb, var(--ink-fg) 5%, transparent);
+    color: var(--ink-fg);
+    transition: background-color 0.16s ease, border-color 0.16s ease;
+  }
+  .btn-on-ink:hover {
+    background-color: color-mix(in srgb, var(--ink-fg) 10%, transparent);
+    border-color: color-mix(in srgb, var(--ink-fg) 26%, transparent);
+  }
+}
+
+@layer utilities {
+  /* The light source. A soft tungsten pool low-left and a daylight wash high-
+     right — the two temperatures the palette is built on, present as actual
+     light rather than as swatches. */
+  .viewing-light::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(60% 55% at 8% 92%, rgb(233 161 59 / 0.14), transparent 70%),
+      radial-gradient(70% 60% at 88% 4%, rgb(70 182 207 / 0.12), transparent 68%);
+  }
+
+  /* Kelvin rule — the temperature axis drawn once, as a section divider. */
+  .kelvin-rule {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      var(--tungsten),
+      color-mix(in srgb, var(--tungsten) 35%, transparent) 22%,
+      color-mix(in srgb, var(--ink-line) 90%, transparent) 50%,
+      color-mix(in srgb, var(--daylight) 35%, transparent) 78%,
+      var(--daylight)
+    );
+    opacity: 0.55;
+  }
+
+  /* Frames on the table are physical objects: a hairline mount plus a cast
+     shadow, so a photograph reads as sitting on the surface. */
+  .plate {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.08),
+      0 18px 40px -22px rgb(0 0 0 / 0.9);
+  }
+
+  /* The scan pass — a single daylight bar crossing a frame as it is read. */
+  .scan-bar {
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in srgb, var(--daylight) 55%, transparent),
+      transparent
+    );
+  }
+
+  .grain {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      color-mix(in srgb, var(--ink-fg) 9%, transparent) 1px,
+      transparent 0
+    );
+    background-size: 4px 4px;
   }
 }
 
