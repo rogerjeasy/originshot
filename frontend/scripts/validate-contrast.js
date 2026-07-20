@@ -120,6 +120,10 @@ ratio("--danger", l("danger"), PAPER);
 ratio("--verified", l("verified"), PAPER);
 ratio("--info", l("info"), PAPER);
 ratio("--warning on --warning-surface", l("warning"), l("warning-surface"));
+// `.ink-ground .surface` puts a paper panel on the ink ground and shifts the
+// muted token back to --paper-mute, so the pairing is against --card, not paper.
+ratio(".surface muted text on --card", l("paper-mute"), l("card"));
+ratio(".surface .t-accent on --card", l("tungsten-ink"), l("card"));
 
 console.log("LIGHT — the accent as a fill (never as type)");
 ratio("--accent-foreground on --accent", l("accent-foreground"), l("accent"));
@@ -140,6 +144,10 @@ ratio("--verified", d("verified"), INK);
 ratio("--info", d("info"), INK);
 ratio("--warning on --warning-surface", d("warning"), d("warning-surface"));
 ratio(".t-accent on the dark paper band", l("tungsten"), d("paper"));
+// --ink-mute is theme-independent: defined once in :root, not redefined in .dark.
+ratio(".ink-ground muted text on ink", l("ink-mute"), INK);
+ratio(".surface muted text on --card", d("paper-mute"), d("card"));
+ratio(".surface .t-accent on --card", l("tungsten"), d("card"));
 
 console.log("DARK — the accent as a fill");
 ratio("--accent-foreground on --accent", d("accent-foreground"), d("accent"));

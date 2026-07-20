@@ -73,7 +73,35 @@ right for the marketing surface and wrong for a tool.
 | Surface | Treatment |
 | --- | --- |
 | `/`, `/how-it-works`, `/about`, `/signin` | **Full band rhythm.** Alternating ink and paper, `viewing-light`, `kelvin-rule`. |
-| `/verify`, `/ledger`, `/resolve` and the whole signed-in app | **Tokens, type and motifs — no bands.** Same neutrals, same `.t-accent`/`.t-verify`, same `.plate`/`.frame`, on the app's own surface. |
+| `/verify`, `/ledger` (signed out) | **`.ink-ground` + `.surface`.** The viewing room as a ground, carrying ordinary app panels. |
+| `/resolve` and the whole signed-in app | **Tokens, type and motifs — no bands.** Same neutrals, same `.t-accent`/`.t-verify`, same `.plate`/`.frame`, on the app's own surface. |
+
+#### `.ink-ground` / `.surface`
+
+A third case the two above don't cover: a page that should sit in the viewing
+room but is built from ordinary app components (`Card`, `Alert`, `Input`, the
+dropzone) rather than band-native ones.
+
+`.band-ink` is wrong for this. Its `.band-ink *` rule repaints **every**
+descendant hairline to `--ink-line`, so a white card inside it ends up mixing
+navy rules with the grey ones drawn by `bg-border` — one panel, two hairline
+colours. `.ink-ground` sets the surface, the text colour and the accent-text
+bindings, and nothing else.
+
+`.surface` is its counterpart, for any panel keeping its own paper surface on
+that ground. It shifts `--muted-foreground`, `--accent-text` and `--verify-text`
+back, so components inside render correctly without knowing where they are.
+
+> **The rule: every panel with its own surface on `.ink-ground` needs
+> `.surface`.** Miss it and `text-muted-foreground` inside that panel stays
+> bound to `--ink-mute` and renders light-on-light. This is what lets
+> `/verify` and `/ledger` be the *same file* signed-out on ink and signed-in
+> inside the app shell, with neither version hardcoding a colour — on the app
+> ground `.ink-ground` is simply absent.
+
+`AdaptiveChrome` takes `ground="ink"`, which applies **only when signed out**.
+Inside the app shell the content area sits beside a themed sidebar, where a
+permanently dark panel reads as a rendering fault rather than a choice.
 
 The reason is structural, not stylistic: `/verify`, `/ledger` and `/resolve`
 render inside `AdaptiveChrome`, so the same file is a public page for a
@@ -280,7 +308,9 @@ long enough to wrap mid-word belongs in sans.
 - **The run ledger** (`components/how-it-works/run-ledger.tsx`) — the explanation
   counterpart. One real job entered stage by stage: prose on the left, a machine
   column on the right carrying what a log would record.
-- **`.grain`** — the empty plate texture, for a slot waiting on media.
+- **`.grain`** — the empty plate texture, for a slot waiting on media. **Ink
+  bands only:** its dot colour is `--ink-fg`, so on a paper-ground card it
+  renders nothing at all in light mode. Use `bg-muted` for a paper empty state.
 - **`.developing`** — loading shimmer: a print coming up in the tray, not a grey
   bar. *(Carried forward.)*
 
@@ -384,7 +414,10 @@ read as a demo.
 | `/how-it-works` | **Light Table**, complete. |
 | `/about` | **Light Table**, complete. Rebuilt on the band system; the four-icon-card grid is gone, principles now carry the mechanism that enforces them. |
 | `/signin` | **Light Table**, complete. Full ink band + `viewing-light`; the Calibration `patch-grid` motif is retired. |
-| `/verify`, `/ledger`, `/resolve` | **Migrated, bands intentionally not applied** — see "Where bands apply". Display type, kickers and `.t-accent`/`.t-verify` are in; layout stays tool-shaped because these render inside `AdaptiveChrome`. |
+| `/verify` | **Rebuilt.** On `.ink-ground` when signed out. The mode toggle is gone — file drop and hash lookup now coexist, which removed a piece of state and the case where switching modes discarded a result mid-read. |
+| `/ledger` | **Rebuilt.** On `.ink-ground` when signed out. The head is a fingerprint block, the entries render as an actual chain (`prev → this` down a spine), and the self-audit is deliberately demoted below the independent-verification block. |
+| `/resolve` | **Migrated, bands intentionally not applied** — see "Where bands apply". Display type, kickers and `.t-accent`/`.t-verify` are in; layout stays tool-shaped. |
+| Theme toggle | **Removed** from the public header, the app shell and `/signin`. The theme class is still set from the system preference before paint. |
 | Type, all surfaces | **Done.** Inter Tight + Bricolage + Plex Mono globally; Archivo retired. |
 | Neutrals, all surfaces | **Done.** App semantic tokens mapped onto ink/paper families, both themes. |
 | App `--accent` → tungsten | **Done.** The `--warning` collision was resolved in the same change; all 27 `text-accent` sites moved to `.t-accent`; `--accent-text`/`--verify-text` bound at `:root` and `.dark`. |
