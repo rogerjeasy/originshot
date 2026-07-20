@@ -29,10 +29,39 @@ from __future__ import annotations
 #     validate_model("totally-made-up-model-xyz")  -> unknown_permissive (identical verdict)
 #     validate_model("reve-edit-20250915")         -> not_found
 IMAGE_EDIT_MODEL = "gemini-3-pro-image-preview"       # Google Gemini 3 Pro image (via GMI)
-# No same-signature image model is currently API-accessible as a fallback (seededit/reve are
-# playground-only/dead). Bria genfill/eraser work but require a mask (different flow). Add a
-# real fallback here once another edit model is entitled (or wire a second provider).
+# No same-signature image model is currently API-accessible as a fallback *within GMI*
+# (seededit/reve are playground-only/dead). Bria genfill/eraser work but require a mask
+# (different flow). `fallback_models=` is a same-provider mechanism, so this list stays empty
+# — the real resilience now comes from the CROSS-provider chain in providers.py, which can
+# route around a whole account being out of credit in a way this list never could.
 IMAGE_EDIT_FALLBACKS: list[str] = []
+
+# ── OpenAI images (second image-edit provider) ─────────────────────────────────────
+# ✅ RUNTIME-VERIFIED (2026-07-20) with a real edit against our own key, using the production
+#   lifestyle prompt and the anchored authentic mug (05993b99…) as the reference:
+#
+#     gpt-image-1 · input_fidelity=high · quality=medium · 1024x1024  → 26.3s, 1.52 MB PNG
+#       Product identity held: the two-tone glaze split, the dark horizontal line through
+#       the upper band, the handle geometry and the speckle all survived restaging onto a
+#       sunlit kitchen counter. Identity preservation is the one property this app cannot
+#       trade away, so it is the only thing the probe was judging.
+#
+#   `/v1/models` on our key also lists gpt-image-1.5, gpt-image-2 and gpt-image-1-mini.
+#   They are NOT set as the default: unproven here, and this file's rule is that catalog
+#   presence is not evidence (the GMI seededit/reve entry above is what that rule is for).
+#   gpt-image-1-mini additionally reports supports_input_fidelity=False in the SDK, i.e. it
+#   drops the exact knob that makes this provider viable for product photography.
+#
+# ⚠️ The SDK reports NO cost for this provider — genblaze-core 0.3.0 removed OpenAI pricing,
+#   so `Step.cost_usd` comes back None. That is not "free": see app/pricing.py::billable_cost,
+#   which settles such runs at list price and labels the number `estimate` rather than
+#   letting a null cost silently refund the user's entire credit hold.
+OPENAI_IMAGE_EDIT_MODEL = "gpt-image-1"
+OPENAI_IMAGE_EDIT_FALLBACKS: list[str] = []
+# medium ≈ $0.042 per 1024x1024 — within a rounding of GMI's $0.04 list, while `low` visibly
+# softens fine surface texture (glaze speckle, weave), which is exactly the detail a buyer
+# checks a product photo for.
+OPENAI_IMAGE_QUALITY = "medium"
 
 # ── Image → video (hero clip generated from the studio image) ───────────────────────
 # Verified GMI video IDs: Kling-Image2Video-V2.1-Master · Kling-Text2Video-V2.1-Master
@@ -120,14 +149,22 @@ PROVIDERS = {
         # optional single-step text → video path.
         "video": ["Kling-Image2Video-V2.1-Master", "pixverse-v5.6-i2v", "wan2.6-r2v",
                   "Kling-Text2Video-V2.1-Master"],
+        # Chat/vision tier. Bills separately from the image/video request queue — which is
+        # why these keep working while the queue is out of credit.
+        "chat": [QA_VISION_MODEL, LISTING_MODEL],
+    },
+    "OpenAI (openai-dalle)": {
+        # Same source photo → same four styles, via /v1/images/edits. Live-verified
+        # 2026-07-20; selected per-run by the cross-provider chain in providers.py.
+        "image": [OPENAI_IMAGE_EDIT_MODEL],
     },
 }
 
 # Alternatives that require only a per-step provider swap under Genblaze's unified Pipeline
 # API (each ships as its own genblaze-* package). Documented as the app's provider-portability
 # story — NOT currently entitled/wired, so they're deliberately kept out of PROVIDERS above.
+# (OpenAI graduated out of this list on 2026-07-20 when it was actually wired and probed.)
 SWAPPABLE_PROVIDERS = {
-    "OpenAI (openai-image)": {"image": ["gpt-image-1"]},
     "Google (google-imagen / google-veo)": {"image": ["imagen"], "video": ["veo"]},
     "Luma (luma)": {"video": ["dream-machine"]},
 }
