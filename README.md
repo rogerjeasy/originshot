@@ -468,7 +468,7 @@ photography.
 - **Graceful degradation** — partial job results, provider fallback chains, and a storage/repo abstraction that runs fully offline in dev.
 - **A health check that doesn't lie.** `/healthz` *exercises* each dependency rather than checking that an env var is set — it initializes the Firebase Admin SDK and (with `?deep=true`) round-trips to the B2 bucket, reporting `status: degraded` plus the failing exception type. It deliberately still returns **200** while the process is alive, because a failing health check makes the platform restart-loop the service; degradation belongs in the body. Config problems surface as **503**, never as an unhandled 500 — a 500 escapes the CORS middleware and reaches browsers disguised as a CORS error.
 - **Denial-of-wallet, actually enforced.** Per-user daily quotas, plus a global per-IP ceiling and a tight dedicated limit on the one public endpoint that spends provider money (`/api/resolve`). The limiter keys on the left-most `X-Forwarded-For` entry — behind Render's proxy `request.client.host` is the same address for every visitor, so limiting on it would put the whole internet in one bucket and let the first burst lock everyone out.
-- **221 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), transparency-log tampering and concurrent appends, the Auditor catching a swapped object, replay refusal paths and manifest-driven specs, cross-catalog library scoping, dispute-report findings, catalog credit and concurrency, incremental asset delivery, and the export ZIP.
+- **276 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), transparency-log tampering and concurrent appends, the Auditor catching a swapped object, B2 Object Lock retention with honest unlocked fallback, replay refusal paths and manifest-driven specs, cross-provider image fallback and per-provider cost settlement, perceptual "Verify in the Wild" matching of re-encoded files, cross-catalog library scoping, dispute-report findings, catalog credit and concurrency, incremental asset delivery, and the export ZIP.
 
 ### B2 Storage and Data Orchestration
 
@@ -681,7 +681,7 @@ npm run dev                                    # http://localhost:3000
 **Tests:**
 
 ```bash
-cd backend && poetry run python -m pytest -q   # 221 passing
+cd backend && poetry run python -m pytest -q   # 276 passing
 ```
 
 > **Auth is always enforced** — there is no production bypass. Signing in locally requires
@@ -763,7 +763,7 @@ originshot/
 │   │   ├── storage.py      Genblaze ObjectStorageSink → B2 + ParquetSink
 │   │   ├── presets.py      marketplace dimensions + rendition rendering
 │   │   └── studio · lifestyle · onmodel · variants · video
-│   └── tests/              221 tests
+│   └── tests/              276 tests
 ├── frontend/               Next.js 15 App Router · Tailwind v4 · Radix primitives · Firebase Auth
 ├── infra/                  Dockerfile.backend · docker-compose · firestore.rules
 ├── docs/                   PROJECT_DESCRIPTION · BUILD_PLAN · SECURITY · DESIGN_SYSTEM · BENCHMARKS
