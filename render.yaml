@@ -43,6 +43,12 @@ services:
       # Non-secret; the S3 endpoint is derived as s3.<region>.backblazeb2.com.
       - key: B2_REGION
         value: eu-central-003
+      # Transparency-ledger immutability via B2 Object Lock. 0 = off (default) until the
+      # bucket has file lock enabled AND B2_KEY_ID carries writeFileRetentions. Set to a
+      # retention period (e.g. 365) once that infra is in place; the app then locks every new
+      # checkpoint + audit report. See README "Backblaze B2 capabilities used".
+      - key: B2_OBJECT_LOCK_DAYS
+        value: "0"
       # Mock generation fabricates assets by copying the user's upload and labelling them
       # provider="mock-dev" — indistinguishable from real generations in analytics, the
       # admin dashboard, and the credit ledger. It already defaults to false in code; pinned
