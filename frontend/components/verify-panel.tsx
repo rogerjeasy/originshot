@@ -7,6 +7,7 @@ import {
   Check,
   Copy,
   FileCheck2,
+  Fingerprint,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -14,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { VerifyResult } from "@/lib/types";
+import type { PerceptualMatch, VerifyResult } from "@/lib/types";
 import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
 
@@ -79,6 +80,14 @@ function Row({
 export function VerifyPanel({ result }: { result: VerifyResult }) {
   const tampered = result.content_bound === false;
   const created = formatDate(result.created_at);
+
+  // Verify in the Wild: no cryptographic provenance survived, but the pixels match a known
+  // asset — a re-encoded marketplace copy. A distinct, deliberately non-green tier (info, not
+  // verified): this is a visual-similarity claim, and the whole card is built to read as
+  // evidence rather than the byte-exact guarantee the cryptographic verdict makes.
+  if (!result.found && !result.embedded && result.perceptual) {
+    return <PerceptualPanel result={result} match={result.perceptual} />;
+  }
 
   if (!result.found && !result.embedded) {
     return (
@@ -223,6 +232,105 @@ export function VerifyPanel({ result }: { result: VerifyResult }) {
           tampered ? "bg-danger-surface text-danger" : "bg-muted/50 text-muted-foreground",
         )}
       >
+        {result.disclosure}
+      </p>
+    </Card>
+  );
+}
+
+/**
+ * Verify in the Wild — the perceptual-match tier.
+ *
+ * Shown when a file carries no surviving manifest and matches no stored hash, yet looks like
+ * a known asset: the fingerprint of a marketplace that re-encoded the image and stripped its
+ * provenance. Rendered in the `info` tone, never `verified`, and every line insists on the
+ * distinction — this is a *visual likeness*, offered as evidence, not the byte-exact proof
+ * the cryptographic verdict makes. The raw bit-distance is always on screen so the strength
+ * of the claim is legible, not hidden behind a single confidence number.
+ */
+function PerceptualPanel({
+  result,
+  match,
+}: {
+  result: VerifyResult;
+  match: PerceptualMatch;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center gap-3 border-b border-info/25 bg-info-surface p-5 text-info">
+        <span className="grid size-10 shrink-0 place-items-center rounded-md bg-card/60">
+          <Fingerprint className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="font-semibold tracking-tight">
+            {match.strong ? "Perceptual match" : "Possible perceptual match"}
+          </p>
+          <p className="truncate text-sm opacity-90">
+            Looks like an OriginShot asset — evidence, not cryptographic proof
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-b p-4">
+        <Badge variant="info" size="sm">
+          <Fingerprint /> Visual match {match.distance}/64
+        </Badge>
+        <Badge variant="outline" size="sm">
+          manifest stripped
+        </Badge>
+        {match.matched_in_ledger && (
+          <Badge variant="outline" size="sm">
+            <FileCheck2 /> match is in the ledger
+          </Badge>
+        )}
+      </div>
+
+      <dl className="divide-y">
+        <Row label="uploaded">
+          <span className="flex items-start gap-1.5">
+            <span className="min-w-0 break-all text-muted-foreground">{result.sha256}</span>
+            <CopyHash value={result.sha256} />
+          </span>
+        </Row>
+
+        <Row label="matches">
+          <Link
+            href={`/verify/${match.matched_sha256}`}
+            className="inline-flex items-start gap-1 break-all t-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
+          >
+            <span className="min-w-0 break-all">{match.matched_sha256}</span>
+            <ArrowUpRight className="mt-px size-3.5 shrink-0" />
+          </Link>
+        </Row>
+
+        <Row label="distance">
+          {/* Raw evidence first, the friendly number second — never the reverse. */}
+          <span className="flex flex-wrap items-baseline gap-x-2">
+            <span className="tabular">{match.distance} / 64 bits</span>
+            <span className="text-muted-foreground">
+              ({Math.round(match.confidence * 100)}% confidence)
+            </span>
+          </span>
+        </Row>
+
+        {match.parent_sha256 && (
+          <Row label="authentic original">
+            <Link
+              href={`/verify/${match.parent_sha256}`}
+              className="inline-flex items-start gap-1 break-all t-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
+            >
+              <span className="min-w-0 break-all">{match.parent_sha256}</span>
+              <ArrowUpRight className="mt-px size-3.5 shrink-0" />
+            </Link>
+          </Row>
+        )}
+
+        {match.style && <Row label="style">{match.style}</Row>}
+        {match.provider && <Row label="provider">{match.provider}</Row>}
+        {match.model && <Row label="model">{match.model}</Row>}
+      </dl>
+
+      <p className="border-t bg-info-surface/40 p-4 text-sm text-muted-foreground">
         {result.disclosure}
       </p>
     </Card>
