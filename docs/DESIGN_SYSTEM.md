@@ -103,26 +103,40 @@ back, so components inside render correctly without knowing where they are.
 Inside the app shell the content area sits beside a themed sidebar, where a
 permanently dark panel reads as a rendering fault rather than a choice.
 
-#### The app stays on paper — deliberately
+#### The product is dark, permanently
 
-Signing in moves you from a permanently-ink public surface to an app that
-follows the system preference (`--background`: `#F6F5F2` light, `#0E1823` dark).
-On a light-preference machine that is a visible flip at the moment of sign-in.
+There is no theme system. `dark` is set statically on `<html>`, so the whole
+product — public surface and signed-in app alike — runs in the viewing room.
+The dashboard background is `#0E1823`; there is no near-white state anywhere.
 
-**This is intended, and it follows the thesis at the top of this document:** ink
-is the ground you *look at* photographs on, paper is the ground you *study*
-records on. The app is where records are studied. You leave the gallery and
-enter the workroom.
+> An earlier revision of this document argued the opposite (app on paper, ink
+> public surface, the sign-in flip as intentional). That was reversed: the flip
+> from a dark sign-in page to a near-white dashboard was the wrong first
+> impression of the product, and one continuous room beats a defensible
+> discontinuity.
 
-Do not "fix" the flip by darkening the app without deciding to move the whole
-signed-in product into the viewing room — half-darkening it (ink chrome, paper
-content) trades one discontinuity for a smaller one in more places.
+**Why the whole `.dark` palette and not just a darker `--background`.** The
+light tokens are tuned as a set for a near-white ground. Overriding the
+background alone would have left `--card: #FFFFFF`, `--border: #E3E1DB` and
+every muted/input value beside it — a combination nothing in the system
+validates, and the fastest route to white cards on a dark page. The `.dark` set
+is coherent, complete (41 tokens, including the full `--paper-*` family) and
+already passes the contrast gate.
 
-**Theme selection is system-only.** The toggle is gone, so nothing can write a
-stored preference; the pre-paint script clears any legacy `theme` key it finds.
-Preferring a stored value over the system was correct while a control existed to
-change it, but once the control was removed it pinned anyone who had ever chosen
-light to light permanently, with no way to reach the setting.
+`<meta name="color-scheme" content="dark">` ships with it, so the browser's own
+form controls, scrollbars and autofill styling stay on the palette instead of
+rendering light against every surface.
+
+**The light palette is retained but dormant.** `:root` still carries a complete
+light set and `validate-contrast.js` still checks it. Nothing renders it today;
+it is kept validated so light mode can be reinstated without re-deriving it.
+When reading the gate's output, remember the LIGHT section describes a palette
+that is currently unreachable.
+
+**No theme state exists.** The toggle is gone and nothing can write a stored
+preference. A one-line script clears any legacy `theme` key: it is dead state,
+and leaving it would have stranded a returning visitor on a preference no
+control could reach.
 
 The reason is structural, not stylistic: `/verify`, `/ledger` and `/resolve`
 render inside `AdaptiveChrome`, so the same file is a public page for a
@@ -438,7 +452,8 @@ read as a demo.
 | `/verify` | **Rebuilt.** On `.ink-ground` when signed out. The mode toggle is gone — file drop and hash lookup now coexist, which removed a piece of state and the case where switching modes discarded a result mid-read. |
 | `/ledger` | **Rebuilt.** On `.ink-ground` when signed out. The head is a fingerprint block, the entries render as an actual chain (`prev → this` down a spine), and the self-audit is deliberately demoted below the independent-verification block. |
 | `/resolve` | **Migrated, bands intentionally not applied** — see "Where bands apply". Display type, kickers and `.t-accent`/`.t-verify` are in; layout stays tool-shaped. |
-| Theme toggle | **Removed** from the public header, the app shell and `/signin`. The theme class is still set from the system preference before paint. |
+| Theme | **Dark only.** `dark` is set statically on `<html>`; the toggle and `theme-toggle.tsx` are deleted, and no theme state exists. The light palette is retained and still gated, but dormant. |
+| App surfaces under dark | Every app screen now renders on `.dark` rather than following a preference. Tokens are coherent and gated, but **no app screen has been opened in a browser since** — see the caveat below. |
 | Type, all surfaces | **Done.** Inter Tight + Bricolage + Plex Mono globally; Archivo retired. |
 | Neutrals, all surfaces | **Done.** App semantic tokens mapped onto ink/paper families, both themes. |
 | App `--accent` → tungsten | **Done.** The `--warning` collision was resolved in the same change; all 27 `text-accent` sites moved to `.t-accent`; `--accent-text`/`--verify-text` bound at `:root` and `.dark`. |
