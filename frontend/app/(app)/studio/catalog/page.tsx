@@ -242,7 +242,7 @@ export default function CatalogPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Layers className="size-4 text-accent" />
+                    <Layers className="size-4 t-accent" />
                     {staged.length} product{staged.length === 1 ? "" : "s"} staged
                   </CardTitle>
                 </CardHeader>
@@ -256,7 +256,7 @@ export default function CatalogPage() {
                             item.status === "ready" &&
                               "border-transparent bg-verified/12 text-verified",
                             item.status === "uploading" &&
-                              "border-transparent bg-accent/12 text-accent",
+                              "border-transparent bg-accent/12 t-accent",
                             item.status === "failed" &&
                               "border-transparent bg-danger/12 text-danger",
                             item.status === "staged" && "text-muted-foreground",

@@ -68,7 +68,7 @@ export default function StudioPage() {
           href="/studio/catalog"
           className="flex items-start gap-3 rounded-md border bg-card p-4 transition-colors hover:bg-secondary"
         >
-          <Layers className="mt-0.5 size-4 shrink-0 text-accent" />
+          <Layers className="mt-0.5 size-4 shrink-0 t-accent" />
           <span className="min-w-0">
             <span className="block text-sm font-medium">Got a whole shop to photograph?</span>
             <span className="mt-0.5 block text-sm text-muted-foreground">
@@ -83,7 +83,7 @@ export default function StudioPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Plus className="size-4 text-accent" /> New product
+              <Plus className="size-4 t-accent" /> New product
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">

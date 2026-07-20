@@ -120,7 +120,7 @@ function StepRow({ step }: { step: JobStep }) {
         className={cn(
           "grid size-6 shrink-0 place-items-center rounded-full border",
           step.status === "done" && "border-transparent bg-verified/12 text-verified",
-          running && "border-transparent bg-accent/12 text-accent",
+          running && "border-transparent bg-accent/12 t-accent",
           step.status === "failed" && "border-transparent bg-danger/12 text-danger",
           step.status === "skipped" && "border-transparent bg-muted text-muted-foreground",
           step.status === "pending" && "text-muted-foreground",
@@ -212,7 +212,7 @@ export function JobProgress({ job }: { job: Job }) {
         <div className="mb-4 flex items-baseline justify-between gap-3">
           <h2 className="label flex items-center gap-2 text-muted-foreground">
             <Sparkles
-              className={cn("size-3.5 text-accent", running && "animate-pulse")}
+              className={cn("size-3.5 t-accent", running && "animate-pulse")}
               aria-hidden
             />
             {job.replay_of_sha256

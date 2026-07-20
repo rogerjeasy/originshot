@@ -24,7 +24,7 @@ function HashChip({ sha }: { sha: string }) {
   return (
     <Link
       href={`/verify/${sha}`}
-      className="inline-flex items-center gap-1 rounded-full border bg-card px-2 py-0.5 font-mono text-[11px] text-accent transition-colors hover:border-accent/40"
+      className="inline-flex items-center gap-1 rounded-full border bg-card px-2 py-0.5 font-mono text-[11px] t-accent transition-colors hover:border-accent/40"
       title={`Verify ${sha}`}
     >
       {short(sha)}

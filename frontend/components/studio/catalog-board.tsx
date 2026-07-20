@@ -53,7 +53,7 @@ const PATCH: Record<BatchItemStatus, string> = {
 
 const CHIP: Record<BatchItemStatus, string> = {
   pending: "text-muted-foreground",
-  running: "border-transparent bg-accent/12 text-accent",
+  running: "border-transparent bg-accent/12 t-accent",
   done: "border-transparent bg-verified/12 text-verified",
   partial: "border-transparent bg-warning/12 text-warning",
   failed: "border-transparent bg-danger/12 text-danger",
@@ -148,7 +148,7 @@ function ItemRow({ item }: { item: BatchItem }) {
 
       <Link
         href={`/studio/${item.sku_id}`}
-        className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-xs text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
+        className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-xs t-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
       >
         Open <ArrowUpRight className="size-3" />
       </Link>
