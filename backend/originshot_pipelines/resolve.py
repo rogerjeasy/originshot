@@ -445,15 +445,25 @@ def build_dispute_report(report: dict, *, verify_base_url: str,
     pdf.ln(2.5)
     pdf.set_font("helvetica", "", 7.5)
     pdf.set_text_color(MUTED, MUTED, MUTED)
-    pdf.multi_cell(0, 3.8, latin(
-        f"Issued {report['issued_at']} · report {report['id']}. This report is hash-anchored, "
-        "not cryptographically signed: this instance recorded the SHA-256 of the PDF it "
-        "issued, so a copy can be confirmed unaltered against that record. It is not proof of "
-        "authorship. The provenance findings are re-derived from file bytes and are "
-        "reproducible by anyone. The delivered-item comparison is a vision-model judgement — "
-        "it is evidence for a human decision, not a determination of fault, and it does not "
-        "assess condition, authenticity of brand, or working order beyond what is visible in "
-        "the two photographs supplied."))
+    key_id = report.get("signing_key_id")
+    standing = (
+        (f"Issued {report['issued_at']} · report {report['id']}. Signed by OriginShot key "
+         f"{key_id}: this instance recorded the SHA-256 of the PDF it issued and published an "
+         "Ed25519 signature over that hash, so a copy can be confirmed unaltered AND proven to "
+         "have been issued by the holder of the repository's public key. ")
+        if key_id else
+        (f"Issued {report['issued_at']} · report {report['id']}. This report is hash-anchored, "
+         "not cryptographically signed: this instance recorded the SHA-256 of the PDF it "
+         "issued, so a copy can be confirmed unaltered against that record. It is not proof of "
+         "authorship. ")
+    ) + (
+        "The provenance findings are re-derived from file bytes and are reproducible by "
+        "anyone. The delivered-item comparison is a vision-model judgement — it is evidence "
+        "for a human decision, not a determination of fault, and it does not assess condition, "
+        "authenticity of brand, or working order beyond what is visible in the two photographs "
+        "supplied."
+    )
+    pdf.multi_cell(0, 3.8, latin(standing))
 
     return bytes(pdf.output())
 

@@ -245,6 +245,13 @@ def _render_and_store(record: dict, settings) -> tuple[str | None, str | None]:
     Best-effort by contract: the findings are the product and they are already persisted.
     A PDF that fails to render or upload costs the caller a download link, not the report.
     """
+    from .. import signing
+
+    # Name the signing key in the PDF *before* rendering (the key id is a constant; the
+    # signature itself is over the finished PDF's hash and so is published alongside, not
+    # printed inside). None ⇒ the footer keeps its honest "hash-anchored, not signed" wording.
+    record["signing_key_id"] = signing.KEY_ID if signing.is_configured() else None
+
     try:
         origin = settings.origins[0].rstrip("/") if settings.origins else ""
         pdf = resolve_lib.build_dispute_report(
@@ -265,12 +272,20 @@ def _render_and_store(record: dict, settings) -> tuple[str | None, str | None]:
         log.warning("resolve: report upload failed (%s)", exc)
         return sha, None
 
-    # Write the hash back onto the stored record — this is what makes the document
-    # checkable later: a holder can re-hash their PDF and confirm it against what we issued.
+    # A detached Ed25519 signature over the PDF's SHA-256: proves this instance issued the
+    # document, verifiable against the repo-committed public key. None when unconfigured.
+    signature = signing.sign_hex(sha)
+
+    # Write the hash (and signature) back onto the stored record — this is what makes the
+    # document checkable later: a holder can re-hash their PDF, confirm it against what we
+    # issued, and verify the signature over that hash.
     record["report_sha256"] = sha
     record["report_key"] = key
-    get_repo().update_dispute_report(record["id"],
-                                     {"report_sha256": sha, "report_key": key})
+    record["report_signature"] = signature
+    get_repo().update_dispute_report(
+        record["id"],
+        {"report_sha256": sha, "report_key": key, "report_signature": signature},
+    )
     return sha, url
 
 
@@ -289,4 +304,5 @@ def _to_out(record: dict, pdf_sha: str | None, pdf_url: str | None) -> ResolveOu
         match_unavailable=record.get("match_unavailable"),
         report_sha256=pdf_sha or record.get("report_sha256"),
         report_url=pdf_url,
+        report_signature=record.get("report_signature"),
     )
