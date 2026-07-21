@@ -14,9 +14,11 @@ def test_health_reports_per_dependency_status(client):
     # In the hermetic test env nothing external is configured, so the app is honestly
     # degraded rather than falsely "ok".
     assert body["status"] == "degraded"
-    assert set(body["checks"]) == {"firebase", "b2", "generation"}
+    assert set(body["checks"]) == {"firebase", "b2", "generation", "signing"}
     assert body["checks"]["firebase"] == {"ok": False, "error": "not_configured"}
     assert body["checks"]["b2"]["ok"] is False
+    # Signing is unconfigured in the hermetic env (blank key) — "disabled", not degraded.
+    assert body["checks"]["signing"] == {"ok": True, "state": "disabled"}
     assert "firebase" in body["degraded"] and "b2" in body["degraded"]
     assert body["depth"] == "shallow"
 
