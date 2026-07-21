@@ -233,9 +233,14 @@ guarantee it isn't delivering.
 Stated as plainly as the rest, because a transparency log that overstates itself is worse
 than none:
 
-- **No signatures.** There is no issuing keypair, so a checkpoint proves integrity against a
-  published record, not authorship. Real CT logs sign their heads; that is the next step and
-  is not claimed here.
+- **Signed, but by one key.** Every checkpoint, audit report and dispute report is now
+  **Ed25519-signed** ([`app/signing.py`](backend/app/signing.py)); the signature is over the
+  artefact's own content hash and verifies offline against the **public key committed in this
+  repo** (in [`scripts/verify_ledger.py`](scripts/verify_ledger.py) and `signing.py`), so a
+  third party checks it against a key they got from GitHub, not from our server. That closes
+  the old "anyone with bucket write access could forge a checkpoint" hole. What one key still
+  cannot do is rule out a **split view** — a dishonest operator could sign two different
+  chains for two different people; that needs independent witnesses, per the next bullet.
 - **Object Lock stops rewriting, not withholding.** A compliance-mode lock makes a *published*
   checkpoint physically immutable — the operator can no longer alter a bad result after
   publishing it. It does **not** force the operator to run the Auditor or to publish at all;
@@ -389,9 +394,10 @@ before it shipped — same mug in a different shot 9/10, the same mug held in so
 9/10, a green bottle 0/10, and a mug with a scratch and a chip painted on scored 9/10 while
 naming both defects. That last row is the one the feature exists for.
 
-> **"Hash-anchored", not "signed".** There is no issuing keypair, so the reports don't claim
-> a signature. This instance records the SHA-256 of the PDF it issued, which proves a copy is
-> unaltered against that record and nothing more. The document says so on its own face.
+> **Signed, and content-addressed.** This instance records the SHA-256 of the PDF it issued
+> *and* **Ed25519-signs that hash** — so a copy can be proven both unaltered against the
+> record and issued by the holder of the repo's published key, verifiable offline. The PDF
+> names the signing key on its own face; the detached signature is published with the report.
 
 ---
 
@@ -797,7 +803,7 @@ Stated plainly, because a submission that hides these is worse than one that nam
 - **Cost figures are dual-sourced by design.** The analytics dashboard's headline spend is the ledger-settled, provider-billed total (`Step.cost_usd` aggregated through credit settlement); a list-price estimate is shown alongside it, labeled, for catalogs generated before billing data existed (e.g. dev-mock runs, which bill nothing).
 - **Marketplace renditions drop the embedded manifest** by necessity (re-encoding to exact dimensions). This is why `verified/` exists, and it's documented inside every pack.
 - **Jobs run inline** on the web service (`JOB_QUEUE=inline`). The Arq/Redis worker path is implemented and tested but not provisioned, to keep the free-tier footprint lean.
-- **Dispute reports are hash-anchored, not signed.** There is no issuing keypair, so a report proves it is unaltered against the record this instance holds — not who issued it. An offline-verifiable signature is the obvious next step and is deliberately not claimed until it exists.
+- **Dispute reports are signed** (Ed25519, when a signing key is configured) — a report proves both that it is unaltered *and* that this instance issued it, verifiable offline against the repo-committed public key. Without a key configured they fall back to hash-anchored-only, and say so on their face.
 - **The delivered-item comparison is a vision-model judgement.** It is evidence for a human decision, never a determination of fault, and every report says so on its face. It reads two photographs: it cannot assess working order, brand authenticity, or anything not visible in them. The provenance half of each report needs no model and is reproducible by anyone.
 - **The transparency log is unsigned and unwitnessed.** It proves the published history is internally consistent and append-only against a saved checkpoint; it cannot prove authorship, and a single-operator log cannot rule out a split view. Both are spelled out above and in the tool's own output rather than left for a reader to discover.
 - **Provider credit is exhaustible.** GMI Cloud returns `402 Insufficient credits` when the account balance runs out, and generation then fails cleanly with that message rather than degrading. Top up before a demo.

@@ -49,6 +49,11 @@ services:
       # checkpoint + audit report. See README "Backblaze B2 capabilities used".
       - key: B2_OBJECT_LOCK_DAYS
         value: "0"
+      # Ed25519 signing seed (hex) for transparency checkpoints, audit + dispute reports.
+      # Verifiable against the repo-committed public key. Set in the dashboard (sync: false)
+      # — a signing key is a secret. Unset ⇒ artefacts publish unsigned.
+      - key: SIGNING_PRIVATE_KEY
+        sync: false
       # Mock generation fabricates assets by copying the user's upload and labelling them
       # provider="mock-dev" — indistinguishable from real generations in analytics, the
       # admin dashboard, and the credit ledger. It already defaults to false in code; pinned
