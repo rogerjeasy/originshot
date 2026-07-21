@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { apiDownload, apiFetch } from "@/lib/api";
+import { streamJob } from "@/lib/stream-job";
 import { useApiData } from "@/lib/use-api";
 import { useSession } from "@/lib/use-session";
 import type { Asset, Job, Marketplace, Sku, Style } from "@/lib/types";
@@ -106,43 +107,60 @@ export default function SkuWorkspace() {
     }
   }
 
-  // Poll the job while it runs. Polls on the job *id* (not the job object) so a new
-  // interval isn't torn down and rebuilt on every status update the poll itself causes.
+  // Watch the job while it runs — pushed via SSE, not polled. Keyed on the job *id* so the
+  // watcher isn't torn down and rebuilt on every status update it itself causes. If the
+  // stream can't be established (a proxy that buffers it, an older backend), it falls back to
+  // the original 1.2s poll, so progress is never lost — the stream is an optimisation, not a
+  // dependency.
   useEffect(() => {
     if (!jobId) return;
     let stopped = false;
+    const controller = new AbortController();
 
-    const t = setInterval(async () => {
-      try {
-        const j = await apiFetch<Job>(`/api/jobs/${jobId}`);
-        if (stopped) return;
-        setJob(j);
-
-        // Assets land step by step, so refresh the grid whenever the completed-step count
-        // moves — the user sees each image as it finishes instead of all of them at the end.
-        const done = j.steps?.filter((s) => s.status === "done").length ?? 0;
-        if (done !== doneStepsRef.current) {
-          doneStepsRef.current = done;
-          void reloadAssets();
-        }
-
-        if (j.status === "done" || j.status === "failed" || j.status === "partial") {
-          clearInterval(t);
-          setJobId(null);
-          if (j.status === "failed") setError(j.error ?? "Generation failed");
-          await reloadAssets();
-          // The hold has been settled against real provider cost — pull the true balance.
-          await refreshCredits();
-        }
-      } catch {
-        clearInterval(t);
-        setJobId(null);
+    function handle(j: Job) {
+      if (stopped) return;
+      setJob(j);
+      // Assets land step by step, so refresh the grid whenever the completed-step count
+      // moves — the user sees each image as it finishes instead of all of them at the end.
+      const done = j.steps?.filter((s) => s.status === "done").length ?? 0;
+      if (done !== doneStepsRef.current) {
+        doneStepsRef.current = done;
+        void reloadAssets();
       }
-    }, 1200);
+      if (j.status === "done" || j.status === "failed" || j.status === "partial") {
+        stopped = true;
+        setJobId(null);
+        if (j.status === "failed") setError(j.error ?? "Generation failed");
+        void reloadAssets();
+        // The hold has been settled against real provider cost — pull the true balance.
+        void refreshCredits();
+      }
+    }
 
+    async function poll() {
+      while (!stopped) {
+        try {
+          handle(await apiFetch<Job>(`/api/jobs/${jobId}`));
+        } catch {
+          return;
+        }
+        if (stopped) return;
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+    }
+
+    async function run() {
+      try {
+        await streamJob(jobId!, handle, controller.signal);
+      } catch {
+        if (!stopped) await poll();   // stream unavailable → fall back to polling
+      }
+    }
+
+    void run();
     return () => {
       stopped = true;
-      clearInterval(t);
+      controller.abort();
     };
   }, [jobId, reloadAssets, refreshCredits]);
 
