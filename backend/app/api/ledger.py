@@ -60,6 +60,28 @@ def checkpoint():
     return checkpoint
 
 
+@router.get("/pubkey")
+def pubkey():
+    """The Ed25519 public key that signs checkpoints, audit reports and dispute reports.
+
+    Served for convenience, but note the trust model: the load-bearing copy of this key ships
+    in the source repository (`app/signing.py::PUBLISHED_PUBLIC_KEY_HEX`) and in
+    `scripts/verify_ledger.py`. A verifier that fetched the key from this endpoint would be
+    trusting the same server whose signatures it is checking — so the response says as much.
+    """
+    from .. import signing
+
+    return {
+        "algorithm": "ed25519",
+        "public_key": signing.PUBLISHED_PUBLIC_KEY_HEX,
+        "key_id": signing.KEY_ID,
+        "active": signing.is_configured(),
+        "note": "Trust this key from the source repo, not from this endpoint — verifying a "
+                "signature with a key fetched from the same server that produced it proves "
+                "nothing. It is published in scripts/verify_ledger.py and app/signing.py.",
+    }
+
+
 @router.get("/proof/{sha256}", response_model=LedgerProofOut)
 def proof(sha256: str):
     """An offline-verifiable inclusion proof for one asset.

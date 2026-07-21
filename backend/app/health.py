@@ -134,6 +134,11 @@ def collect_health(deep: bool = False) -> dict:
         "b2": b2_status,
         "generation": generation_status,
     }
+    # Signing is a cheap local check (does the private seed load and match the repo key), so
+    # it can run on every probe.
+    from . import signing
+
+    checks["signing"] = signing.verify_configuration()
     # Object Lock verification makes a native B2 call, so it runs only on the deep check
     # (humans/monitoring), never on the platform's frequent shallow probe.
     if deep:
