@@ -113,12 +113,12 @@ def fake_sdk(monkeypatch):
         return FakePipeline("cc33")
 
     async def fake_lifestyle(src, desc, sink, scenes=None, brand_suffix="",
-                             timeout=None, source_sha256=None):
+                             timeout=None, source_sha256=None, feedback=None):
         captured["lifestyle"] = {"brand_suffix": brand_suffix}
         return [(FakeResult("dd44"), FakeAdapter()), (FakeResult("ee55"), FakeAdapter())]
 
     async def fake_variants(src, desc, sink, colors=(), angles=(), brand_suffix="",
-                            timeout=None, source_sha256=None):
+                            timeout=None, source_sha256=None, feedback=None):
         captured["variant"] = {"brand_suffix": brand_suffix}
         return [(FakeResult("ff66"), FakeAdapter())]
 

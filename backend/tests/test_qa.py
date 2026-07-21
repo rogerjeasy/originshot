@@ -125,7 +125,12 @@ async def test_retry_keeps_better_attempt(monkeypatch):
         def presigned_get(self, key):
             return key
 
-    async def runner():
+    seen_feedback = {}
+
+    async def runner(feedback=None):
+        # The retry must be INFORMED: attempt 1 (grey_photo) fails the white-background check,
+        # so the runner should receive a correction naming that problem, not be re-rolled blind.
+        seen_feedback["value"] = feedback
         return [{"b2_key": "u2", "sha256": "second"}]
 
     first = [{"b2_key": "u1", "sha256": "first"}]
@@ -135,6 +140,9 @@ async def test_retry_keeps_better_attempt(monkeypatch):
     assert winner[0]["sha256"] == "second"
     assert winner[0]["qa"]["passed"] is True
     assert winner[0]["qa"]["attempts"] == 2
+    # Feedback-driven, not blind: the retry carried a correction for the failed check.
+    assert seen_feedback["value"] and "background" in seen_feedback["value"].lower()
+    assert winner[0]["qa"]["retry_feedback"]
 
 
 @pytest.mark.anyio
@@ -148,7 +156,7 @@ async def test_no_retry_when_first_attempt_passes(monkeypatch):
         def presigned_get(self, key):
             return key
 
-    async def runner():  # pragma: no cover — must never be called
+    async def runner(feedback=None):  # pragma: no cover — must never be called
         raise AssertionError("retry ran even though QA passed")
 
     first = [{"b2_key": "u1", "sha256": "first"}]
@@ -171,7 +179,7 @@ async def test_tie_keeps_first_attempt(monkeypatch):
         def presigned_get(self, key):
             return key
 
-    async def runner():
+    async def runner(feedback=None):
         return [{"b2_key": "u2", "sha256": "second"}]
 
     first = [{"b2_key": "u1", "sha256": "first"}]
