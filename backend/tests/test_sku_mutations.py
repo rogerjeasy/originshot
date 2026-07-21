@@ -125,3 +125,26 @@ def test_admin_can_delete_another_users_sku(client, repo):
 
 def test_deleting_a_missing_sku_is_404(client):
     assert client.delete("/api/skus/does-not-exist").status_code == 404
+
+
+def test_deleting_one_of_two_skus_sharing_an_original_keeps_it_resolvable(client, repo):
+    """The content-addressable invariant: deleting a SKU must not orphan a hash another SKU
+    still uses.
+
+    The same photo uploaded to two products is stored once (same sha). Deleting one product
+    must leave that sha resolvable via `find_asset_by_sha` — otherwise verify-by-hash and
+    Resolve's anchor lookup break for the surviving product. (In-memory `find_asset_by_sha`
+    scans live assets so it self-heals; the Firestore repo re-points its sha index to the
+    survivor, verified live. This pins the invariant either way.)
+    """
+    shared = "5" * 64
+    a = client.post("/api/skus", json={"title": "Mug A"}).json()
+    b = client.post("/api/skus", json={"title": "Mug B"}).json()
+    for sku in (a, b):
+        repo.add_asset(UID, {"sku_id": sku["id"], "sha256": shared, "style": "original",
+                             "is_authentic": True, "modality": "image"})
+
+    assert client.delete(f"/api/skus/{a['id']}").status_code == 200
+    # The shared original is still resolvable through the surviving SKU B.
+    survivor = repo.find_asset_by_sha(shared)
+    assert survivor is not None and survivor["sku_id"] == b["id"]

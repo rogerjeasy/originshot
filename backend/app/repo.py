@@ -433,22 +433,49 @@ class FirestoreRepo:
             return []
         assets_col = sku_ref.collection("assets")
         removed: list[dict] = []
+        refs = []
         for snap in assets_col.stream():
-            a = snap.to_dict()
-            removed.append(a)
-            # Drop the global indexes keyed by this asset's content hash. Guarded by a match
-            # check so we never delete an index entry that a *different* asset (same bytes,
-            # content-addressable dedup) currently owns — that would blind the verifier to a
-            # file that still exists.
-            sha = a.get("sha256")
-            if sha:
-                for coll in ("asset_index", "phash_index"):
-                    idx = self._db.collection(coll).document(sha)
-                    doc = idx.get()
-                    if doc.exists and doc.to_dict().get("asset_id") == a.get("id"):
-                        idx.delete()
-            snap.reference.delete()
+            removed.append(snap.to_dict())
+            refs.append(snap.reference)
+        # Delete the asset docs and the SKU doc first, so the survivor scan below cannot see
+        # them (the just-deleted assets must not count as survivors of their own hash).
+        for ref in refs:
+            ref.delete()
         sku_ref.delete()
+
+        # Reconcile the global sha/pHash indexes. These are one-entry-per-hash and
+        # content-addressable, so the same bytes — most commonly the SAME uploaded photo on
+        # several SKUs — are shared. If a removed asset OWNED a hash's index entry, the entry
+        # must be **re-pointed** to a surviving asset that shares the hash, not deleted:
+        # deleting it would orphan that survivor (find_asset_by_sha would return None for a
+        # file that still exists, breaking verify-by-hash and Resolve's anchor lookup). Only
+        # when nothing survives with the hash is the entry actually removed.
+        surviving_by_sha: dict[str, dict] = {}
+        for a in self.list_assets_for_user(uid):   # excludes the SKU just deleted above
+            s = a.get("sha256")
+            if s and s not in surviving_by_sha:
+                surviving_by_sha[s] = a
+        for a in removed:
+            sha = a.get("sha256")
+            if not sha:
+                continue
+            for coll in ("asset_index", "phash_index"):
+                idx = self._db.collection(coll).document(sha)
+                doc = idx.get()
+                if not (doc.exists and doc.to_dict().get("asset_id") == a.get("id")):
+                    continue                        # this asset didn't own the entry — leave it
+                survivor = surviving_by_sha.get(sha)
+                # phash_index is only meaningful for an asset that carries a pHash (generated
+                # images); a shared hash is almost always an authentic original, which has
+                # none, so that branch simply deletes.
+                if survivor and (coll != "phash_index" or survivor.get("phash")):
+                    payload = {"uid": survivor["owner_uid"], "sku_id": survivor["sku_id"],
+                               "asset_id": survivor["id"]}
+                    if coll == "phash_index":
+                        payload |= {"phash": survivor["phash"], "sha256": sha}
+                    idx.set(payload)                 # re-point, don't orphan
+                else:
+                    idx.delete()
         return removed
 
     def find_sku_by_id(self, sku_id: str) -> tuple[str, dict] | None:
