@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 
-from .providers import ImageEditRequest, run_image_edit
+from .providers import ImageEditRequest, run_image_edit, with_feedback
 from .registry import ASPECT
 
 SCENES = [
@@ -35,9 +35,10 @@ def scene_request(
     brand_suffix: str = "",
     source_sha256: str | None = None,
     source_media_type: str = "image/png",
+    feedback: str | None = None,
 ) -> ImageEditRequest:
     return ImageEditRequest(
-        prompt=build_scene_prompt(product_desc, scene, brand_suffix=brand_suffix),
+        prompt=with_feedback(build_scene_prompt(product_desc, scene, brand_suffix=brand_suffix), feedback),
         source_uri=source_image_uri,
         prompt_name="originshot-lifestyle",
         aspect=ASPECT["lifestyle"],
@@ -63,17 +64,17 @@ def build_scene_pipeline(
 
 async def run_lifestyle(source_image_uri, product_desc, sink, scenes=SCENES,
                         brand_suffix: str = "", *, timeout: int = 300,
-                        source_sha256: str | None = None):
+                        source_sha256: str | None = None, feedback: str | None = None):
     """Run several scene requests concurrently. Returns a list of (result, adapter).
 
     Each scene falls across the provider chain independently: one scene exhausting a
     provider's credit must not cancel the others, and a pack where three scenes came from
     one provider and the fourth from another is a *correct* partial outcome, recorded
-    per-asset rather than smoothed over.
+    per-asset rather than smoothed over. `feedback` refines a retry across all scenes.
     """
     reqs = [
         scene_request(source_image_uri, product_desc, s, brand_suffix=brand_suffix,
-                      source_sha256=source_sha256)
+                      source_sha256=source_sha256, feedback=feedback)
         for s in scenes
     ]
     return await asyncio.gather(

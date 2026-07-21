@@ -4,7 +4,7 @@ Owns the prompt; `providers.py` owns how it reaches a provider.
 """
 from __future__ import annotations
 
-from .providers import ImageEditRequest
+from .providers import ImageEditRequest, with_feedback
 from .registry import ASPECT
 
 
@@ -25,9 +25,10 @@ def onmodel_request(
     brand_suffix: str = "",
     source_sha256: str | None = None,
     source_media_type: str = "image/png",
+    feedback: str | None = None,
 ) -> ImageEditRequest:
     return ImageEditRequest(
-        prompt=build_onmodel_prompt(product_desc, brand_suffix=brand_suffix),
+        prompt=with_feedback(build_onmodel_prompt(product_desc, brand_suffix=brand_suffix), feedback),
         source_uri=source_image_uri,
         prompt_name="originshot-onmodel",
         aspect=ASPECT["onmodel"],

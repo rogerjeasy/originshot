@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 
-from .providers import ImageEditRequest, run_image_edit
+from .providers import ImageEditRequest, run_image_edit, with_feedback
 from .registry import ASPECT
 
 
@@ -24,11 +24,12 @@ def variant_request(
     brand_suffix: str = "",
     source_sha256: str | None = None,
     source_media_type: str = "image/png",
+    feedback: str | None = None,
 ) -> ImageEditRequest:
     if brand_suffix:
         prompt += f". Brand style: {brand_suffix}"
     return ImageEditRequest(
-        prompt=prompt,
+        prompt=with_feedback(prompt, feedback),
         source_uri=source_image_uri,
         prompt_name="originshot-variant",
         aspect=ASPECT["variant"],
@@ -52,12 +53,12 @@ def build_variant_pipeline(source_image_uri: str, prompt: str, *, provider=None,
 
 async def run_variants(source_image_uri, product_desc, sink, colors=(), angles=(),
                        brand_suffix: str = "", *, timeout: int = 300,
-                       source_sha256: str | None = None):
+                       source_sha256: str | None = None, feedback: str | None = None):
     """Run the sweep concurrently. Returns a list of (result, adapter) — see run_lifestyle."""
     prompts = build_variant_prompts(product_desc, colors, angles)
     reqs = [
         variant_request(source_image_uri, p, brand_suffix=brand_suffix,
-                        source_sha256=source_sha256)
+                        source_sha256=source_sha256, feedback=feedback)
         for p in prompts
     ]
     return await asyncio.gather(

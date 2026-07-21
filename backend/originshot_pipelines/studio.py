@@ -6,7 +6,7 @@ the same studio prompt runs unchanged on whichever provider is serving.
 """
 from __future__ import annotations
 
-from .providers import ImageEditRequest
+from .providers import ImageEditRequest, with_feedback
 from .registry import ASPECT
 
 
@@ -29,10 +29,11 @@ def studio_request(
     aspect: str | None = None,
     source_sha256: str | None = None,
     source_media_type: str = "image/png",
+    feedback: str | None = None,
 ) -> ImageEditRequest:
-    """The provider-neutral studio request."""
+    """The provider-neutral studio request. `feedback` refines a retry (see qa.feedback_*)."""
     return ImageEditRequest(
-        prompt=build_studio_prompt(product_desc, brand_suffix=brand_suffix),
+        prompt=with_feedback(build_studio_prompt(product_desc, brand_suffix=brand_suffix), feedback),
         source_uri=source_image_uri,
         prompt_name="originshot-studio",
         aspect=aspect or ASPECT["studio"],
