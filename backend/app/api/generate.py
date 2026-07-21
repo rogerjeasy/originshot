@@ -161,3 +161,97 @@ def get_job(job_id: str, user: CurrentUser = Depends(get_current_user)):
     if not job:
         raise HTTPException(404, "Not found")
     return job
+
+
+# How long a single stream connection is allowed to stay open. Comfortably past the longest
+# job (the 600s video step) plus overhead; a job that hasn't finished by then is stuck, and
+# the client falls back to a poll rather than holding a socket forever.
+_STREAM_MAX_SECONDS = 780
+# Heartbeat cadence. SSE comment lines keep intermediaries from closing an idle connection and
+# let the server notice a vanished client between progress events.
+_STREAM_HEARTBEAT_SECONDS = 15
+_TERMINAL = {"done", "partial", "failed"}
+
+
+def _sse(job: dict) -> str:
+    """One SSE ``data:`` frame carrying a job snapshot in the GET /jobs/{id} shape."""
+    import json
+
+    return f"data: {json.dumps(JobOut(**job).model_dump(mode='json'))}\n\n"
+
+
+async def job_event_stream(uid: str, job_id: str):
+    """Async generator of SSE frames for one job's progress. Extracted so it is directly
+    testable in-loop (publishing to the same event loop's queue), without fighting the test
+    client's streaming or crossing event loops.
+
+    Emits a snapshot on connect, then one frame per pushed progress event, a keepalive comment
+    on idle, and ends on a terminal status or the safety deadline.
+    """
+    import asyncio
+
+    from .. import events
+
+    repo = get_repo()
+    queue = events.subscribe(job_id)
+    loop = asyncio.get_event_loop()
+    deadline = loop.time() + _STREAM_MAX_SECONDS
+    try:
+        # Snapshot on connect — subscribed first (above) so an event fired in the gap is
+        # queued, not missed; each frame is a full snapshot, so state still converges.
+        snapshot = repo.get_job(uid, job_id)
+        if snapshot:
+            snap_terminal = str(snapshot.get("status")) in _TERMINAL   # capture before yield
+            yield _sse(snapshot)
+            if snap_terminal:
+                return
+        while loop.time() < deadline:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=_STREAM_HEARTBEAT_SECONDS)
+            except asyncio.TimeoutError:
+                yield ": keepalive\n\n"      # SSE comment; ignored by clients
+                continue
+            # Defence in depth: only ever stream the caller's own job. Job ids are unguessable
+            # and the endpoint already checked ownership, but the stream is long-lived so the
+            # cheap re-check stays.
+            if event.get("owner_uid") not in (None, uid):
+                continue
+            # Decide terminality from the value we are about to serialise, BEFORE yielding —
+            # the event dict may be a live reference (the in-memory repo hands back references)
+            # that a later write mutates, and the stream must end on the state it actually sent.
+            is_terminal = str(event.get("status")) in _TERMINAL
+            yield _sse(event)
+            if is_terminal:
+                return
+    finally:
+        events.unsubscribe(job_id, queue)
+
+
+@router.get("/jobs/{job_id}/stream")
+async def stream_job(job_id: str, user: CurrentUser = Depends(get_current_user)):
+    """Server-Sent Events stream of a job's progress — the push replacement for polling.
+
+    Each event's ``data`` is a job snapshot in the same shape as ``GET /jobs/{job_id}``, so
+    the client just replaces its job state on each one; the stream ends on a terminal status.
+    Auth is the ordinary Bearer dependency (the client consumes this with ``fetch``, which —
+    unlike ``EventSource`` — can send the Authorization header), so the same per-user scoping
+    applies: a stream is only ever opened for the caller's own job.
+
+    Because the worker only pushes when generation runs **inline** (the deployed mode), a job
+    with no live task simply streams its snapshot and closes, leaving the client to fall back
+    to polling. No update is lost silently — the snapshot plus the terminal event bracket it.
+    """
+    from fastapi.responses import StreamingResponse
+
+    if not get_repo().get_job(user.uid, job_id):
+        raise HTTPException(404, "Not found")
+
+    return StreamingResponse(
+        job_event_stream(user.uid, job_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",   # tell any nginx-style proxy not to buffer the stream
+        },
+    )
