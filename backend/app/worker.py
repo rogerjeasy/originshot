@@ -75,12 +75,25 @@ class _JobStepReporter(StepReporter):
         self._flush()
 
     def _flush(self) -> None:
+        job = None
         try:
-            get_repo().update_job(self._uid, self._job_id, {
+            # update_job returns the full, updated job document — reused below as the stream
+            # event so every push is a complete snapshot (no partial-shape special case).
+            job = get_repo().update_job(self._uid, self._job_id, {
                 "steps": [self._steps[k] for k in self._order],
             })
         except Exception as exc:  # noqa: BLE001
             log.warning("step flush failed for job %s: %s", self._job_id, exc)
+        # Push the same progress to any live /stream subscriber the instant it changes, so the
+        # studio updates without polling. Best-effort: a lost push must never fail a run, and
+        # each event is a full snapshot so a dropped one self-heals from the next.
+        if job is not None:
+            try:
+                from . import events
+
+                events.publish(self._job_id, job)
+            except Exception:  # noqa: BLE001
+                pass
 
     def _patch(self, style: Style, **fields) -> None:
         step = self._steps.get(style.value)
@@ -241,6 +254,16 @@ async def _run_job(uid: str, job_id: str, sku_id: str, styles: list[str], runner
                 repo.update_job(uid, job_id, {"credits_held": 0.0})
             except Exception:  # noqa: BLE001
                 log.exception("credit settlement failed for job %s (held $%.4f)", job_id, held)
+        # Push the final, settled job to any live subscriber — the event that tells the stream
+        # to stop. Sent last so `cost_actual` and `credits_held` are already reconciled.
+        try:
+            from . import events
+
+            final = repo.get_job(uid, job_id)
+            if final:
+                events.publish(job_id, final)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _require_sku_and_original(repo, uid: str, sku_id: str) -> tuple[dict, dict]:
