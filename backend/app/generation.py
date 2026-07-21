@@ -213,11 +213,14 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
     # assembled from two providers explains itself asset by asset.
     src_mime = original.get("mime_type") or "image/png"
 
-    async def _studio() -> list[dict]:
+    # Each runner takes optional `feedback`: on a QA retry it carries the specific corrections
+    # the previous attempt failed (qa.feedback_from_reports), which the request builders splice
+    # into the prompt — so the second attempt fixes what was wrong rather than re-rolling.
+    async def _studio(feedback: str | None = None) -> list[dict]:
         nonlocal hero_url
         req = studio.studio_request(
             source_uri, desc, brand_suffix=brand_tone, aspect=studio_aspect,
-            source_sha256=parent, source_media_type=src_mime,
+            source_sha256=parent, source_media_type=src_mime, feedback=feedback,
         )
         res, _adapter = await providers.run_image_edit(req, sink=sink, timeout=img_t)
         asset = _map(sku, res, Style.studio, parent, storage)
@@ -229,25 +232,25 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
         ) or hero_url
         return [asset]
 
-    async def _lifestyle() -> list[dict]:
+    async def _lifestyle(feedback: str | None = None) -> list[dict]:
         results = await lifestyle.run_lifestyle(
             source_uri, desc, sink, brand_suffix=brand_full, timeout=img_t,
-            source_sha256=parent,
+            source_sha256=parent, feedback=feedback,
         )
         return [_map(sku, r, Style.lifestyle, parent, storage) for r, _ in results]
 
-    async def _onmodel() -> list[dict]:
+    async def _onmodel(feedback: str | None = None) -> list[dict]:
         req = onmodel.onmodel_request(
             source_uri, desc, brand_suffix=brand_full,
-            source_sha256=parent, source_media_type=src_mime,
+            source_sha256=parent, source_media_type=src_mime, feedback=feedback,
         )
         res, _adapter = await providers.run_image_edit(req, sink=sink, timeout=img_t)
         return [_map(sku, res, Style.onmodel, parent, storage)]
 
-    async def _variant() -> list[dict]:
+    async def _variant(feedback: str | None = None) -> list[dict]:
         results = await variants.run_variants(
             source_uri, desc, sink, colors=VARIANT_COLORS, angles=VARIANT_ANGLES,
-            brand_suffix=brand_full, timeout=img_t, source_sha256=parent,
+            brand_suffix=brand_full, timeout=img_t, source_sha256=parent, feedback=feedback,
         )
         return [_map(sku, r, Style.variant, parent, storage) for r, _ in results]
 
@@ -456,23 +459,61 @@ def _score_batch(style: Style, produced: list[dict], storage, *, reference, vlm_
     return passed
 
 
+def _retry_feedback(produced: list[dict]) -> str:
+    """The correction to feed a retry, derived from attempt 1's failed QA checks.
+
+    Each failed asset's report is lifted into a Genblaze ``EvaluationResult`` via
+    `qa.to_evaluation`, and its ``.feedback`` is read exactly as
+    `genblaze_core.agents.AgentLoop` reads `ctx.last_evaluation.feedback` to refine the next
+    iteration — this is the generate → evaluate → **refine** step, in the SDK's own vocabulary.
+    Fragments are aggregated across the batch and de-duplicated so a four-scene style gets one
+    coherent instruction. Falls back to the pure string form if the SDK type is unavailable —
+    an evaluator quirk must never cost the retry its guidance.
+    """
+    from originshot_pipelines import qa
+
+    failed = [a["qa"] for a in produced if a.get("qa") and not a["qa"].get("passed")]
+    if not failed:
+        return ""
+    try:
+        # Evaluate step: each failed report becomes a Genblaze EvaluationResult — the SDK's
+        # agent verdict, carrying both `.passed` and the structured checks in `.metadata`.
+        evaluations = [qa.to_evaluation(report) for report in failed]
+        if any(e.feedback for e in evaluations):
+            # Refine step: aggregate the corrections off those verdicts, de-duplicated by
+            # check, into one instruction for the retry — the same `.feedback`-driven loop
+            # `genblaze_core.agents.AgentLoop` runs.
+            return qa.feedback_from_reports(
+                [{"passed": e.passed, "checks": e.metadata.get("checks", [])}
+                 for e in evaluations]
+            )
+    except Exception:  # noqa: BLE001 — SDK types must never break a retry
+        pass
+    return qa.feedback_from_reports(failed)
+
+
 async def _qa_and_maybe_retry(style: Style, runner, produced: list[dict], storage, *,
                               reference, vlm_call, retry: bool) -> list[dict]:
-    """Evaluate a style's output; regenerate once if it failed; keep the better attempt.
+    """Evaluate a style's output; regenerate once *with feedback* if it failed; keep the better.
 
-    Retry is at style granularity because that is the provider-call granularity. When both
-    attempts ran, the batch with more passing assets wins (ties → the first attempt, so a
-    no-better retry doesn't churn the delivered assets). The losing batch's media stays on
-    B2 (content-addressed, negligible) but is never registered as an asset document.
+    Retry is at style granularity because that is the provider-call granularity. The retry is
+    **informed**: the specific checks attempt 1 failed (wrong background, product not
+    preserved, …) are turned into prompt corrections via `qa.feedback_from_reports` and spliced
+    into the retry's prompt — so the second attempt is a correction, not another roll of the
+    dice. When both ran, the batch with more passing assets wins (ties → the first attempt, so
+    a no-better retry doesn't churn the delivered assets). The losing batch's media stays on B2
+    (content-addressed, negligible) but is never registered as an asset document.
     """
     ok1 = _score_batch(style, produced, storage,
                        reference=reference, vlm_call=vlm_call, attempt=1)
     if ok1 == len(produced) or not retry:
         return produced
 
-    log.info("QA: %s failed (%d/%d passed) — retrying once", style.value, ok1, len(produced))
+    feedback = _retry_feedback(produced)
+    log.info("QA: %s failed (%d/%d passed) — retrying once with feedback: %s",
+             style.value, ok1, len(produced), feedback or "(none derivable)")
     try:
-        second = await runner()
+        second = await runner(feedback or None)
     except Exception as e:  # noqa: BLE001 — keep the flagged first batch over a hard fail
         log.warning("QA retry for %s failed to run: %s", style.value, e)
         return produced
@@ -482,6 +523,10 @@ async def _qa_and_maybe_retry(style: Style, runner, produced: list[dict], storag
     for asset in winner:
         if asset.get("qa") is not None:
             asset["qa"]["attempts"] = 2
+            # Record the correction that drove the retry, so the UI can show "passed on
+            # attempt 2 (refined: …)" rather than an unexplained second try.
+            if winner is second and feedback:
+                asset["qa"]["retry_feedback"] = feedback
     return winner
 
 
