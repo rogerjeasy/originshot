@@ -31,7 +31,37 @@ GENESIS_HASH = "0" * 64
 COMMITTED_FIELDS = ("seq", "prev_hash", "subject_sha256", "manifest_hash", "kind",
                     "recorded_at")
 
+# The OriginShot signing public key, committed here on purpose: a checkpoint's Ed25519
+# signature is verified against THIS value — obtained from the source repository, independent
+# of the API server that produced the signature. That independence is the whole point; a key
+# fetched from the same server as the signature would prove nothing. A rotation is a visible,
+# dated change to this constant in git history.
+PUBLIC_KEY_HEX = "8d9ef557d70d7637580aceed82a1c396a1984ed18f1d4dd2551f854ff039e355"
+
 OK, BAD, INFO = "  OK  ", " FAIL ", "  ..  "
+
+
+def verify_signature(digest_hex: str, signature: dict | None) -> bool | None:
+    """Verify an Ed25519 signature over `digest_hex` against the committed public key.
+
+    Returns True/False, or None when a signature can't be checked here (none present, or no
+    Ed25519 implementation installed). Signature checking is the one thing that needs more
+    than httpx, so it degrades to a note rather than a hard dependency: the chain-consistency
+    checks — the historical core of this script — still run with httpx alone.
+    """
+    if not signature or not signature.get("signature"):
+        return None
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    except ImportError:
+        return None
+    try:
+        Ed25519PublicKey.from_public_bytes(bytes.fromhex(PUBLIC_KEY_HEX)).verify(
+            bytes.fromhex(signature["signature"]), digest_hex.encode("ascii")
+        )
+        return True
+    except Exception:  # noqa: BLE001 — any failure is an invalid signature
+        return False
 
 
 def canonical(payload: dict) -> bytes:
@@ -143,6 +173,26 @@ def main() -> int:
             if cp.get("b2_key"):
                 print(f"{INFO} checkpoint published to B2 at {cp['b2_key']}")
 
+            # The signature: is this checkpoint signed by the key committed in this repo?
+            sig_ok = verify_signature(cp.get("checkpoint_hash", ""), cp.get("signature"))
+            if sig_ok is True:
+                print(f"{OK} checkpoint signature verifies against the repo public key "
+                      f"{PUBLIC_KEY_HEX[:16]}… — issued by this instance, not merely by "
+                      "someone with bucket write access")
+            elif sig_ok is False:
+                print(f"{BAD} checkpoint carries a signature that does NOT verify against the "
+                      "repo public key")
+                failures += 1
+            elif cp.get("signature"):
+                print(f"{INFO} checkpoint is signed, but no Ed25519 library is installed to "
+                      "check it (pip install cryptography to verify authorship)")
+            else:
+                print(f"{INFO} checkpoint is not signed (no issuing key configured)")
+
+            if cp.get("retained_until"):
+                print(f"{INFO} checkpoint is immutable under B2 Object Lock until "
+                      f"{cp['retained_until']}")
+
         # 3. Inclusion of one asset.
         if args.sha:
             r = client.get(f"{api}/api/ledger/proof/{args.sha.strip().lower()}")
@@ -187,11 +237,14 @@ def main() -> int:
         return 1
     print("All checks passed.\n")
     print("What this does and does not establish: the published log is internally "
-          "consistent and\nreproduces its checkpoint. It is NOT signed, and a "
-          "single-operator log cannot rule out a\nsplit view — a dishonest operator could "
-          "show a different chain to someone else. Saving a\ncheckpoint and re-checking "
-          "later (--save / --against) is the strongest guarantee available\nwithout "
-          "independent witnesses.\n")
+          "consistent,\nreproduces its checkpoint, and (when signed) was issued by the holder "
+          "of the private key\nmatching the public key committed in this script — so a "
+          "checkpoint can no longer be forged\nby anyone with mere write access to the "
+          "bucket. What a single signing key still cannot do\nis rule out a split view: a "
+          "dishonest operator could sign two different chains and show them\nto different "
+          "people. That needs independent witnesses; saving a checkpoint and re-checking\n"
+          "later (--save / --against) remains the strongest guarantee available without "
+          "them.\n")
     return 0
 
 
