@@ -98,6 +98,14 @@ def publish_checkpoint() -> dict | None:
         entries = repo.list_transparency_entries()
         head = entries[-1]["entry_hash"]
         checkpoint = chain.build_checkpoint(size=size, head=head, issued_at=_now())
+        # Sign the checkpoint's own hash. The signature attests that THIS instance issued this
+        # head — verifiable offline against the repo-committed public key. Absent when no key
+        # is configured; never fatal (a paid generation must not fail because a key is unset).
+        from . import signing
+
+        sig = signing.sign_hex(checkpoint["checkpoint_hash"])
+        if sig is not None:
+            checkpoint = {**checkpoint, "signature": sig}
     except Exception as exc:  # noqa: BLE001
         log.warning("checkpoint build failed: %s", exc)
         return None

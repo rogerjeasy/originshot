@@ -25,10 +25,11 @@ same standard the rest of this project holds itself to.
 
 **What it does not prove, equally precisely.**
 
-  * **No signatures.** There is no issuing keypair, so a checkpoint proves integrity against
-    a published record, not authorship. Anyone who can write to the bucket could publish a
-    checkpoint. Real CT logs sign their heads; that is the obvious next step and is not
-    claimed here.
+  * **Signing lives one layer up.** These are pure hashing functions and carry no key. The
+    app layer (`app/signing.py`) Ed25519-signs each checkpoint's hash before publishing, so a
+    checkpoint served by the API proves *authorship* against the repo-committed public key —
+    not just integrity. Forging one now needs the private key, not merely bucket write access.
+    A single key still cannot rule out a split view (see below).
   * **No witnesses, so a split view is undetectable.** A dishonest operator could maintain
     two chains and show different checkpoints to different people. CT solves this with
     gossip between independent auditors. A single-operator log cannot, and saying otherwise

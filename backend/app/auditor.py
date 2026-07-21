@@ -194,6 +194,13 @@ def run_audit(*, sample_size: int | None = None) -> dict:
         log.warning("audit report publish to B2 failed: %s", exc)
         report["b2_key"] = None
     report["sha256"] = sha
+    # Sign the report's content hash, so a stored audit can be proven to have been issued by
+    # this instance and not fabricated after the fact. Best-effort, like the publish above.
+    from . import signing
+
+    sig = signing.sign_hex(sha)
+    if sig is not None:
+        report["signature"] = sig
 
     try:
         repo.set_platform_config({"last_audit": report})
