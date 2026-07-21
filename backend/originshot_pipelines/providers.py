@@ -69,6 +69,19 @@ GMICLOUD = "gmicloud-image"
 OPENAI = "openai-dalle"
 
 
+def with_feedback(prompt: str, feedback: str | None) -> str:
+    """Append QA correction guidance to a prompt for a retry attempt.
+
+    Kept as a plain string append (not a structured field) because the reference-image edit
+    providers take a single natural-language instruction — the correction has to live in the
+    same prompt the base style does. Empty feedback returns the prompt untouched, so the first
+    attempt is never altered.
+    """
+    if not feedback:
+        return prompt
+    return f"{prompt} Correct these issues from the previous attempt: {feedback}."
+
+
 @dataclass(frozen=True)
 class ImageEditRequest:
     """One "restage this product photo" request, in this product's own vocabulary.
