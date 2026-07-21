@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     # lock enabled and the app key carries `writeFileRetentions`, because a locked write with
     # a key that lacks the capability just fails. When those are in place, set the retention
     # period here. See docs: README "Backblaze B2 differentiators" and app/storage.py.
+    # ── Ed25519 signing for the transparency log ──────────────────────
+    # The 32-byte Ed25519 private seed (hex), used to sign transparency checkpoints, audit
+    # reports and dispute reports — turning "hash-anchored against a published record" into
+    # "signed by this instance", verifiable offline against the PUBLISHED public key that ships
+    # in the repo (app/signing.py::PUBLISHED_PUBLIC_KEY_HEX). Unset ⇒ signing is disabled and
+    # artefacts publish unsigned (best-effort, like Object Lock). Never commit this value.
+    signing_private_key: str | None = None
+
     b2_object_lock_days: int = 0
     # COMPLIANCE (default) can be bypassed by no one until expiry — the strong claim, and the
     # only mode that actually upgrades "trust us" to "you don't have to". GOVERNANCE can be
