@@ -90,6 +90,89 @@ def evaluate_image(data: bytes, style: str, *, reference: bytes | None = None,
     }
 
 
+# ── Feedback: turn a failed check into a prompt the next attempt can act on ──────────
+# The point of the retry loop is not to roll the dice again — it is to tell the model
+# *what was wrong*. Each failed check maps to a concrete, imperative instruction phrased in
+# the model's own terms (background, framing, identity), so the retry is a correction rather
+# than a coin flip. `{value}` and `{threshold}` are the measured numbers, quoted back so the
+# instruction is specific ("was 0.62, needs ≥0.90") instead of vague.
+_CHECK_GUIDANCE = {
+    "white_background": (
+        "the background was not pure white (measured {value}, needs ≥{threshold}): place the "
+        "product on a pure #FFFFFF seamless studio background, with no gradient, prop or "
+        "shadow reaching the edges of the frame"
+    ),
+    "product_fill": (
+        "the product was poorly sized in the frame ({value}, target {threshold}): centre it "
+        "and let it occupy a natural portion of the image — neither tiny nor cropped at the edges"
+    ),
+    "resolution": (
+        "the output resolution was too low ({value}): render at a higher resolution"
+    ),
+    "product_match": (
+        "the result did not clearly depict the SAME physical product (identity {value}/10): "
+        "preserve the exact shape, proportions, colour, material and surface markings of the "
+        "reference product — do not restyle, recolour, or substitute it"
+    ),
+    "decodable": "the output was not a valid image: produce a clean, decodable image",
+}
+
+
+def feedback_from_report(report: dict) -> str:
+    """One actionable instruction per failed check in a single QA report."""
+    parts: list[str] = []
+    for c in report.get("checks", []):
+        if c.get("passed"):
+            continue
+        tmpl = _CHECK_GUIDANCE.get(c.get("name"))
+        if tmpl:
+            parts.append(tmpl.format(value=c.get("value"), threshold=c.get("threshold")))
+    return "; ".join(parts)
+
+
+def feedback_from_reports(reports: list[dict]) -> str:
+    """Aggregate feedback across a batch (e.g. the four lifestyle scenes), de-duplicated.
+
+    A style is retried as a whole, so the guidance is the union of what went wrong across its
+    assets — de-duplicated **by check** (the instruction for "background" is the same whether
+    two scenes or four failed it), each named once in a stable order using the first failing
+    occurrence's measured value. That keeps the retry prompt one coherent correction rather
+    than the same instruction repeated with slightly different numbers.
+    """
+    by_check: dict[str, str] = {}
+    for report in reports:
+        if not report or report.get("passed"):
+            continue
+        for c in report.get("checks", []):
+            name = c.get("name")
+            if c.get("passed") or name in by_check:
+                continue
+            tmpl = _CHECK_GUIDANCE.get(name)
+            if tmpl:
+                by_check[name] = tmpl.format(value=c.get("value"), threshold=c.get("threshold"))
+    return "; ".join(by_check.values())
+
+
+def to_evaluation(report: dict):
+    """Express a QA report as a Genblaze ``EvaluationResult`` — the SDK's agent vocabulary.
+
+    This is what lets the generate → evaluate → refine loop read `.feedback` the same way
+    `genblaze_core.agents.AgentLoop` does: our QA becomes a first-class SDK evaluator whose
+    verdict carries the correction the next iteration should apply. Imported lazily so this
+    module stays importable without the SDK (the deterministic tier and the hermetic tests
+    need no Genblaze install).
+    """
+    from genblaze_core.agents import EvaluationResult
+
+    vlm = report.get("vlm_score")
+    return EvaluationResult(
+        passed=bool(report.get("passed")),
+        score=(vlm / 10.0) if vlm is not None else None,
+        feedback=feedback_from_report(report) or None,
+        metadata={"scorer": report.get("scorer"), "checks": report.get("checks", [])},
+    )
+
+
 def _resolution_check(img) -> dict:
     short = min(img.width, img.height)
     return {
