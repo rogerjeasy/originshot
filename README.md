@@ -58,18 +58,9 @@ offline, with no call back to our servers.
 > [keep-warm workflow](.github/workflows/keep-warm.yml) pings `/healthz` every 10 minutes so
 > this should never bite; if it does, the first request cold-starts in ~50s.
 
-### Judge quick access
-
-A pre-loaded demo account — real generated packs, real provenance, a small credit balance
-to run your own generation:
-
-| | |
-|---|---|
-| **Email** | `judge@originshot.app` |
-| **Password** | `verify-the-pixels` |
-
-Or click **"Explore a pre-loaded demo account"** on the [sign-in page](https://originshot.vercel.app/signin).
-These credentials are deliberately public and the account is quota- and balance-limited.
+You can explore the full experience without an account through the public surfaces above —
+`/verify`, `/resolve` and `/ledger` need no login — or create an account to run your own
+generation in the Studio.
 
 ---
 
@@ -305,14 +296,14 @@ at a time is not a product for that shop. [**Catalog Mode**](https://originshot.
 takes a folder of photos, makes one product per photo, and runs the lot:
 
 ```
-Generating catalog          8 of 12 products complete · 2 at a time
-▓▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓▓ ▒▒▒▒▒▒▒▒ ░░░░░░░░ ░░░░░░░░ ░░░░░░░░
+Generating catalog          2 of 5 products complete · 2 at a time
+▓▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓▓ ▒▒▒▒▒▒▒▒ ░░░░░░░░ ░░░░░░░░
 
 ✓ Handmade ceramic mug      done         3 assets   74.6s   $0.0400
 ✓ Green glass bottle        done         3 assets  126.5s   $0.0400
 ◐ Linen apron               developing
 ○ Walnut serving board      queued
-⏸ Brass candlestick         not started  — insufficient credit (needs $0.08)
+⊘ Brass candlestick         not started  — insufficient credit (needs $0.08)
 ```
 
 **Every SKU is still an ordinary job.** Catalog Mode does not fork a second generation path:
@@ -403,6 +394,12 @@ naming both defects. That last row is the one the feature exists for.
 
 ## How It Works
 
+<p align="center">
+  <img src="docs/ARCHITECTURE.svg" alt="OriginShot system architecture: Seller and public Buyer → Next.js frontend → FastAPI backend → Genblaze media pipeline → GMI Cloud / OpenAI providers, with Firebase and Backblaze B2 as the data layer" width="860">
+</p>
+
+<p align="center"><sub>System architecture — source: <a href="docs/ARCHITECTURE.drawio"><code>docs/ARCHITECTURE.drawio</code></a></sub></p>
+
 ```
   ONE PHONE PHOTO
          │
@@ -439,9 +436,7 @@ failure. Jobs report `done` / `partial` / `failed`, and the UI shows which style
 
 ---
 
-## Judging Criteria
-
-### Real-World Utility
+## Real-World Value
 
 Product photography is the highest-frequency, most-hated chore in e-commerce, and the
 market already pays for it. OriginShot removes the shoot and adds something no competitor
@@ -464,7 +459,7 @@ that can be adjudicated from evidence instead of two conflicting stories. Market
 and safety teams settle these by hand today, at a cost per case that dwarfs the price of the
 photography.
 
-### Production Readiness
+## Production Readiness
 
 - **Auth on every route.** Firebase ID tokens verified server-side; `uid` comes only from the verified token, never client input. No dev bypass in production.
 - **Per-user isolation** enforced in the backend *and* in Firestore rules (deny-by-default).
@@ -476,7 +471,13 @@ photography.
 - **Denial-of-wallet, actually enforced.** Per-user daily quotas, plus a global per-IP ceiling and a tight dedicated limit on the one public endpoint that spends provider money (`/api/resolve`). The limiter keys on the left-most `X-Forwarded-For` entry — behind Render's proxy `request.client.host` is the same address for every visitor, so limiting on it would put the whole internet in one bucket and let the first burst lock everyone out.
 - **276 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), transparency-log tampering and concurrent appends, the Auditor catching a swapped object, B2 Object Lock retention with honest unlocked fallback, replay refusal paths and manifest-driven specs, cross-provider image fallback and per-provider cost settlement, perceptual "Verify in the Wild" matching of re-encoded files, cross-catalog library scoping, dispute-report findings, catalog credit and concurrency, incremental asset delivery, and the export ZIP.
 
-### B2 Storage and Data Orchestration
+## B2 Storage & Data Orchestration
+
+<p align="center">
+  <img src="docs/B2_DATA_ORCHESTRATION.svg" alt="Backblaze B2 storage and data orchestration: the Genblaze pipeline, transparency log and auditor write into a content-addressed B2 bucket (assets, manifests, ledger/checkpoints, ledger/audits, data), which is served via short-lived presigned URLs and protected by Object Lock" width="900">
+</p>
+
+<p align="center"><sub>B2 storage &amp; data orchestration — source: <a href="docs/B2_DATA_ORCHESTRATION.drawio"><code>docs/B2_DATA_ORCHESTRATION.drawio</code></a></sub></p>
 
 B2 is the system of record for every byte, not an afterthought:
 
@@ -498,7 +499,7 @@ listing becomes a second record of when each head appeared. And with **Object Lo
 ledger prefix, that published head cannot be rewritten *even by us* until its retention
 expires (see below).
 
-#### Backblaze B2 capabilities used — not just generic S3
+### Backblaze B2 capabilities used — not just generic S3
 
 | B2 capability | Where OriginShot uses it | Why it matters here |
 |---|---|---|
@@ -530,7 +531,7 @@ placeholder glyphs. Because bucket keys *are* content hashes, the SHA-256 printe
 each frame is the real one: click any frame and `/verify` resolves it against the ledger.
 The provenance claim on the homepage is checkable before you sign up.
 
-### Use of Genblaze
+## Built on Genblaze
 
 Genblaze is the orchestration layer, not a single wrapped API call:
 
@@ -549,7 +550,7 @@ Model IDs and kwargs are **runtime-verified against the installed SDK** by
 [`tests/test_sdk_integration.py`](backend/tests/test_sdk_integration.py), so a catalog drift
 fails CI rather than production.
 
-#### Feedback to the SDK team
+### Feedback to the SDK team
 
 We upgraded to the current release (GitHub `v0.5.0`, published on PyPI as `genblaze` 0.4.3)
 and re-tested our findings against it before reporting anything. Write-ups live in
