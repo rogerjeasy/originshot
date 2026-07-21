@@ -418,6 +418,19 @@ class VerifyResult(BaseModel):
     perceptual: PerceptualMatch | None = None
 
 
+# ── Signing ───────────────────────────────────────────────────────────
+class SignatureRecord(BaseModel):
+    """A detached Ed25519 signature over an artefact's content hash. See app/signing.py.
+
+    The same shape is attached to transparency checkpoints, audit reports and dispute reports:
+    the signature is over the hex digest the artefact already carries, and it verifies against
+    the public key committed in the repository (`signing.PUBLISHED_PUBLIC_KEY_HEX`).
+    """
+    algorithm: str = "ed25519"
+    key_id: str
+    signature: str
+
+
 # ── Transparency log ──────────────────────────────────────────────────
 class LedgerEntryRow(BaseModel):
     """One append-only log entry. Every field here is covered by `entry_hash`."""
@@ -442,6 +455,9 @@ class LedgerCheckpointOut(BaseModel):
     # immutable (cannot be altered or deleted, even by the operator) until this instant. Its
     # absence means the checkpoint was published without a lock; the field never overstates.
     retained_until: str | None = None
+    # Ed25519 signature over `checkpoint_hash` — attests THIS instance issued this head,
+    # verifiable offline against the repo-published public key. Absent when signing is off.
+    signature: SignatureRecord | None = None
 
 
 class LedgerStatusOut(BaseModel):
@@ -553,6 +569,9 @@ class ResolveOut(BaseModel):
     match_unavailable: str | None = None
     report_sha256: str | None = None
     report_url: str | None = None
+    # Detached Ed25519 signature over `report_sha256` — proves this instance issued the PDF,
+    # verifiable against the repo-published public key. None when signing isn't configured.
+    report_signature: SignatureRecord | None = None
 
 
 # ── Analytics ─────────────────────────────────────────────────────────
