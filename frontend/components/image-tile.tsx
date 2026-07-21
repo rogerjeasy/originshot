@@ -107,7 +107,10 @@ export function ImageTile({
                 asset.qa.checks
                   .map((c) => `${c.name}: ${c.passed ? "pass" : "FAIL"}`)
                   .join(" · ") +
-                (asset.qa.vlm_verdict ? ` — ${asset.qa.vlm_verdict}` : "")
+                (asset.qa.vlm_verdict ? ` — ${asset.qa.vlm_verdict}` : "") +
+                (asset.qa.retry_feedback
+                  ? `\nRefined on retry: ${asset.qa.retry_feedback}`
+                  : "")
               }
             >
               {asset.qa.passed

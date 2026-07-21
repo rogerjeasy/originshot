@@ -78,6 +78,8 @@ export interface QAReport {
   vlm_verdict?: string | null;
   attempt?: number;
   attempts?: number;
+  /** The correction fed into the retry when this asset came from a feedback-driven attempt 2. */
+  retry_feedback?: string | null;
 }
 
 export type StepStatus = "pending" | "running" | "done" | "failed" | "skipped";
@@ -170,6 +172,13 @@ export interface LedgerPosition {
   checkpoint_covers_entry: boolean;
 }
 
+/** A detached Ed25519 signature over an artefact's content hash. Mirrors app/models.py. */
+export interface SignatureRecord {
+  algorithm: string;
+  key_id: string;
+  signature: string;
+}
+
 export interface LedgerCheckpoint {
   log_id: string;
   size: number;
@@ -183,6 +192,11 @@ export interface LedgerCheckpoint {
    * without a lock. Never overstates.
    */
   retained_until?: string | null;
+  /**
+   * Ed25519 signature over `checkpoint_hash` — proves THIS instance issued the head,
+   * verifiable offline against the repo-published public key. Absent when signing is off.
+   */
+  signature?: SignatureRecord | null;
 }
 
 export interface LedgerStatus {

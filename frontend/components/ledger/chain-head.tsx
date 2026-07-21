@@ -90,15 +90,22 @@ export function ChainHead({ status }: { status: LedgerStatus }) {
               published to B2 · {cp.b2_key}
             </p>
           )}
-          {/* The payoff of B2 Object Lock: this published checkpoint is physically immutable
-              until the date shown — unalterable and undeletable even by the operator who runs
-              this instance. Shown only when a real lock was applied, so it never overstates. */}
-          {cp.retained_until && (
-            <p className="mt-2 inline-flex items-center gap-1.5 rounded border border-verified/25 bg-verified-surface px-2 py-1 text-[11px] font-medium text-verified">
-              <span aria-hidden>🔒</span>
-              Immutable under B2 Object Lock until {cp.retained_until}
-            </p>
-          )}
+          {/* Assurances this published checkpoint carries, each shown only when genuinely
+              present so the row never overstates. */}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {cp.signature && (
+              <span className="inline-flex items-center gap-1.5 rounded border border-verified/25 bg-verified-surface px-2 py-1 text-[11px] font-medium text-verified">
+                <span aria-hidden>🖋</span>
+                Ed25519-signed · key {cp.signature.key_id}
+              </span>
+            )}
+            {cp.retained_until && (
+              <span className="inline-flex items-center gap-1.5 rounded border border-verified/25 bg-verified-surface px-2 py-1 text-[11px] font-medium text-verified">
+                <span aria-hidden>🔒</span>
+                Immutable under B2 Object Lock until {cp.retained_until}
+              </span>
+            )}
+          </div>
           {status.checkpoint_lag > 0 && (
             <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
               {status.checkpoint_lag} entr{status.checkpoint_lag === 1 ? "y has" : "ies have"} been
