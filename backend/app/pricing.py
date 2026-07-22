@@ -27,6 +27,11 @@ ESTIMATE_ONLY = "estimated from list prices; actual cost is read from the provid
 # same list prices the quote uses — two cost tables would drift apart.
 IMAGE_UNIT_USD = 0.04
 VIDEO_UNIT_USD = 0.50
+# Voiceover: OpenAI TTS reports no cost through the SDK (Step.cost_usd is None), so this is a
+# list-price CEILING the run settles at, labelled `estimate` (see billable_cost). A ~60-word
+# narration is a few hundred characters; at tts-1 ($15/1M chars) that is well under a cent and
+# at gpt-4o-mini-tts still ~1¢, so $0.03 comfortably bounds one narration plus the script hop.
+AUDIO_UNIT_USD = 0.03
 
 # How many outputs each style produces. Must track originshot_pipelines: lifestyle runs a
 # scene set, variants sweeps VARIANT_COLORS x VARIANT_ANGLES.
@@ -36,6 +41,7 @@ _OUTPUTS: dict[Style, int] = {
     Style.onmodel: 1,
     Style.variant: 2,
     Style.video: 1,
+    Style.voiceover: 1,
 }
 
 _UNIT: dict[Style, float] = {
@@ -44,6 +50,7 @@ _UNIT: dict[Style, float] = {
     Style.onmodel: IMAGE_UNIT_USD,
     Style.variant: IMAGE_UNIT_USD,
     Style.video: VIDEO_UNIT_USD,
+    Style.voiceover: AUDIO_UNIT_USD,
 }
 
 # Rough wall-clock seconds per style, used only to show an ETA next to the live timer.
@@ -54,13 +61,17 @@ _ETA_SECONDS: dict[Style, int] = {
     Style.onmodel: 30,
     Style.variant: 45,
     Style.video: 150,
+    # Script chat hop (can 429/retry) + a short TTS synthesis.
+    Style.voiceover: 20,
 }
 
 
 # ── Settlement: what a finished run actually costs ────────────────────
-# Providers that genuinely cost nothing. The dev mock fabricates assets by copying the
-# upload; charging for that would be inventing revenue.
-FREE_PROVIDERS = frozenset({"mock-dev"})
+# Providers that genuinely cost nothing. The dev mock fabricates assets by copying the upload;
+# charging for that would be inventing revenue. The ffmpeg compositor muxes the narration onto
+# the hero video with a local binary — no provider bill — so the narrated video is free too
+# (its inputs, the audio and the video, were each already billed on their own step).
+FREE_PROVIDERS = frozenset({"mock-dev", "ffmpeg-compositor"})
 
 
 def unit_usd(style: Style) -> float:
