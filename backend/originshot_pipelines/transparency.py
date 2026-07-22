@@ -30,10 +30,18 @@ same standard the rest of this project holds itself to.
     checkpoint served by the API proves *authorship* against the repo-committed public key —
     not just integrity. Forging one now needs the private key, not merely bucket write access.
     A single key still cannot rule out a split view (see below).
-  * **No witnesses, so a split view is undetectable.** A dishonest operator could maintain
-    two chains and show different checkpoints to different people. CT solves this with
-    gossip between independent auditors. A single-operator log cannot, and saying otherwise
-    would be the exact species of unearned claim this project exists to argue against.
+  * **An external witness anchors each head — one layer up.** Like signing, witnessing is not
+    in these pure functions: the app layer (`app/witness.py`) submits every checkpoint hash to
+    OpenTimestamps, anchoring it in **Bitcoin** — the one anchor whose trust root is not the
+    operator's own infrastructure, unlike B2 Object Lock (our bucket, our config) or the signing
+    key (ours). That closes backdating and silent rewriting of a *published* head against an
+    independent timestamp the operator cannot forge.
+  * **Split view: now detectable on comparison, not yet gossiped away.** With every head signed
+    by one key *and* timestamped in Bitcoin, two conflicting chains are each self-incriminating —
+    so a split view is caught the moment any two parties compare the checkpoints they were shown.
+    What a single-operator log still cannot do is *force* both heads in front of a common
+    auditor; gossip between independent witnesses is that last step, and it stays the documented
+    next move rather than a claim made here.
   * **Absence proves little.** An asset missing from the log may never have been logged (the
     append is best-effort so a ledger outage cannot fail a paid generation). Presence plus a
     consistent chain is the load-bearing claim; absence is not evidence of anything.

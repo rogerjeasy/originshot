@@ -30,10 +30,13 @@ Design decisions that keep the claim honest:
     absent when Object Lock isn't applied. A best-effort log must never fail a paid
     generation because a key wasn't set.
 
-What it still does not do, stated as plainly as the rest: a single key proves *an* issuer,
-not *the honest* issuer, and it does not solve the split-view problem (that needs independent
-witnesses). It removes "anyone with bucket write access can forge history"; it does not turn
-a single-operator log into a gossiped one.
+What it still does not do, stated as plainly as the rest: a single key proves *an* issuer, not
+*the honest* issuer. On its own it does not solve the split-view problem — but it is half the
+solution. Because every checkpoint is signed by this one key, two conflicting chains are each
+self-incriminating; paired with the Bitcoin anchor in `app/witness.py` (an independent
+timestamp the operator cannot forge), a split view becomes detectable the moment two parties
+compare the heads they were shown. The remaining gap is gossip between independent witnesses so
+no victim has to find the other — the documented next step, not something claimed here.
 """
 from __future__ import annotations
 
