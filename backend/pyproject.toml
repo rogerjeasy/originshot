@@ -42,7 +42,19 @@ analytics = ["duckdb>=1.0", "pandas>=2.2", "pyarrow>=16.0"]
 # happily resolve 0.4.0 with the OLD genblaze-core/gmicloud pinned underneath and none of
 # those fixes would reach production. NOTE: the GitHub release is tagged v0.5.0 but PyPI
 # publishes it as 0.4.3 — `genblaze==0.5.0` does not exist. Verified 2026-07-19.
-genblaze = ["genblaze[gmicloud,openai,video,parquet]>=0.4.3,<0.5"]
+# `mutagen` gives genblaze-core's Mp3Handler the ability to embed the provenance manifest into
+# the narration MP3 (ID3) for the voiceover style (originshot_pipelines/voiceover.py). Without
+# it the embed degrades to a sidecar manifest (still ledger-anchored), so it is grouped here
+# with the generation deps rather than made a hard requirement.
+# `imageio-ffmpeg` bundles a static ffmpeg binary cross-platform, used to mux the narration onto
+# the hero video (the narrated, content-bound MP4). Bundling it means the mux works on Render
+# without apt-installing ffmpeg; if it (and a system ffmpeg) are absent, the mux is skipped and
+# the standalone narration audio still ships.
+genblaze = [
+    "genblaze[gmicloud,openai,video,parquet]>=0.4.3,<0.5",
+    "mutagen>=1.47",
+    "imageio-ffmpeg>=0.5",
+]
 
 [tool.poetry]
 packages = [
