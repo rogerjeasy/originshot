@@ -17,7 +17,7 @@ from originshot_pipelines.registry import IMAGE_EDIT_FALLBACKS, VIDEO_FALLBACKS
 
 from ..auth import CurrentUser, get_current_user
 from ..models import AnalyticsOut, Modality, StepStatus
-from ..pricing import IMAGE_UNIT_USD, VIDEO_UNIT_USD
+from ..pricing import AUDIO_UNIT_USD, IMAGE_UNIT_USD, VIDEO_UNIT_USD
 from ..repo import get_repo
 
 router = APIRouter(tags=["analytics"])
@@ -40,13 +40,19 @@ def analytics(user: CurrentUser = Depends(get_current_user)):
     dedup = (1 - unique / total) * 100 if total else 0.0
     images = sum(1 for a in assets if a.get("modality") == Modality.image.value)
     videos = sum(1 for a in assets if a.get("modality") == Modality.video.value)
+    # Audio (voiceover) isn't broken out as its own display field, but it still costs and still
+    # belongs in the estimate — and it surfaces in provider_mix below as `openai-tts`, which is
+    # where the cross-provider, cross-modality orchestration shows up in the dashboard.
+    audios = sum(1 for a in assets if a.get("modality") == Modality.audio.value)
 
     provider_mix: dict[str, int] = {}
     for a in assets:
         key = a.get("provider") or "original"
         provider_mix[key] = provider_mix.get(key, 0) + 1
 
-    estimate = round(images * IMAGE_UNIT_USD + videos * VIDEO_UNIT_USD, 2)
+    estimate = round(
+        images * IMAGE_UNIT_USD + videos * VIDEO_UNIT_USD + audios * AUDIO_UNIT_USD, 2
+    )
     profile = repo.get_user(user.uid) or {}
     actual = round(float(profile.get("credits_spent_total") or 0.0), 2)
 
