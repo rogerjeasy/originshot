@@ -193,6 +193,25 @@ def main() -> int:
                 print(f"{INFO} checkpoint is immutable under B2 Object Lock until "
                       f"{cp['retained_until']}")
 
+            # The external witness: is this head anchored in Bitcoin (a party the operator does
+            # NOT control, unlike Object Lock or the signing key)? This verifier deliberately
+            # does not re-derive the Bitcoin proof — that needs the `ots` tool and block data,
+            # which is a far heavier dependency than the forty lines of hashing above. It
+            # reports the state and hands you the exact command to check it independently.
+            wit = cp.get("witness") or {}
+            if wit.get("type") == "opentimestamps":
+                if wit.get("complete") and wit.get("bitcoin_block_height"):
+                    print(f"{OK} checkpoint hash is anchored in Bitcoin block "
+                          f"{wit['bitcoin_block_height']} via OpenTimestamps — a timestamp the "
+                          "operator can neither backdate nor rewrite")
+                elif wit.get("pending_calendars"):
+                    print(f"{INFO} checkpoint submitted to {len(wit['pending_calendars'])} "
+                          "OpenTimestamps calendar(s); Bitcoin confirmation pending (it upgrades "
+                          "within hours — re-run later, or check the proof now)")
+                print(f"{INFO} verify the anchor yourself: "
+                      f"curl -sO {api}/api/ledger/checkpoint.ots && ots verify checkpoint.ots "
+                      "(the proof commits to this checkpoint's hash)")
+
         # 3. Inclusion of one asset.
         if args.sha:
             r = client.get(f"{api}/api/ledger/proof/{args.sha.strip().lower()}")
