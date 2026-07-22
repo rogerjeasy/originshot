@@ -6,7 +6,7 @@ import { ArrowUpRight, ShieldCheck, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Asset } from "@/lib/types";
 
-const STYLE_ORDER = ["studio", "lifestyle", "onmodel", "variant", "video"];
+const STYLE_ORDER = ["studio", "lifestyle", "onmodel", "variant", "video", "voiceover"];
 
 const STYLE_LABEL: Record<string, string> = {
   studio: "Studio",
@@ -14,6 +14,7 @@ const STYLE_LABEL: Record<string, string> = {
   onmodel: "On model",
   variant: "Variant",
   video: "Video",
+  voiceover: "Voiceover",
 };
 
 function short(sha: string): string {

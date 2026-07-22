@@ -1,6 +1,6 @@
 "use client";
 
-import { Maximize2, Play } from "lucide-react";
+import { AudioLines, Maximize2, Play } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { Asset } from "@/lib/types";
@@ -14,6 +14,7 @@ const ASPECT: Record<string, string> = {
   lifestyle: "aspect-[4/5]",
   onmodel: "aspect-[4/5]",
   video: "aspect-video",
+  voiceover: "aspect-video",
 };
 
 const STYLE_LABEL: Record<string, string> = {
@@ -23,6 +24,7 @@ const STYLE_LABEL: Record<string, string> = {
   onmodel: "On model",
   variant: "Variant",
   video: "Video",
+  voiceover: "Voiceover",
 };
 
 /**
@@ -51,7 +53,21 @@ export function ImageTile({
       aria-label={`${label} asset — open preview`}
     >
       <div className={cn("frame lift relative overflow-hidden rounded-md border bg-muted", ar)}>
-        {asset.modality === "video" ? (
+        {asset.modality === "audio" ? (
+          // Audio has no picture — a waveform plate stands in, and the narration text +
+          // player live in the lightbox. The script preview sits on the plate so the tile
+          // says what the clip is, not just that it's audio.
+          <div className="grid size-full place-items-center bg-gradient-to-br from-secondary to-muted px-4 text-center">
+            <span className="flex flex-col items-center gap-2">
+              <AudioLines className="size-9 text-muted-foreground/70" />
+              {asset.script && (
+                <span className="line-clamp-2 max-w-[36ch] text-[12px] leading-snug text-muted-foreground">
+                  &ldquo;{asset.script}&rdquo;
+                </span>
+              )}
+            </span>
+          </div>
+        ) : asset.modality === "video" ? (
           <>
             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <video
@@ -120,7 +136,7 @@ export function ImageTile({
           )}
         </span>
         <span className="tabular shrink-0 font-mono text-[11px] text-muted-foreground">
-          {dims ?? asset.modality}
+          {dims ?? (asset.duration ? `${Math.round(asset.duration)}s` : asset.modality)}
         </span>
       </div>
     </button>

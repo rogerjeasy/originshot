@@ -19,6 +19,7 @@ const GROUP_ORDER: { style: Style; label: string; blurb: string }[] = [
   { style: "onmodel", label: "On model", blurb: "Scale and fit" },
   { style: "variant", label: "Variants", blurb: "Colour and angle sweeps" },
   { style: "video", label: "Video", blurb: "Short product clip" },
+  { style: "voiceover", label: "Voiceover", blurb: "Spoken narration — OpenAI TTS, provenance-tracked" },
 ];
 
 export function AssetWorkbench({
@@ -68,7 +69,7 @@ export function AssetWorkbench({
             {g.pending && (
               <MediaSkeleton
                 aspect={
-                  g.style === "video"
+                  g.style === "video" || g.style === "voiceover"
                     ? "aspect-video"
                     : g.style === "lifestyle" || g.style === "onmodel"
                       ? "aspect-[4/5]"

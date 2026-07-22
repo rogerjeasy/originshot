@@ -20,6 +20,7 @@ const STYLE_LABELS: Record<string, string> = {
   onmodel: "On-model",
   variant: "Colour & angle variants",
   video: "Hero video",
+  voiceover: "Voiceover narration",
   original: "Original",
 };
 
