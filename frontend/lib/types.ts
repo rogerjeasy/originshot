@@ -1,5 +1,5 @@
-export type Style = "original" | "studio" | "lifestyle" | "onmodel" | "variant" | "video";
-export type Modality = "image" | "video";
+export type Style = "original" | "studio" | "lifestyle" | "onmodel" | "variant" | "video" | "voiceover";
+export type Modality = "image" | "video" | "audio";
 export type JobStatus = "queued" | "running" | "partial" | "done" | "failed";
 export type Marketplace = "amazon" | "etsy" | "shopify" | "ebay" | "social";
 
@@ -43,6 +43,12 @@ export interface Asset {
   qa?: QAReport | null;
   /** SHA-256 of the asset this one was replayed from (its manifest supplied the spec). */
   replay_of?: string | null;
+  /** Voiceover (audio) only: the narration text, and how the SCRIPT itself was produced. */
+  script?: string | null;
+  script_source?: "model" | "template" | null;
+  script_model?: string | null;
+  /** Narrated video (MP4): the [video_sha, audio_sha] it was muxed from — two verifiable parents. */
+  muxed_from?: string[] | null;
   created_at: string;
 }
 
@@ -94,6 +100,8 @@ export interface JobStep {
   provider?: string | null;
   model?: string | null;
   cost_usd?: number | null;
+  /** Where cost_usd came from: "provider" | "estimate" | "mixed" | "none". */
+  cost_source?: string | null;
   asset_count: number;
   error?: string | null;
   qa_passed?: boolean | null;
