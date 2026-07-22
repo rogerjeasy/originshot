@@ -65,4 +65,15 @@ def create_listing(sku_id: str, body: ListingRequest | None = None,
         ) from exc
 
     repo.update_sku(user.uid, sku_id, {"listing": result})
+
+    # The listing copy is the richest text a SKU has, so this is the moment its semantic
+    # embedding is worth (re)computing — best-effort, so a missing OpenAI key or a slow embed
+    # never delays or fails the listing the seller actually asked for.
+    try:
+        from .. import catalog_intel
+
+        catalog_intel.reindex_sku(user.uid, sku_id)
+    except Exception as exc:  # noqa: BLE001 — search indexing must not break listing generation
+        log.info("catalog embed after listing skipped for %s: %s", sku_id, type(exc).__name__)
+
     return result
