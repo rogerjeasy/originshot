@@ -14,6 +14,7 @@ const GROUPS = [
   {
     heading: "Proof",
     links: [
+      { href: "/check", label: "Check a listing" },
       { href: "/verify", label: "Verify a file" },
       { href: "/ledger", label: "Transparency log" },
       { href: "/resolve", label: "Resolve a dispute" },

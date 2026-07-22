@@ -7,6 +7,7 @@ const GROUPS: { heading: string; links: { href: string; label: string }[] }[] = 
     heading: "Product",
     links: [
       { href: "/studio", label: "Studio" },
+      { href: "/check", label: "Check a listing" },
       { href: "/verify", label: "Verify" },
       { href: "/resolve", label: "Resolve a dispute" },
       { href: "/ledger", label: "Transparency log" },

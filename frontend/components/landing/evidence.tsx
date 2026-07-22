@@ -23,6 +23,11 @@ const CLAIMS = [
 ];
 
 const ROUTES = [
+  {
+    href: "/check",
+    label: "Check a listing",
+    body: "Paste a listing link — we recognise the photo even after a re-encode.",
+  },
   { href: "/verify", label: "Verify a file", body: "Drop in any image and get its record back." },
   {
     href: "/ledger",
@@ -75,7 +80,7 @@ export function Evidence() {
               ))}
             </ul>
 
-            <div className="mt-11 grid gap-px overflow-hidden rounded-xl border sm:grid-cols-3">
+            <div className="mt-11 grid gap-px overflow-hidden rounded-xl border sm:grid-cols-2">
               {ROUTES.map((r) => (
                 <Link
                   key={r.href}

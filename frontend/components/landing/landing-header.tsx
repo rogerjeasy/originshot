@@ -9,6 +9,7 @@ import { BrandMark } from "@/components/brand-mark";
 
 const NAV = [
   { href: "/how-it-works", label: "How it works" },
+  { href: "/check", label: "Check a listing" },
   { href: "/verify", label: "Verify" },
   { href: "/ledger", label: "Transparency log" },
   { href: "/about", label: "About" },
