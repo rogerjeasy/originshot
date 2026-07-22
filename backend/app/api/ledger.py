@@ -60,6 +60,36 @@ def checkpoint():
     return checkpoint
 
 
+@router.get("/checkpoint.ots")
+def checkpoint_proof():
+    """The latest checkpoint's OpenTimestamps proof, served raw for independent verification.
+
+    This is the whole point of the witness: hand back the `.ots` bytes so anyone can run
+    `ots verify` against **Bitcoin** — a party we don't control — and confirm the checkpoint
+    hash existed by a given block, needing nothing from this server. 404 until a checkpoint has
+    been anchored (witnessing off, or the calendars were unreachable at publish time).
+    """
+    from fastapi import Response
+
+    checkpoint = get_repo().latest_checkpoint()
+    witness = (checkpoint or {}).get("witness") or {}
+    proof_key = witness.get("proof_key")
+    if not checkpoint or not proof_key:
+        raise HTTPException(404, "The latest checkpoint has no OpenTimestamps proof")
+    from ..storage import get_storage
+
+    try:
+        data = get_storage().get_bytes(proof_key)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(404, "The proof could not be retrieved") from exc
+    filename = f"checkpoint-{checkpoint['checkpoint_hash'][:12]}.ots"
+    return Response(
+        content=data,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/pubkey")
 def pubkey():
     """The Ed25519 public key that signs checkpoints, audit reports and dispute reports.
