@@ -11,6 +11,7 @@ const OPTIONS: { key: Style; label: string }[] = [
   { key: "onmodel", label: "On-model" },
   { key: "variant", label: "Variants" },
   { key: "video", label: "Video" },
+  { key: "voiceover", label: "Voiceover" },
 ];
 
 export function StylePicker({
