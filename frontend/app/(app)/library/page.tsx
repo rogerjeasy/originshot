@@ -34,6 +34,7 @@ const STYLE_FILTERS: { key: "all" | Style; label: string }[] = [
   { key: "onmodel", label: "On model" },
   { key: "variant", label: "Variants" },
   { key: "video", label: "Video" },
+  { key: "voiceover", label: "Voiceover" },
 ];
 
 const SOURCE_FILTERS = [
