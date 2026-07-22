@@ -53,6 +53,12 @@ os.environ["MOCK_STEP_DELAY_SECONDS"] = "0"
 # distorting put/call counts. QA logic itself is covered hermetically in tests/test_qa.py.
 os.environ["QA_ENABLED"] = "false"
 
+# The transparency witness submits each checkpoint hash to public OpenTimestamps calendars over
+# the network. Pinned OFF for the suite so tests never make a real calendar call (slow, flaky,
+# and out of scope); the witness's own behaviour is covered hermetically in tests/test_witness.py
+# with a fake calendar. Same stance as signing being off by default.
+os.environ["WITNESS_ENABLED"] = "false"
+
 # The per-IP rate limiter is process-global and every TestClient request arrives from the
 # same address, so counts accumulate across the WHOLE session rather than per test. Left at
 # the production ceiling the suite would start 429-ing partway through for reasons that have
@@ -60,6 +66,7 @@ os.environ["QA_ENABLED"] = "false"
 # explicitly in tests/test_security.py with a limit pinned for that test.
 os.environ["RATE_LIMIT_PER_MINUTE"] = "1000000"
 os.environ["RESOLVE_RATE_LIMIT"] = "1000000/hour"
+os.environ["VERIFY_WILD_RATE_LIMIT"] = "1000000/hour"
 
 
 @pytest.fixture
