@@ -150,6 +150,23 @@ class Settings(BaseSettings):
     catalog_max_skus: int = 100
     image_timeout_seconds: int = 300
     video_timeout_seconds: int = 600
+    # TTS is a short synchronous call (tts-1 ~4s, gpt-4o-mini-tts ~7s for a 60-word script),
+    # but the script-generation chat hop can 429 under load, so give the whole voiceover step
+    # its own budget rather than borrowing the image one.
+    audio_timeout_seconds: int = 120
+
+    # ── Voiceover: spoken product-video narration (audio modality) ────
+    # Opt-in style (not in the default set). Requires OPENAI_API_KEY — the audio path is
+    # OpenAI TTS through Genblaze, because GMI's audio models are unreachable via
+    # genblaze-gmicloud 0.3.3 (docs/genblaze-issues/04). When the key is absent the style is
+    # skipped with an honest reason, never faked. The narration SCRIPT is written by the
+    # listing/chat model (GMI GLM); a deterministic fallback script is used if that 429s, so
+    # the audio still generates. See originshot_pipelines/voiceover.py.
+    voiceover_enabled: bool = True
+    # gpt-4o-mini-tts is the current-generation model and honours an `instructions` param for
+    # delivery tone; tts-1 is faster/cheaper. Either is live-verified working (2026-07-22).
+    voiceover_model: str = "gpt-4o-mini-tts"
+    voiceover_voice: str = "onyx"
 
     # ── Mock generation: TESTS ONLY ───────────────────────────────────
     # The mock fabricates assets by copying the uploaded original and labelling them
