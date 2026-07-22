@@ -16,7 +16,11 @@ from .storage import key_from_url
 
 log = logging.getLogger("originshot.generation")
 
-GENERATED_STYLES = [Style.studio, Style.lifestyle, Style.onmodel, Style.variant, Style.video]
+# Order is also execution order: studio must precede video (which consumes its hero frame),
+# and voiceover runs last so it can, in a later step, be muxed onto that hero video. The
+# voiceover audio itself does not depend on the video — it renders from the narration script.
+GENERATED_STYLES = [Style.studio, Style.lifestyle, Style.onmodel, Style.variant, Style.video,
+                    Style.voiceover]
 
 # Default variant sweep (kept small to bound cost).
 VARIANT_COLORS = ["matte black", "sage green"]
@@ -137,13 +141,19 @@ async def _run_mock(sku, original, wanted, reporter: StepReporter) -> tuple[list
     out: list[dict] = []
     errors: list[str] = []
     for style in wanted:
-        if style is Style.video:  # can't fabricate a video in the mock
-            # Reported as an error, not just a skipped step, so the job settles as
-            # *partial*. A run that silently returns "done" without a style the user
-            # explicitly asked for is the job status lying about what was delivered.
+        # Neither a video nor audio can be fabricated from the uploaded image the mock copies.
+        # Reported as an error (not just a skipped step) so the job settles as *partial*: a run
+        # that silently returns "done" without a style the user explicitly asked for is the job
+        # status lying about what was delivered.
+        if style is Style.video:
             reason = "video cannot be mocked — configure a provider"
             reporter.skip(style, reason)
             errors.append(f"video: {reason}")
+            continue
+        if style is Style.voiceover:
+            reason = "voiceover cannot be mocked — configure OPENAI_API_KEY (OpenAI TTS)"
+            reporter.skip(style, reason)
+            errors.append(f"voiceover: {reason}")
             continue
         reporter.start(style)
         if delay:
@@ -260,12 +270,56 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
         ).arun(sink=sink, timeout=vid_t)
         return [_map(sku, res, Style.video, parent, storage)]
 
+    async def _voiceover() -> list[dict]:
+        # Two Genblaze hops, two providers, two modalities: the listing/chat model (GMI GLM)
+        # writes the narration script, then OpenAI TTS renders it to speech — the cross-
+        # provider orchestration the unified API is for. The script is AI-written; both the
+        # text and how it was produced are recorded on the asset (and the manifest), never
+        # passed off as human copy. A chat 429 degrades to a deterministic script rather than
+        # failing the style — the same rule the QA and listing tiers follow.
+        from originshot_pipelines import voiceover as vo
+
+        script, script_prov = vo.narration_script(
+            sku, brand, api_key=settings.gmi_api_key, timeout=settings.qa_vlm_timeout_seconds,
+        )
+        res = await vo.run_voiceover(
+            script, sink=sink, timeout=settings.audio_timeout_seconds,
+            api_key=settings.openai_api_key, model=settings.voiceover_model,
+            voice=settings.voiceover_voice,
+        )
+        audio_asset = _map(sku, res, Style.voiceover, parent, storage)
+        audio_asset["script"] = script
+        audio_asset["script_source"] = script_prov.get("source")
+        audio_asset["script_model"] = script_prov.get("model")
+        produced = [audio_asset]
+
+        # The payoff: mux the narration onto the delivered hero video → a product video that
+        # talks. This is the one audio-path asset that gets full content-binding (it's an MP4).
+        # Best-effort and gracefully degrading: no hero video (video wasn't requested/failed)
+        # or no ffmpeg ⇒ the standalone narration audio still ships. It never fails the style.
+        hero_video = next(
+            (a for a in out if a.get("style") == Style.video.value
+             and a.get("modality") == Modality.video.value and a.get("b2_key")),
+            None,
+        )
+        if hero_video:
+            try:
+                narrated = await _mux_narrated_video(
+                    sku, audio_asset, hero_video, parent, storage, sink
+                )
+                if narrated:
+                    produced.append(narrated)
+            except Exception as e:  # noqa: BLE001 — the audio is already delivered; mux is a bonus
+                log.warning("narrated video mux failed (%s); delivering audio only", e)
+        return produced
+
     runners = {
         Style.studio: _studio,
         Style.lifestyle: _lifestyle,
         Style.onmodel: _onmodel,
         Style.variant: _variant,
         Style.video: _video,
+        Style.voiceover: _voiceover,
     }
 
     vlm_call = _make_vlm_call(settings)
@@ -284,10 +338,19 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
             reporter.skip(style, reason)
             errors.append(f"video: {reason}")
             continue
+        if style is Style.voiceover and not settings.openai_api_key:
+            # The audio path is OpenAI TTS (GMI audio is unreachable — issue 04). Missing the
+            # key is a skip with an honest reason, not a fabricated silent clip.
+            reason = "requires OPENAI_API_KEY (OpenAI TTS — GMI audio unreachable, issue 04)"
+            reporter.skip(style, reason)
+            errors.append(f"voiceover: {reason}")
+            continue
         reporter.start(style)
         try:
             produced = await runners[style]()
-            if settings.qa_enabled and style is not Style.video:
+            # Image QA (deterministic + VLM product-match) is meaningless for video and audio:
+            # there is no reference product to match a waveform against.
+            if settings.qa_enabled and style not in (Style.video, Style.voiceover):
                 produced = await _qa_and_maybe_retry(
                     style, runners[style], produced, storage,
                     reference=ref_bytes, vlm_call=vlm_call,
@@ -563,8 +626,8 @@ def _map(sku, result, style: Style, parent: str, storage) -> dict:
             storage, run_id or "run", style, manifest
         )
 
-    modality = Modality.video if style is Style.video else Modality.image
     mime_type = getattr(asset, "media_type", None)
+    modality = _modality_for(style, mime_type)
     sink_url = getattr(asset, "url", None)
     out = {
         "sku_id": sku["id"],
@@ -603,10 +666,82 @@ def _map(sku, result, style: Style, parent: str, storage) -> dict:
     return out
 
 
+async def _mux_narrated_video(sku, audio_asset, video_asset, parent, storage, sink) -> dict | None:
+    """Mux the narration onto the hero video → a narrated, content-bound MP4 asset (or None).
+
+    Runs the SDK ffmpeg compositor in a real Genblaze pipeline, so the muxed MP4 carries a
+    manifest and flows through `_map` like every other asset — content-addressable storage,
+    an embedded manifest the strip-and-rehash path can bind (MP4 is supported), and a ledger
+    entry. Returns None when ffmpeg is unavailable or an input can't be fetched; the caller
+    still ships the standalone narration audio, so a missing mux is a graceful degradation,
+    never a failed style.
+
+    The inputs are fetched to a temp dir because the compositor and the pre-loop both need
+    local files; the muxed output is uploaded to B2 by the pipeline's sink before `_map`
+    re-reads it, so the temp dir is gone by the time the asset is finalized.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from originshot_pipelines import voiceover as vo
+
+    ffmpeg = vo.ffmpeg_binary()
+    if not ffmpeg:
+        log.info("narrated video skipped: no ffmpeg (system or bundled) available")
+        return None
+
+    def _url(a: dict) -> str | None:
+        return storage.presigned_get(a["b2_key"]) if a.get("b2_key") else a.get("b2_url")
+
+    v_url, a_url = _url(video_asset), _url(audio_asset)
+    if not (v_url and a_url):
+        log.info("narrated video skipped: missing a source URL for mux")
+        return None
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpd = Path(tmp)
+        (tmpd / "hero.mp4").write_bytes(_fetch_bytes(v_url))
+        (tmpd / "narration.mp3").write_bytes(_fetch_bytes(a_url))
+        looped = tmpd / "hero_looped.mp4"
+        vo.loop_video_to_ceiling(tmpd / "hero.mp4", looped, ffmpeg=ffmpeg)
+        pipe = vo.build_narrated_pipeline(
+            looped.resolve().as_uri(),
+            (tmpd / "narration.mp3").resolve().as_uri(),
+            ffmpeg=ffmpeg,
+            output_dir=str(tmpd),
+            video_sha256=video_asset.get("sha256"),
+            audio_sha256=audio_asset.get("sha256"),
+        )
+        res = await pipe.arun(sink=sink, timeout=get_settings().video_timeout_seconds)
+
+    asset = _map(sku, res, Style.voiceover, parent, storage)
+    # Lineage: the narrated video is derived from two individually provenance-tracked assets.
+    asset["muxed_from"] = [video_asset.get("sha256"), audio_asset.get("sha256")]
+    return asset
+
+
+def _modality_for(style: Style, mime_type: str | None) -> Modality:
+    """Modality from the produced media type, with the style as a fallback.
+
+    Media-type first so an asset is classified by what it actually *is* (a provider that
+    returns audio/mpeg is audio regardless of style bookkeeping); style covers the case where
+    the SDK didn't report a media type.
+    """
+    mt = (mime_type or "").lower()
+    if style is Style.voiceover or mt.startswith("audio/"):
+        return Modality.audio
+    if style is Style.video or mt.startswith("video/"):
+        return Modality.video
+    return Modality.image
+
+
 def _ext_for(mime_type: str | None) -> str:
     return {
         "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp",
         "video/mp4": ".mp4",
+        "audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/wav": ".wav",
+        "audio/x-wav": ".wav", "audio/aac": ".aac", "audio/flac": ".flac",
+        "audio/opus": ".opus", "audio/ogg": ".ogg",
     }.get((mime_type or "").lower(), ".bin")
 
 
