@@ -7,6 +7,7 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useApiData } from "@/lib/use-api";
 import type { VerifyResult } from "@/lib/types";
 import { AdaptiveChrome } from "@/components/adaptive-chrome";
+import { BadgeEmbed } from "@/components/badge-embed";
 import { FadeIn } from "@/components/motion/fade-in";
 import { VerifyPanel } from "@/components/verify-panel";
 import { Alert } from "@/components/ui/alert";
@@ -63,8 +64,10 @@ export default function VerifyResultPage() {
               : error}
           </Alert>
         ) : data ? (
-          <FadeIn>
+          <FadeIn className="space-y-4">
             <VerifyPanel result={data} />
+            {/* Only offer the embed once there's a real record to point a buyer at. */}
+            {data.found && valid && <BadgeEmbed sha256={sha} />}
           </FadeIn>
         ) : null}
       </div>
