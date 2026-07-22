@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/lib/api";
 import type { LedgerStatus } from "@/lib/types";
 
 /**
@@ -105,7 +106,35 @@ export function ChainHead({ status }: { status: LedgerStatus }) {
                 Immutable under B2 Object Lock until {cp.retained_until}
               </span>
             )}
+            {/* The Bitcoin witness — an anchor the operator doesn't control. Green once
+                confirmed on-chain; neutral while it's still a calendar commitment (which is
+                honest: the proof exists, the block confirmation is pending). */}
+            {cp.witness?.complete && cp.witness.bitcoin_block_height != null && (
+              <span className="inline-flex items-center gap-1.5 rounded border border-verified/25 bg-verified-surface px-2 py-1 text-[11px] font-medium text-verified">
+                <span aria-hidden>₿</span>
+                Anchored in Bitcoin block {cp.witness.bitcoin_block_height.toLocaleString()}
+              </span>
+            )}
+            {cp.witness && !cp.witness.complete && cp.witness.pending_calendars.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                <span aria-hidden>₿</span>
+                OpenTimestamps submitted · Bitcoin confirmation pending
+              </span>
+            )}
           </div>
+          {cp.witness && (
+            <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+              Anchored into Bitcoin via OpenTimestamps — a timestamp we don&apos;t control.{" "}
+              <a
+                href={`${API_BASE_URL}/api/ledger/checkpoint.ots`}
+                className="t-accent underline-offset-2 hover:underline"
+              >
+                Download the .ots proof
+              </a>{" "}
+              and run <code className="font-mono text-[11px]">ots verify</code> against Bitcoin
+              yourself.
+            </p>
+          )}
           {status.checkpoint_lag > 0 && (
             <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
               {status.checkpoint_lag} entr{status.checkpoint_lag === 1 ? "y has" : "ies have"} been
