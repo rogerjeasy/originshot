@@ -21,6 +21,10 @@ dependencies = [
     "httpx>=0.27",
     "fpdf2>=2.7",
     "qrcode[pil]>=7.4",
+    # OpenTimestamps: anchors each transparency checkpoint's hash into the Bitcoin blockchain,
+    # an external witness the operator does not control (unlike Object Lock or our signing key).
+    # Pulls python-bitcoinlib + pycryptodomex. Best-effort at runtime — see app/witness.py.
+    "opentimestamps>=0.4.5",
 ]
 
 [project.optional-dependencies]
