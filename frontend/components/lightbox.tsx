@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
+import { AudioLines, RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
 
 import { shortHash } from "@/lib/utils";
 import type { Asset } from "@/lib/types";
@@ -27,10 +27,16 @@ export function Lightbox({
   const reduce = useReducedMotion();
 
   // Replay needs a spec to execute: a stored manifest, on a generated image. The authentic
-  // original is a photograph, and video's input was a generated intermediate — the backend
-  // refuses both, so the button never appears for them.
+  // original is a photograph, video's input was a generated intermediate, and the voiceover's
+  // input is a text script (re-presigning a reference image by content hash is meaningless for
+  // it) — the backend refuses all three, so the button never appears for them.
   const canReplay = Boolean(
-    asset && onReplay && !asset.is_authentic && asset.manifest_key && asset.style !== "video",
+    asset &&
+      onReplay &&
+      !asset.is_authentic &&
+      asset.manifest_key &&
+      asset.style !== "video" &&
+      asset.style !== "voiceover",
   );
 
   useEffect(() => {
@@ -72,7 +78,13 @@ export function Lightbox({
               </Button>
             </div>
             <div className="grid min-h-0 flex-1 place-items-center overflow-auto bg-muted">
-              {asset.modality === "video" ? (
+              {asset.modality === "audio" ? (
+                <div className="flex w-full flex-col items-center gap-5 p-8">
+                  <AudioLines className="size-12 text-muted-foreground/70" />
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <audio src={asset.url ?? undefined} controls className="w-full max-w-md" />
+                </div>
+              ) : asset.modality === "video" ? (
                 // eslint-disable-next-line jsx-a11y/media-has-caption
                 <video src={asset.url ?? undefined} controls className="max-h-[60dvh] max-w-full" />
               ) : (
@@ -92,6 +104,37 @@ export function Lightbox({
                 {asset.embedded && <span className="text-verified">manifest embedded</span>}
                 {asset.replay_of && <span>replay of {shortHash(asset.replay_of, 8, 8)}</span>}
               </div>
+
+              {/* Narrated video: the MP4 muxed from two individually-verifiable parents. */}
+              {asset.muxed_from && asset.muxed_from.length === 2 && (
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-muted-foreground">
+                  <span>muxed from</span>
+                  <Link href={`/verify/${asset.muxed_from[0]}`} className="t-accent hover:underline">
+                    {shortHash(asset.muxed_from[0], 6, 4)}
+                  </Link>
+                  <span>+</span>
+                  <Link href={`/verify/${asset.muxed_from[1]}`} className="t-accent hover:underline">
+                    {shortHash(asset.muxed_from[1], 6, 4)}
+                  </Link>
+                </p>
+              )}
+
+              {/* Voiceover: the narration text, and an honest note that the script itself was
+                  AI-written (or templated) — never passed off as human copy. */}
+              {asset.modality === "audio" && asset.script && (
+                <div className="rounded-md border bg-muted/40 p-3">
+                  <p className="label mb-1 text-muted-foreground">Narration script</p>
+                  <p className="leading-relaxed">&ldquo;{asset.script}&rdquo;</p>
+                  {asset.script_source && (
+                    <p className="mt-2 flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                      <Sparkles className="size-3 shrink-0" />
+                      {asset.script_source === "model"
+                        ? `AI-written script${asset.script_model ? ` · ${asset.script_model}` : ""}`
+                        : "Script written from your product facts (deterministic template)"}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5">
                   {asset.is_authentic ? (
