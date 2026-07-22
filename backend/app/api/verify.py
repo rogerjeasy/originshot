@@ -33,7 +33,17 @@ async def verify_upload(file: UploadFile = File(...)):
     data = await file.read()
     if len(data) > settings.max_upload_bytes:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "File too large")
+    return verify_bytes(data)
 
+
+def verify_bytes(data: bytes) -> VerifyResult:
+    """Re-prove a file's provenance from its exact bytes — the shared verification core.
+
+    Both the seller-facing `POST /verify` and the buyer-facing `POST /check` call this, so the
+    manifest/exact-hash/perceptual precedence lives in exactly ONE place and the two public
+    surfaces can never disagree about the same file. Returns only non-sensitive integrity +
+    lineage; it never reaches for private media, prompts or owner info.
+    """
     sha = hashlib.sha256(data).hexdigest()
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "upload"
