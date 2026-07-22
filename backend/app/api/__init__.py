@@ -7,6 +7,8 @@ from . import (
     badge,
     batches,
     brand_kit,
+    catalog,
+    check,
     compliance,
     credits,
     export,
@@ -28,6 +30,8 @@ api_router.include_router(uploads.router)
 api_router.include_router(generate.router)
 api_router.include_router(batches.router)
 api_router.include_router(verify.router)
+api_router.include_router(check.router)
+api_router.include_router(catalog.router)
 api_router.include_router(badge.router)
 api_router.include_router(ledger.router)
 api_router.include_router(resolve.router)
