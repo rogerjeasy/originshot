@@ -106,6 +106,17 @@ class Settings(BaseSettings):
     resolve_rate_limit: str = "10/hour"
     resolve_enabled: bool = True
 
+    # "Verify Anywhere" — the public, no-login buyer surface (POST /api/check). Also
+    # unauthenticated, but UNLIKE Resolve it calls NO provider (pHash is local numpy, the
+    # ledger lookup is a local scan), so there is no denial-of-wallet exposure — its risk is
+    # SSRF from fetching a caller-supplied URL, contained in app/fetch.py. The per-IP limit is
+    # an abuse/compute guard, so it can be looser than Resolve's wallet-guard. See
+    # app/api/check.py.
+    verify_wild_rate_limit: str = "30/hour"
+    verify_wild_enabled: bool = True
+    verify_wild_fetch_timeout_seconds: int = 8
+    verify_wild_max_images: int = 4  # HTML listing pages: cap candidate images scanned
+
     # Credits (USD). The daily quota above bounds *request volume*; credits bound *spend* —
     # a single video pack costs 10x an image pack, so a request count alone can't cap cost.
     signup_credit_grant: float = 5.0
@@ -128,6 +139,33 @@ class Settings(BaseSettings):
     # Auditor (app/auditor.py) supplies the timer-based cut so a quiet period still gets
     # committed.
     transparency_checkpoint_every: int = 10
+
+    # ── External witness: OpenTimestamps → Bitcoin (app/witness.py) ────
+    # Anchors each checkpoint's hash into the Bitcoin blockchain via public OpenTimestamps
+    # calendars. This is the one anchor whose trust does NOT rest on infrastructure the
+    # operator controls: Object Lock is our bucket + our config, the Ed25519 signature is our
+    # key, but Bitcoin is nobody's. Best-effort by contract — a checkpoint publishes with no
+    # anchor (like an unsigned one) if the calendars are unreachable, and the Auditor upgrades
+    # the pending proof to a confirmed Bitcoin attestation on its next pass (~hours later, the
+    # cadence Bitcoin confirmation actually takes).
+    witness_enabled: bool = True
+    witness_calendars: str = ("https://a.pool.opentimestamps.org,"
+                              "https://b.pool.opentimestamps.org")
+    witness_timeout_seconds: int = 8  # hard cap per calendar call — never slow a generation
+
+    # ── Catalog Intelligence: search + integrity over the stored catalog (app/catalog_intel.py) ─
+    # Visual similarity + duplicate/reused-original detection run entirely on the pHash and
+    # parent-lineage already stored on every asset — no model, no extra storage. Semantic search
+    # is the one net-new capability: it embeds each SKU's AI-generated text with OpenAI and stores
+    # the vectors on B2, degrading gracefully to "disabled" when OPENAI_API_KEY is absent (like
+    # voiceover). Cosine over stored vectors is a linear scan behind the catalog's own scale —
+    # honest about its cost, same stance as the pHash search and the log's O(n-k) proofs.
+    catalog_search_enabled: bool = True
+    catalog_embed_model: str = "text-embedding-3-small"
+    catalog_embed_dim: int = 256           # OpenAI dimension-reduction: small, cheap, plenty here
+    catalog_embed_timeout_seconds: int = 15
+    catalog_similar_max_distance: int = 12  # pHash Hamming for "looks like" (looser than a match)
+    catalog_duplicate_max_distance: int = 6  # pHash Hamming for "near-duplicate source" (strict)
 
     # ── The Auditor: scheduled integrity agent (app/auditor.py) ────────
     # POST /api/ledger/audit runs one audit pass: re-verify a sample of stored assets
@@ -221,6 +259,11 @@ class Settings(BaseSettings):
         # "s3.eu-central-003.backblazeb2.com") by defaulting it to https://.
         raw = self.b2_endpoint_url or f"s3.{self.b2_region}.backblazeb2.com"
         return raw if "://" in raw else f"https://{raw}"
+
+    @property
+    def witness_calendar_list(self) -> list[str]:
+        """OpenTimestamps calendar URLs to submit each checkpoint hash to (comma-separated)."""
+        return [c.strip() for c in self.witness_calendars.split(",") if c.strip()]
 
     @property
     def firebase_configured(self) -> bool:
