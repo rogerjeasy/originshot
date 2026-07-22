@@ -18,11 +18,16 @@ class Style(str, Enum):
     onmodel = "onmodel"
     variant = "variant"
     video = "video"
+    # Spoken product-video narration (OpenAI TTS via Genblaze). The app's audio modality —
+    # reached by a provider swap, not the blocked GMI audio path (originshot_pipelines/
+    # voiceover.py; docs/genblaze-issues/04). Opt-in: it is not in the default style set.
+    voiceover = "voiceover"
 
 
 class Modality(str, Enum):
     image = "image"
     video = "video"
+    audio = "audio"
 
 
 class Marketplace(str, Enum):
@@ -183,6 +188,14 @@ class AssetOut(BaseModel):
     # SHA-256 of the asset this one was replayed from (its manifest supplied the spec).
     # Distinct from parent_sha256, which always points at the authentic original.
     replay_of: str | None = None
+    # Voiceover audio: the narration text and how the SCRIPT itself was produced (model vs
+    # deterministic template) — disclosed, never passed off as human copy.
+    script: str | None = None
+    script_source: str | None = None
+    script_model: str | None = None
+    # Narrated video: the [video_sha, audio_sha] this MP4 was muxed from — both individually
+    # provenance-tracked, so the composite's lineage is two verifiable parents.
+    muxed_from: list[str] | None = None
     created_at: datetime
 
 
