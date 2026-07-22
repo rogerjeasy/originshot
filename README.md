@@ -49,6 +49,7 @@ offline, with no call back to our servers.
 | **REST API** | https://originshot-api.onrender.com |
 | **Swagger / OpenAPI** | https://originshot-api.onrender.com/docs |
 | **Health check** | https://originshot-api.onrender.com/healthz |
+| **Check a listing** (no login) | https://originshot.vercel.app/check |
 | **Public verifier** (no login) | https://originshot.vercel.app/verify |
 | **Resolve a dispute** (no login) | https://originshot.vercel.app/resolve |
 | **Transparency log + last audit** (no login) | https://originshot.vercel.app/ledger |
@@ -59,8 +60,8 @@ offline, with no call back to our servers.
 > this should never bite; if it does, the first request cold-starts in ~50s.
 
 You can explore the full experience without an account through the public surfaces above —
-`/verify`, `/resolve` and `/ledger` need no login — or create an account to run your own
-generation in the Studio.
+`/check`, `/verify`, `/resolve` and `/ledger` need no login — or create an account to run your
+own generation in the Studio.
 
 ---
 
@@ -233,6 +234,41 @@ guarantee it isn't delivering.
 > audit report with zero further changes. See [`app/storage.py`](backend/app/storage.py)
 > (`put_immutable`) and [`.env.example`](.env.example).
 
+### Witnessed by Bitcoin — the timestamp we can't control either
+
+Object Lock and the Ed25519 signature both harden the log, and both share one weakness: they
+rest on infrastructure **we** control. Object Lock is *our* bucket under a retention *we*
+configured; the signature is *our* key. A sufficiently determined operator still owns both. So
+"this head existed by time T and hasn't been rewritten since" ultimately still asked you to
+trust us — the exact thing this project refuses to do anywhere else.
+
+So every checkpoint hash is now anchored into the **Bitcoin blockchain** via
+[OpenTimestamps](https://opentimestamps.org) ([`app/witness.py`](backend/app/witness.py)). At
+publish time the hash is submitted to public calendar servers (a verifiable commitment
+immediately); a few hours later the **Auditor** upgrades that commitment to a confirmed Bitcoin
+attestation. The result is a timestamp anchored in a chain **the operator does not control and
+cannot backdate or rewrite** — the first trust anchor in this project whose root is not our own
+infrastructure.
+
+```
+WITNESS  checkpoint 57cbab90082c…                          ✓ ANCHORED IN BITCOIN
+──────────────────────────────────────────────────────────────────────────────
+OpenTimestamps  proof commits to the checkpoint hash        served at /checkpoint.ots
+Bitcoin         block 800,123                                the operator does not control this
+Verify yourself curl -sO …/api/ledger/checkpoint.ots && ots verify checkpoint.ots
+```
+
+The `.ots` proof is public at
+[`/api/ledger/checkpoint.ots`](https://originshot-api.onrender.com/api/ledger/checkpoint.ots),
+so anyone runs `ots verify` against Bitcoin needing nothing from us. And it makes the split-view
+problem — the transparency log's headline limitation, once flatly "undetectable" — genuinely
+detectable: since every head is *also* signed by our one key, two conflicting chains are each
+self-incriminating, and Bitcoin supplies the independent timestamp that dates each. Best-effort
+by contract, exactly like signing and Object Lock: if the calendars are unreachable a checkpoint
+publishes with no anchor rather than a false one, and the Auditor tries again. The one honest
+gap that remains — gossip between independent witnesses so no victim has to find the other — is
+named below, not papered over.
+
 ### What this does not prove
 
 Stated as plainly as the rest, because a transparency log that overstates itself is worse
@@ -243,9 +279,10 @@ than none:
   artefact's own content hash and verifies offline against the **public key committed in this
   repo** (in [`scripts/verify_ledger.py`](scripts/verify_ledger.py) and `signing.py`), so a
   third party checks it against a key they got from GitHub, not from our server. That closes
-  the old "anyone with bucket write access could forge a checkpoint" hole. What one key still
-  cannot do is rule out a **split view** — a dishonest operator could sign two different
-  chains for two different people; that needs independent witnesses, per the next bullet.
+  the old "anyone with bucket write access could forge a checkpoint" hole. One key cannot rule
+  out a **split view** *alone* — but it is half the fix: two conflicting chains would both be
+  signed by this key, so they are self-incriminating the moment they meet, and the Bitcoin
+  witness below supplies the independent timestamp that makes that meeting conclusive.
 - **Object Lock stops rewriting, not withholding.** A compliance-mode lock makes a *published*
   checkpoint physically immutable — the operator can no longer alter a bad result after
   publishing it. It does **not** force the operator to run the Auditor or to publish at all;
@@ -253,9 +290,17 @@ than none:
 - **The Auditor is self-audit.** It protects against silent corruption and drift, not
   against a dishonest operator, who could simply not run it or not publish a bad result.
   The load-bearing check remains the standalone verifier, which needs none of our code.
-- **No witnesses, so a split view is undetectable.** A dishonest operator could keep two
-  chains and show different checkpoints to different people. CT solves this with gossip
-  between independent auditors; a single-operator log cannot.
+- **Witnessed by Bitcoin, not just by us — split view now detectable, not yet gossiped away.**
+  Every checkpoint hash is anchored into the **Bitcoin blockchain** via
+  [OpenTimestamps](https://opentimestamps.org) ([`app/witness.py`](backend/app/witness.py)) —
+  the one anchor whose trust root is *not* our own infrastructure (Object Lock is our bucket,
+  the signing key is ours; Bitcoin is nobody's). The `.ots` proof is served at
+  [`/api/ledger/checkpoint.ots`](https://originshot-api.onrender.com/api/ledger/checkpoint.ots)
+  so anyone can `ots verify` it against Bitcoin needing nothing from us. This closes **backdating
+  and silent rewriting of a published head**, and — because every head is also signed by one key
+  — makes a **split view detectable the moment two parties compare** the checkpoints they were
+  shown. What it does *not* yet do is force both heads in front of a common auditor; gossip
+  between independent witnesses is the remaining step, named here rather than claimed as done.
 - **Absence proves little.** Appends are best-effort so a ledger outage can never fail a
   generation the provider already billed for. Presence plus a consistent chain is the
   load-bearing claim; absence is not evidence, and `/verify` deliberately shows no negative
@@ -353,6 +398,54 @@ free-tier instance would drop, and lets the UI show real per-file progress.
 
 ---
 
+## Catalog Intelligence — Search The Shop, And Catch What Shouldn't Be There
+
+A catalog is not just files to store — it's files to *search and police*. Once a seller has
+dozens of products, two questions a per-SKU view can't answer start to matter, and both are
+cross-catalog reads over what's already on B2. [**`/catalog`**](https://originshot.vercel.app/catalog)
+answers them ([`app/catalog_intel.py`](backend/app/catalog_intel.py)).
+
+**Search by meaning — a vector index backed by B2.** Each SKU's AI-generated text (title,
+facts, and the per-marketplace listing copy) is embedded with OpenAI `text-embedding-3-small`
+through the same key that serves the voiceover, and the vectors are written to B2
+(`embeddings/<uid>.json`) as the durable, portable index — the same repo-plus-B2 pattern the
+transparency checkpoints use. A query is embedded and ranked by cosine, so "which of my products
+are ceramic?" is answerable by *meaning*, not a filename or a hash. Honest about scope: it's a
+linear scan over stored vectors behind the catalog's own scale (a real HNSW index earns its
+complexity at millions of rows, not one shop's), and it **degrades to "unavailable" with no key**
+— a distinct state from "found nothing", so the UI never implies an empty shop. The visual and
+integrity halves below need no model at all.
+
+**Visual similarity — free, from the pHash you already store.** "Find the other products that
+look like this one" is the *same* perceptual hash the [buyer-side verifier](#verify-anywhere--provenance-that-travels-to-the-buyer)
+uses, scoped to the seller's own catalog — no model, no new storage.
+
+**Integrity — the fraud thesis, turned on the whole shop.** Every other surface asks *"is this
+the real product?"* Catalog Intelligence asks *"is this seller honest across their whole shop?"* —
+and answers it from data already stored:
+
+```
+CATALOG INTEGRITY   dev-user · 14 products                    ⚠ 2 SIGNALS FOR REVIEW
+──────────────────────────────────────────────────────────────────────────────
+Reused original     one authentic photo 05993b99f9af… → 3 different listings
+Near-duplicate      2 products share a near-identical source upload (pHash dist 3/64)
+```
+
+- **Reused original** groups generated assets by `parent_sha256` and flags any authentic
+  original that anchors **more than one distinct SKU** — the exact-reuse signal. The trick is
+  counting *distinct SKUs*: every style within one product legitimately shares a parent, so a
+  normal multi-style SKU never fires.
+- **Near-duplicate sources** clusters the per-SKU *original* pHashes (union-find, strict
+  threshold), catching what exact-reuse can't — a seller who re-saved or re-shot one item and
+  listed it as several, where the bytes differ but the picture doesn't.
+
+Both are **signals for review, never accusations** — a seller may legitimately list variations —
+so they flag for a human rather than concluding fraud. That restraint is the same honesty stance
+the rest of the project takes, and it is exactly what makes the signal trustworthy. No competitor
+in this space turns provenance into a *cross-catalog* authenticity check.
+
+---
+
 ## Voiceover — The Narration With Provenance
 
 The studio image and hero video are the shot. A product video also wants a *voice* — and that
@@ -406,6 +499,64 @@ strip-and-rehash canonical hash covers PNG/MP4/JPEG/WebP, not raw audio, so the 
 result is shown (the muxed MP4 above closes that gap for the video). With no `OPENAI_API_KEY` the
 style is skipped with a reason, never a silent empty clip. See
 [`originshot_pipelines/voiceover.py`](backend/originshot_pipelines/voiceover.py).
+
+---
+
+## Verify Anywhere — Provenance That Travels To The Buyer
+
+Every verification surface above assumes you already **hold the file**. A buyer looking at a
+live Etsy or eBay listing holds neither the file nor an account — they have a link, or at most
+the photo they can drag off the page. And the file that marketplace serves is the one place our
+cryptographic tiers go silent: the platform re-compressed the image on upload, which changes the
+bytes (so the SHA no longer matches) and strips the embedded manifest. **The provenance a seller
+can prove is provenance on files downloaded from us — precisely where it is least needed.**
+
+[**`/check`**](https://originshot.vercel.app/check) closes that gap. It's public, account-free,
+and buyer-framed — *"Is this listing photo real?"* Paste a listing or image link, or drop the
+photo, and it answers from the **perceptual "Verify in the Wild"** tier
+([`originshot_pipelines/perceptual.py`](backend/originshot_pipelines/perceptual.py)): a DCT
+perceptual hash survives a resize + JPEG round-trip that destroys every cryptographic signal, so
+it recognises the re-encoded copy and traces it back to a known OriginShot asset.
+
+```
+CHECK  https://www.etsy.com/listing/…                         ⚠ VISUAL MATCH · EVIDENCE
+──────────────────────────────────────────────────────────────────────────────
+Source          read that page, checked 1 photo on it
+Cryptographic   ✗ no surviving manifest, no exact-hash record   (marketplace re-encoded it)
+Perceptual      ✓ closely matches known asset 4b2b705dbcdd…     distance 2/64
+Classification    AI-GENERATED · gemini-3-pro-image-preview (gmicloud-image)
+Lineage         traces to authentic original 05993b99f9af…      (hash only — never the image)
+Verdict         "…resembles a known OriginShot asset. This is a visual-similarity match —
+                 evidence, not a cryptographic guarantee."
+```
+
+Four decisions carry it, and each maps to a judging criterion:
+
+- **Same engine, new surface — not a second code path.** `/check` calls the exact `verify_bytes`
+  core behind `/verify` ([`app/api/verify.py`](backend/app/api/verify.py)), so the buyer and
+  seller surfaces can never disagree about the same file. What's new is only the *reach*: a
+  buyer's link, fetched server-side.
+- **Evidence, never dressed as proof.** A perceptual match is a similarity claim; the raw
+  bit-distance is always shown, the copy says so, and it **never** sets the cryptographic
+  `content_bound` flag. A non-match is grey ("no record — absence isn't proof"), never a red
+  "fake". Same honesty discipline as the rest of the project.
+- **Buyer privacy posture, inherited from [Resolve](#resolve--provenance-that-shows-up-for-the-argument).**
+  The response carries the lineage **hash** and the model, **never the seller's private
+  original image**.
+- **A public URL-fetcher, hardened like one.** This is the app's one endpoint that fetches a
+  caller-supplied URL — a classic SSRF surface — so it goes through a single hardened choke point
+  ([`app/fetch.py`](backend/app/fetch.py)): http/https + standard-ports only, **every** resolved
+  IP checked against private / loopback / link-local (the `169.254.169.254` metadata address) /
+  CGNAT ranges, redirects re-validated per hop, and size + timeout caps. Unlike `/resolve` it
+  calls **no** provider, so there is no denial-of-wallet exposure — the controls are purely
+  anti-SSRF, and the residual DNS-rebinding window is documented honestly rather than hidden. See
+  [`docs/SECURITY.md` §10.1](docs/SECURITY.md).
+
+**Why this matters for the thesis.** The embeddable badge puts provenance where the buyer is only
+*if the seller embeds it and the marketplace preserves it* — and the marketplace re-encode that
+strips the manifest is exactly what defeats it. `/check` needs neither: the buyer initiates it,
+on any listing, and the perceptual tier is built to survive the re-encode. It turns provenance
+from a feature the seller enjoys into a check the buyer can actually run.
 
 ---
 
@@ -521,11 +672,13 @@ sample sizes, caveats and one honest gap recorded in
 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) — including why the provider-billed figure is
 unavailable rather than quietly substituted with the estimate.
 
-It also serves **two audiences, not one**. The Studio is for the seller; [Resolve](#resolve--provenance-that-shows-up-for-the-argument)
-is for the buyer and the marketplace, and needs no account because they don't have one. That
-is what turns provenance from a feature the seller enjoys into an asset the seller can spend
-— a listing whose photos can be checked by the person deciding whether to buy, and a claim
-that can be adjudicated from evidence instead of two conflicting stories. Marketplace trust
+It also serves **two audiences, not one**. The Studio is for the seller;
+[Verify Anywhere](#verify-anywhere--provenance-that-travels-to-the-buyer) and
+[Resolve](#resolve--provenance-that-shows-up-for-the-argument) are for the buyer and the
+marketplace, and need no account because they don't have one. That is what turns provenance from
+a feature the seller enjoys into an asset the seller can spend — a listing whose photos the
+buyer can check *on the listing itself*, recognised even after the marketplace re-encoded them,
+and a claim that can be adjudicated from evidence instead of two conflicting stories. Marketplace trust
 and safety teams settle these by hand today, at a cost per case that dwarfs the price of the
 photography.
 
@@ -548,7 +701,7 @@ record" shows grey, never a red "fake" (absence is not proof). Copy the snippet 
 - **Graceful degradation** — partial job results, provider fallback chains, and a storage/repo abstraction that runs fully offline in dev.
 - **A health check that doesn't lie.** `/healthz` *exercises* each dependency rather than checking that an env var is set — it initializes the Firebase Admin SDK and (with `?deep=true`) round-trips to the B2 bucket, reporting `status: degraded` plus the failing exception type. It deliberately still returns **200** while the process is alive, because a failing health check makes the platform restart-loop the service; degradation belongs in the body. Config problems surface as **503**, never as an unhandled 500 — a 500 escapes the CORS middleware and reaches browsers disguised as a CORS error.
 - **Denial-of-wallet, actually enforced.** Per-user daily quotas, plus a global per-IP ceiling and a tight dedicated limit on the one public endpoint that spends provider money (`/api/resolve`). The limiter keys on the left-most `X-Forwarded-For` entry — behind Render's proxy `request.client.host` is the same address for every visitor, so limiting on it would put the whole internet in one bucket and let the first burst lock everyone out.
-- **339 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), transparency-log tampering and concurrent appends, the Auditor catching a swapped object, B2 Object Lock retention with honest unlocked fallback, replay refusal paths and manifest-driven specs, cross-provider image fallback and per-provider cost settlement, the voiceover script/TTS chain (deterministic-script fallback, `instructions` gating, the Windows `file://` fix, audio cost settlement), perceptual "Verify in the Wild" matching of re-encoded files, cross-catalog library scoping, dispute-report findings, catalog credit and concurrency, incremental asset delivery, and the export ZIP.
+- **380 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), transparency-log tampering and concurrent appends, the Auditor catching a swapped object, B2 Object Lock retention with honest unlocked fallback, the **Bitcoin witness** (OpenTimestamps stamping, describe/upgrade, best-effort degradation when calendars are down, and the served `.ots` proof), replay refusal paths and manifest-driven specs, cross-provider image fallback and per-provider cost settlement, the voiceover script/TTS chain (deterministic-script fallback, `instructions` gating, the Windows `file://` fix, audio cost settlement), perceptual "Verify in the Wild" matching of re-encoded files, the buyer-side `/api/check` surface and its **SSRF-hardened URL fetch** (private-IP / non-HTTP-scheme / odd-port / redirect-to-private / oversized-body rejections, plus listing-page image extraction), **Catalog Intelligence** (reused-original + near-duplicate-source detection, owner-scoped visual search, and semantic search with a fake embedder + graceful no-key degradation + the B2 vector-index write), cross-catalog library scoping, dispute-report findings, catalog credit and concurrency, incremental asset delivery, and the export ZIP.
 
 ## B2 Storage & Data Orchestration
 
@@ -568,6 +721,8 @@ B2 is the system of record for every byte, not an afterthought:
 | **Sidecar manifests** | `manifests/<run_id>/<style>.json` — canonical provenance JSON |
 | **Analytics** | Genblaze `ParquetSink` metadata export |
 | **Transparency checkpoints** | `ledger/checkpoints/<size>-<hash>.json` — the published head of the append-only log |
+| **Bitcoin witness proofs** | `ledger/checkpoints/<size>-<hash>.ots` — the OpenTimestamps proof anchoring that checkpoint's hash into Bitcoin |
+| **Catalog search index** | `embeddings/<uid>.json` — the per-seller text-embedding vectors backing semantic catalog search |
 | **Audit reports** | `ledger/audits/<audit-id>-<hash>.json` — each scheduled integrity pass, keyed by the report's own SHA-256 |
 
 **B2 is the trust anchor, not just the blob store.** A transparency checkpoint kept only in
@@ -596,7 +751,11 @@ everything stored: filter by style, modality, authentic-vs-AI, or QA verdict, an
 **content-hash prefix** — the same handle the ledger, `/verify` and the export certificates
 all use, so "which of my files is `4b2b705d…`?" is answerable from the question the ledger
 itself hands you. Filters run server-side, so a signed URL is minted only for the assets
-actually being shown.
+actually being shown. And [**Catalog Intelligence**](#catalog-intelligence--search-the-shop-and-catch-what-shouldnt-be-there)
+adds three more ways in over the same B2 objects: **semantic** search (a text-embedding vector
+index stored on B2 at `embeddings/<uid>.json`), **visual** near-neighbour search (the stored
+pHash), and cross-catalog **integrity** signals — organize, search, *and manage*, which is the
+whole of what the criterion asks.
 
 **Content-addressing is the cost story.** The key *is* the SHA-256 of the content, so
 identical bytes — a re-uploaded original, a repeated generation, a shared scene plate — are
@@ -917,7 +1076,7 @@ Stated plainly, because a submission that hides these is worse than one that nam
 - **Jobs run inline** on the web service (`JOB_QUEUE=inline`). The Arq/Redis worker path is implemented and tested but not provisioned, to keep the free-tier footprint lean.
 - **Dispute reports are signed** (Ed25519, when a signing key is configured) — a report proves both that it is unaltered *and* that this instance issued it, verifiable offline against the repo-committed public key. Without a key configured they fall back to hash-anchored-only, and say so on their face.
 - **The delivered-item comparison is a vision-model judgement.** It is evidence for a human decision, never a determination of fault, and every report says so on its face. It reads two photographs: it cannot assess working order, brand authenticity, or anything not visible in them. The provenance half of each report needs no model and is reproducible by anyone.
-- **The transparency log is unsigned and unwitnessed.** It proves the published history is internally consistent and append-only against a saved checkpoint; it cannot prove authorship, and a single-operator log cannot rule out a split view. Both are spelled out above and in the tool's own output rather than left for a reader to discover.
+- **The transparency log's remaining gap is witness gossip, not authorship or backdating.** Each checkpoint is Ed25519-signed (authorship, verifiable offline) *and* anchored into Bitcoin via OpenTimestamps (an independent timestamp the operator can't forge), so a split view is now detectable when two parties compare. What a single-operator log still can't do is *force* both heads before a common auditor — gossip between independent witnesses. That last step is named above and in the tool's own output rather than left for a reader to discover.
 - **Provider credit is exhaustible.** GMI Cloud returns `402 Insufficient credits` when the account balance runs out, and generation then fails cleanly with that message rather than degrading. Top up before a demo.
 - **Standalone audio is OpenAI-only, and `content_bound` is not computed for it.** The voiceover renders on OpenAI TTS because GMI's audio models are unreachable ([issue 04](docs/genblaze-issues/04-gmi-audio-modality-unreachable.md)); with no `OPENAI_API_KEY` the style is skipped with an honest reason, never faked. The narration carries an embedded, verifiable manifest and a ledger entry, but `content_bound` is `None` for the raw audio clip — the strip-and-rehash canonical hash covers PNG/MP4/JPEG/WebP, not audio — so standalone audio is "present + verified", one tier below the round-trip binding. The **narrated MP4** (narration muxed onto the hero video) closes that gap: being an MP4 it binds fully.
 - **The narrated video needs ffmpeg; without it, only the audio ships.** ffmpeg is bundled via `imageio-ffmpeg` so this works on Render out of the box, but if neither a bundled nor a system binary is present the mux is skipped and the standalone narration audio is still delivered — a graceful degradation, never a failed style.

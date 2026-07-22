@@ -242,6 +242,18 @@ Because each generation calls a **paid** provider, abuse is a *financial* attack
 - **Resolution/duration ceilings** in production defaults to bound worst-case cost (e.g., 5-sec video, capped megapixels).
 - **CAPTCHA / App Check (optional):** Firebase **App Check** to ensure requests originate from the genuine app, reducing scripted abuse.
 
+### 10.1 SSRF — the public URL-fetch surface (`/api/check`)
+
+"Verify Anywhere" (`POST /api/check`) lets an **anonymous** caller paste a URL the server then fetches, which is a textbook **Server-Side Request Forgery** surface. It is fenced by a single hardened choke point (`app/fetch.py`), deliberately **not** the trusted-B2 `_fetch_bytes` helper:
+
+- **Scheme allow-list** — `http`/`https` only (no `file:`/`ftp:`/`gopher:`/`data:`).
+- **Port allow-list** — 80/443/scheme-default only (odd ports are a hallmark of internal probes).
+- **Private-range block** — every resolved A/AAAA address is checked against private / loopback / link-local (incl. the `169.254.169.254` cloud-metadata address) / CGNAT `100.64/10` / reserved / multicast / unspecified, for IPv4 and IPv4-mapped IPv6 alike. **All** resolved addresses must be public, so a name resolving to one public + one private IP is rejected.
+- **Redirect re-validation** — redirects are followed manually, capped at 2 hops, and the destination is re-validated on **every** hop (a `302 → http://127.0.0.1` is the oldest SSRF-via-redirect trick).
+- **Size + timeout caps** — the body is streamed and aborted past the upload cap; a short timeout bounds slow-loris.
+- **No wallet exposure** — unlike `/resolve`, this path calls **no** provider (pHash is local numpy), so SSRF and compute are the only risks, not spend.
+- **Stated residual limit** — a determined DNS-rebinding attacker could flip a name from public to private between validation and httpx's own resolution; the window is narrowed by resolving immediately before the request and a short timeout, and socket-level IP pinning is the documented next step. This is called out honestly in `app/fetch.py` rather than papered over.
+
 ---
 
 ## 11. Provenance & Integrity Security
@@ -253,6 +265,7 @@ Provenance is OriginShot's trust feature, so its own security is in scope.
 - **No secrets in manifests:** ensure provider keys, internal IDs, or user PII are never embedded.
 - **Anti-forgery of "authentic" status:** the "authentic vs. AI" determination is computed **server-side** from our records (the original's hash + lineage), not asserted by the client. The public verify result is read-only and derived from stored, integrity-checked data.
 - **Tamper-evident originals:** optional B2 Object Lock on originals (§8) so "this is the real photo" can't be quietly rewritten.
+- **External witness (OpenTimestamps → Bitcoin):** every transparency checkpoint hash is anchored into the Bitcoin blockchain (`app/witness.py`), the one integrity anchor whose trust root is *not* operator-controlled infrastructure (unlike Object Lock, our bucket, or the Ed25519 key, ours). This closes backdating/silent-rewrite of a published head against an independent party, and — with the signature — makes a split view detectable on comparison. The `.ots` proof is served publicly (`/api/ledger/checkpoint.ots`) for independent verification. Best-effort by contract, so a calendar outage never fails a generation; the remaining gap (witness gossip) is documented, not hidden.
 - **Replay safety:** `genblaze replay` reruns are themselves authenticated and quota-counted (a replay is still a paid generation).
 
 ---
