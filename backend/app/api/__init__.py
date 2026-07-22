@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from . import (
     admin,
     analytics,
+    badge,
     batches,
     brand_kit,
     compliance,
@@ -27,6 +28,7 @@ api_router.include_router(uploads.router)
 api_router.include_router(generate.router)
 api_router.include_router(batches.router)
 api_router.include_router(verify.router)
+api_router.include_router(badge.router)
 api_router.include_router(ledger.router)
 api_router.include_router(resolve.router)
 api_router.include_router(analytics.router)
