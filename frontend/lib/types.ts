@@ -52,6 +52,51 @@ export interface Asset {
   created_at: string;
 }
 
+/** Catalog Intelligence — mirrors app/models.py. */
+export interface SimilarAsset extends Asset {
+  /** pHash Hamming distance from the query asset (0 = identical). */
+  phash_distance: number;
+}
+
+export interface CatalogSearchHit {
+  sku_id: string;
+  title?: string | null;
+  category?: string | null;
+  score: number;
+}
+
+export interface CatalogSearchOut {
+  /** False when semantic search is off (no OpenAI key) — distinct from "found nothing". */
+  available: boolean;
+  indexed: number;
+  hits: CatalogSearchHit[];
+}
+
+export interface ReusedOriginalFinding {
+  parent_sha256: string;
+  sku_ids: string[];
+  sku_count: number;
+}
+
+export interface NearDuplicateFinding {
+  sku_ids: string[];
+  sku_count: number;
+}
+
+export interface CatalogIntegrity {
+  reused_originals: ReusedOriginalFinding[];
+  near_duplicate_sources: NearDuplicateFinding[];
+  skus_analyzed: number;
+  generated_at: string;
+}
+
+export interface ReindexResult {
+  available: boolean;
+  embedded: number;
+  skipped: number;
+  total: number;
+}
+
 export interface ListingEntry {
   title: string;
   description: string;
@@ -153,6 +198,18 @@ export interface VerifyResult {
   perceptual?: PerceptualMatch | null;
 }
 
+/**
+ * "Verify Anywhere" — the buyer-facing wrapper around a VerifyResult. Mirrors app/models.py.
+ * The verdict lives entirely in `result`; `source` only records where the checked image came
+ * from, so the UI can say "we scanned the photo on that page" honestly.
+ */
+export interface CheckResult {
+  source: "upload" | "url_image" | "listing_page";
+  source_url?: string | null;
+  images_scanned: number;
+  result: VerifyResult;
+}
+
 /** A perceptual (visual-similarity) match — the third verify tier. Mirrors app/models.py. */
 export interface PerceptualMatch {
   matched_sha256: string;
@@ -205,6 +262,21 @@ export interface LedgerCheckpoint {
    * verifiable offline against the repo-published public key. Absent when signing is off.
    */
   signature?: SignatureRecord | null;
+  /**
+   * Independent Bitcoin timestamp (OpenTimestamps). The one anchor whose trust root is not the
+   * operator's own infrastructure. Absent when witnessing is off or the calendars were down.
+   */
+  witness?: CheckpointWitness | null;
+}
+
+/** An OpenTimestamps → Bitcoin anchor for a checkpoint. Mirrors app/models.py. */
+export interface CheckpointWitness {
+  type: string; // "opentimestamps"
+  proof_key?: string | null;
+  pending_calendars: string[];
+  /** Bitcoin block the hash is anchored in; null while still a calendar commitment. */
+  bitcoin_block_height?: number | null;
+  complete: boolean;
 }
 
 export interface LedgerStatus {

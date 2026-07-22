@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   Loader2,
   LogOut,
+  Radar,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -46,6 +47,7 @@ const NAV_GROUPS = [
     name: "Inspect",
     items: [
       { href: "/library", label: "Library", icon: Images, keywords: "assets photos videos media" },
+      { href: "/catalog", label: "Catalog Intel", icon: Radar, keywords: "search semantic similar duplicate fraud integrity reused" },
       { href: "/analytics", label: "Analytics", icon: BarChart3, keywords: "cost spend storage savings providers" },
       { href: "/verify", label: "Verify", icon: ShieldCheck, keywords: "hash provenance check authenticity" },
       { href: "/ledger", label: "Ledger", icon: ScrollText, keywords: "transparency log audit checkpoint" },
