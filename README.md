@@ -113,6 +113,20 @@ to. See [`originshot_pipelines/provenance.py`](backend/originshot_pipelines/prov
 > still loses content-binding, so our embedder remains load-bearing there. We kept one code
 > path for both formats rather than making it release-conditional.*
 
+> **Why our own manifest, and not C2PA?** C2PA is the industry provenance standard and the
+> right *interop* target — the roadmap adds a C2PA-shaped export of our manifest so an OriginShot
+> asset can carry a credential the wider ecosystem (Adobe, camera makers) already reads. We
+> didn't build the core *on* C2PA because its trust model is a poor fit for a single application:
+> a C2PA claim is only as meaningful as the signing certificate behind it, which presumes a
+> recognized CA / trust list — infrastructure a hackathon entry can't stand up, and a self-signed
+> C2PA manifest asserts little. OriginShot instead makes a claim that needs **no trust list to
+> check**: the manifest is bound to the bytes by a hash the verifier *recomputes by stripping the
+> manifest back out of the container*, so "these exact bytes match the record" is provable
+> offline; the [transparency log](#the-transparency-log--what-a-per-file-manifest-cant-tell-you)
+> answers a question C2PA's per-asset scope doesn't (*what else was generated?*); and Ed25519 over
+> a repo-published key gives authorship without a CA. Complementary, not competing — which is why
+> the plan is to export *to* C2PA, not replace our binding with it.
+
 ---
 
 ## The Transparency Log — What A Per-File Manifest Can't Tell You
@@ -339,6 +353,62 @@ free-tier instance would drop, and lets the UI show real per-file progress.
 
 ---
 
+## Voiceover — The Narration With Provenance
+
+The studio image and hero video are the shot. A product video also wants a *voice* — and that
+voice is where OriginShot's thesis meets a modality nobody else in this space provenance-tracks.
+Add `voiceover` to a run and one authentic photo now drives text, image, video **and** audio:
+
+```
+VOICEOVER  sku · handmade-ceramic-mug                          ✓ AUDIO · PROVENANCE EMBEDDED
+──────────────────────────────────────────────────────────────────────────────
+Script      GMI Cloud · zai-org/GLM-5.1-FP8   (AI-written from the SKU facts, disclosed)
+            "This handmade ceramic mug brings quiet warmth to your kitchen. Crafted from
+             stoneware, it features a two-tone glazed finish. With a 350ml capacity…"
+Speech      OpenAI · gpt-4o-mini-tts · voice=onyx        audio/mpeg  232 KB  in 7.0s
+Manifest    ✓ present  ✓ verified   embedded in the MP3 (ID3)     content_bound  — (audio)
+Ledger      entry #163, kind=asset      openai-tts now in the provider-mix chart
+```
+
+Three decisions carry it, and each is one the judging criteria reward directly:
+
+- **It's a genuine multi-provider, multi-modality chain.** GMI's `GLM` writes the script;
+  **OpenAI TTS** renders the speech. That is "orchestrate across models, providers, or steps"
+  shown in one run, not asserted — and it exists *because* GMI's own audio is unreachable
+  ([issue 04](docs/genblaze-issues/04-gmi-audio-modality-unreachable.md)). Rather than fake it
+  or cut it, we did the one thing this architecture is built for: **swapped providers** through
+  Genblaze's unified API. Audio was never dead — it was one swap away.
+- **The narration carries its own provenance.** It flows through the *same* generation path as
+  every image and video (`app/generation.py`): the manifest embeds into the MP3, the bytes are
+  stored content-addressably on B2, and the asset gets a transparency-log entry. This is
+  provenance-tracked AI *audio* — a claim we can make because the narration is treated as
+  generated media, not a decorative afterthought.
+- **The script is AI-written, and says so.** The words come from the listing/chat model, so the
+  asset records both the script text and that a model produced it — disclosed in the manifest,
+  never passed off as human copy. If the chat endpoint 429s, a deterministic script from the
+  SKU's own facts keeps the audio alive (the same "never hard-depend on chat" rule the QA and
+  listing tiers follow).
+
+**The payoff: a product video that talks — and it's the one audio-path asset with full
+content-binding.** When the run also produced a hero video, the narration is muxed onto it into
+a narrated MP4. That happens through the SDK's ffmpeg compositor in a real Genblaze pipeline, so
+the muxed file carries a manifest and flows through the *same* `_map` path as every image and
+video: content-addressable on B2, embedded manifest, ledger entry — and because it's an **MP4**,
+the strip-and-rehash canonical hash *does* bind it, so unlike the standalone audio it verifies
+all the way to `content_bound`. The mux loops the hero clip to the narration's length so nothing
+is truncated, and ffmpeg ships bundled (`imageio-ffmpeg`), so it works on Render with no image
+changes. No ffmpeg, or no hero video? The mux is skipped and the standalone narration still
+ships — a graceful degradation, never a failed style.
+
+Honest about the one seam: **`content_bound` is `None` for the standalone audio.** The
+strip-and-rehash canonical hash covers PNG/MP4/JPEG/WebP, not raw audio, so the narration clip is
+*present + verified* — one tier below the round-trip binding, and said out loud wherever an audio
+result is shown (the muxed MP4 above closes that gap for the video). With no `OPENAI_API_KEY` the
+style is skipped with a reason, never a silent empty clip. See
+[`originshot_pipelines/voiceover.py`](backend/originshot_pipelines/voiceover.py).
+
+---
+
 ## Resolve — Provenance That Shows Up For The Argument
 
 The scenario this project opens with ends *"…not the seller six months later during a
@@ -459,6 +529,15 @@ that can be adjudicated from evidence instead of two conflicting stories. Market
 and safety teams settle these by hand today, at a cost per case that dwarfs the price of the
 photography.
 
+**And the provenance travels.** Every verified asset has an **embeddable badge** — a live SVG
+(`/api/badge/{sha}.svg`) a seller drops into a marketplace listing with one `<img>`. It resolves
+against the transparency ledger on every request and links back to the public verifier, so the
+claim shows up **where the buyer is**, not only inside our app. It's an image, not an iframe, so
+it renders in the many listing surfaces that block frames; and it is scrupulously neutral about a
+hash it doesn't know — a marketplace re-encode strips the manifest and changes the hash, so "no
+record" shows grey, never a red "fake" (absence is not proof). Copy the snippet straight from any
+`/verify/{sha}` page.
+
 ## Production Readiness
 
 - **Auth on every route.** Firebase ID tokens verified server-side; `uid` comes only from the verified token, never client input. No dev bypass in production.
@@ -469,7 +548,7 @@ photography.
 - **Graceful degradation** — partial job results, provider fallback chains, and a storage/repo abstraction that runs fully offline in dev.
 - **A health check that doesn't lie.** `/healthz` *exercises* each dependency rather than checking that an env var is set — it initializes the Firebase Admin SDK and (with `?deep=true`) round-trips to the B2 bucket, reporting `status: degraded` plus the failing exception type. It deliberately still returns **200** while the process is alive, because a failing health check makes the platform restart-loop the service; degradation belongs in the body. Config problems surface as **503**, never as an unhandled 500 — a 500 escapes the CORS middleware and reaches browsers disguised as a CORS error.
 - **Denial-of-wallet, actually enforced.** Per-user daily quotas, plus a global per-IP ceiling and a tight dedicated limit on the one public endpoint that spends provider money (`/api/resolve`). The limiter keys on the left-most `X-Forwarded-For` entry — behind Render's proxy `request.client.host` is the same address for every visitor, so limiting on it would put the whole internet in one bucket and let the first burst lock everyone out.
-- **276 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), transparency-log tampering and concurrent appends, the Auditor catching a swapped object, B2 Object Lock retention with honest unlocked fallback, replay refusal paths and manifest-driven specs, cross-provider image fallback and per-provider cost settlement, perceptual "Verify in the Wild" matching of re-encoded files, cross-catalog library scoping, dispute-report findings, catalog credit and concurrency, incremental asset delivery, and the export ZIP.
+- **339 automated tests** covering auth, IDOR isolation, upload validation, rate limiting, pipelines, provenance round-trips (including tamper detection across PNG/JPEG/WebP/MP4), transparency-log tampering and concurrent appends, the Auditor catching a swapped object, B2 Object Lock retention with honest unlocked fallback, replay refusal paths and manifest-driven specs, cross-provider image fallback and per-provider cost settlement, the voiceover script/TTS chain (deterministic-script fallback, `instructions` gating, the Windows `file://` fix, audio cost settlement), perceptual "Verify in the Wild" matching of re-encoded files, cross-catalog library scoping, dispute-report findings, catalog credit and concurrency, incremental asset delivery, and the export ZIP.
 
 ## B2 Storage & Data Orchestration
 
@@ -539,6 +618,7 @@ Genblaze is the orchestration layer, not a single wrapped API call:
 - **Agentic evaluate → retry → store** — every generated image is QA-scored (deterministic Pillow checks + a vision-model "same product?" score against the authentic original), the style regenerates once on failure, and the verdict ships in the asset's metadata and the UI ("passed QA on attempt 2"). See [`originshot_pipelines/qa.py`](backend/originshot_pipelines/qa.py)
 - **Chaining with lineage** — the studio hero image feeds image-to-video; every generated asset records `parent_sha256` back to the authentic original
 - **Fallback chains** — `fallback_models=[…]` on the video step (`pixverse-v5.6-i2v`, `wan2.6-r2v`) so a provider outage degrades instead of failing
+- **Cross-provider, cross-modality orchestration** — one authentic photo fans out to a studio image and a hero video on **GMI**, while the **[voiceover](#voiceover--the-narration-with-provenance)** routes the narration to **OpenAI TTS**: GMI `GLM` writes the script → OpenAI renders the speech, a real multi-provider, multi-modality chain in one run. The audio modality exists by a *provider swap*, not a workaround — GMI's own TTS is unreachable ([issue 04](docs/genblaze-issues/04-gmi-audio-modality-unreachable.md)), and Genblaze's unified provider API is exactly what let us route around it, the same portability that carries image generation from GMI to OpenAI on a 402 (`originshot_pipelines/voiceover.py`)
 - **Batch fan-out at two levels** — variant sweeps across colors and angles within one pack, and [Catalog Mode](#catalog-mode--the-whole-shop-in-one-run) running many SKUs' pipelines concurrently under a bounded semaphore
 - **Incremental delivery** — each style's assets are persisted the moment that step completes, not when the job ends, so a pack with a five-minute video step fills the grid image by image instead of after a spinner. A crash mid-run keeps what was produced and settles credit against it, rather than discarding billed work
 - **The same model reused across two jobs** — the QA evaluator is also Resolve's comparison scorer, re-benchmarked for the harder dispute question rather than assumed transferable
@@ -549,6 +629,29 @@ Genblaze is the orchestration layer, not a single wrapped API call:
 Model IDs and kwargs are **runtime-verified against the installed SDK** by
 [`tests/test_sdk_integration.py`](backend/tests/test_sdk_integration.py), so a catalog drift
 fails CI rather than production.
+
+### Two autonomous agents — that act, not just report
+
+The hackathon brief names *"agentic media pipelines that generate, evaluate, retry, and store"*
+as an example. OriginShot has two agents that do exactly that, and the distinction that matters
+is that each one **acts on its own verdict** instead of handing a human a report:
+
+- **The QA agent** ([`originshot_pipelines/qa.py`](backend/originshot_pipelines/qa.py)) closes a
+  generate → evaluate → **refine** → store loop per style. It scores each image against the
+  authentic original, and on a failure it doesn't merely flag — it lifts the failed checks into a
+  Genblaze `EvaluationResult`, reads its `.feedback` exactly as `genblaze_core.agents.AgentLoop`
+  does, and regenerates the style with that correction spliced into the prompt. The retry is a
+  *fix*, not another roll of the dice, and the verdict ("passed QA on attempt 2, refined: …")
+  ships in the asset and the UI.
+- **The Auditor** ([`app/auditor.py`](backend/app/auditor.py)) is a scheduled, unattended
+  integrity agent: every few hours it re-samples stored media, re-verifies each manifest from its
+  bytes, replays the chain against the last published checkpoint, cuts and signs a fresh one, and
+  publishes its own report to B2 — the loop a sceptical customer would run by hand, running itself.
+
+This is deliberately **not** a wrap-an-LLM-in-a-trench-coat "agent" story. Both agents are narrow,
+and the provenance thesis — not the agent framing — is the product; they are named here because
+each genuinely closes an autonomous act-on-your-own-judgement loop, which is the thing the brief's
+example rewards.
 
 ### Feedback to the SDK team
 
@@ -564,13 +667,18 @@ and re-tested our findings against it before reporting anything. Write-ups live 
 | Failed steps returned empty `assets` instead of raising | ✅ **Fixed upstream** — withdrawn, not reported |
 | GitHub release `v0.5.0` publishes as PyPI `0.4.3`, so `genblaze==0.5.0` can't be installed | Reported (packaging) |
 
-The first row cost us a planned feature and is the most useful thing we found. We had
-designed a voiceover step — listing copy → narration script → TTS → muxed onto the product
-video — partly because TTS was the one place this app could show a **real** multi-model
-fallback chain, which our image path honestly cannot. It cannot be built on 0.3.3 by anyone:
-the SDK strips the required parameter before the request leaves the process, then reports the
-API's complaint about its absence. We cut the feature rather than bypass the SDK to fake the
-capability. Full root-cause analysis, repro and suggested fix in
+That first row is the most useful thing we found — and it *shaped* a feature rather than
+killing one. We designed a voiceover step: SKU facts → narration script → text-to-speech → the
+product video's spoken track. On GMI it cannot be built by anyone on 0.3.3 — the SDK strips the
+required parameter before the request leaves the process, then reports the API's complaint
+about its absence. So we did the one thing this whole architecture is built to do: **we swapped
+providers.** The narration now renders on **OpenAI TTS** through Genblaze's unified provider API
+— the same portability that carries image generation from GMI to OpenAI when GMI's request
+queue is out of credit — and the audio carries its own embedded provenance manifest like every
+other asset. The GMI defect is still real and still filed; it simply no longer costs us the
+modality. That is the difference the SDK's provider abstraction actually makes, shown rather
+than asserted. Full root-cause analysis, repro and suggested fix (plus the OpenAI-TTS
+resolution) in
 [`docs/genblaze-issues/04-gmi-audio-modality-unreachable.md`](docs/genblaze-issues/04-gmi-audio-modality-unreachable.md).
 
 The third row is the point of the exercise: it *was* on our list, the upgrade fixed it, so
@@ -593,6 +701,8 @@ only what the app actually calls today** — runtime-verified against our GMI Cl
 | Text → video (optional) | GMI Cloud | `Kling-Text2Video-V2.1-Master` | Single-step path, no source photo |
 | **QA evaluator (vision)** | GMI Cloud (chat API) | `x-ai/grok-4.5` | Scores "is this the same physical product?" against the authentic original — the vision tier of the evaluate→retry loop |
 | **Listing copy** | GMI Cloud (chat API) | `zai-org/GLM-5.1-FP8` | Per-marketplace titles/bullets/tags; hard limits enforced in code |
+| **Voiceover script** | GMI Cloud (chat API) | `zai-org/GLM-5.1-FP8` | Writes the product-video narration from the SKU facts (reuses the listing model); a deterministic script is used if chat 429s |
+| **Voiceover audio** (text → speech) | **OpenAI (`openai-tts`)** | `gpt-4o-mini-tts` | Renders the narration to speech — the app's **audio modality**, reached by a *provider swap* because GMI audio is unreachable ([issue 04](docs/genblaze-issues/04-gmi-audio-modality-unreachable.md)). Also verified: `tts-1` |
 
 The chat models were chosen by **live probes on real product images**, not catalog presence
 — several catalog models 404, 429, return empty completions, or silently accept images they
@@ -688,7 +798,7 @@ npm run dev                                    # http://localhost:3000
 **Tests:**
 
 ```bash
-cd backend && poetry run python -m pytest -q   # 276 passing
+cd backend && poetry run python -m pytest -q   # 339 passing
 ```
 
 > **Auth is always enforced** — there is no production bypass. Signing in locally requires
@@ -735,6 +845,7 @@ Full list with defaults in [`.env.example`](.env.example).
 | `GET` | `/api/analytics` | Assets, dedup savings, cost, provider mix |
 | `POST` | `/api/verify` | **Public** — verify an uploaded file from its bytes |
 | `GET` | `/api/verify/{sha256}` | **Public** — look up provenance by hash |
+| `GET` | `/api/badge/{sha256}.svg` | **Public** — a live, embeddable provenance badge (SVG) for a listing |
 | `GET` | `/api/ledger` · `/api/ledger/entries` · `/api/ledger/checkpoint` | **Public** — the transparency log, its raw entries and the published head |
 | `GET`/`POST` | `/api/ledger/audit` | **Public** read of the latest integrity audit; POST runs one (scheduler token) |
 | `GET` | `/api/ledger/proof/{sha256}` | **Public** — offline-verifiable inclusion proof |
@@ -770,7 +881,7 @@ originshot/
 │   │   ├── storage.py      Genblaze ObjectStorageSink → B2 + ParquetSink
 │   │   ├── presets.py      marketplace dimensions + rendition rendering
 │   │   └── studio · lifestyle · onmodel · variants · video
-│   └── tests/              276 tests
+│   └── tests/              339 tests
 ├── frontend/               Next.js 15 App Router · Tailwind v4 · Radix primitives · Firebase Auth
 ├── infra/                  Dockerfile.backend · docker-compose · firestore.rules
 ├── docs/                   PROJECT_DESCRIPTION · BUILD_PLAN · SECURITY · DESIGN_SYSTEM · BENCHMARKS
@@ -808,7 +919,8 @@ Stated plainly, because a submission that hides these is worse than one that nam
 - **The delivered-item comparison is a vision-model judgement.** It is evidence for a human decision, never a determination of fault, and every report says so on its face. It reads two photographs: it cannot assess working order, brand authenticity, or anything not visible in them. The provenance half of each report needs no model and is reproducible by anyone.
 - **The transparency log is unsigned and unwitnessed.** It proves the published history is internally consistent and append-only against a saved checkpoint; it cannot prove authorship, and a single-operator log cannot rule out a split view. Both are spelled out above and in the tool's own output rather than left for a reader to discover.
 - **Provider credit is exhaustible.** GMI Cloud returns `402 Insufficient credits` when the account balance runs out, and generation then fails cleanly with that message rather than degrading. Top up before a demo.
-- **No audio modality.** Not a scoping choice — GMI's TTS and music models cannot be invoked through `genblaze-gmicloud` 0.3.3 at all ([issue 04](docs/genblaze-issues/04-gmi-audio-modality-unreachable.md)). We cut the planned voiceover step rather than bypass the SDK to fake the capability.
+- **Standalone audio is OpenAI-only, and `content_bound` is not computed for it.** The voiceover renders on OpenAI TTS because GMI's audio models are unreachable ([issue 04](docs/genblaze-issues/04-gmi-audio-modality-unreachable.md)); with no `OPENAI_API_KEY` the style is skipped with an honest reason, never faked. The narration carries an embedded, verifiable manifest and a ledger entry, but `content_bound` is `None` for the raw audio clip — the strip-and-rehash canonical hash covers PNG/MP4/JPEG/WebP, not audio — so standalone audio is "present + verified", one tier below the round-trip binding. The **narrated MP4** (narration muxed onto the hero video) closes that gap: being an MP4 it binds fully.
+- **The narrated video needs ffmpeg; without it, only the audio ships.** ffmpeg is bundled via `imageio-ffmpeg` so this works on Render out of the box, but if neither a bundled nor a system binary is present the mux is skipped and the standalone narration audio is still delivered — a graceful degradation, never a failed style.
 
 ---
 
