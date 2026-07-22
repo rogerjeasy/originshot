@@ -17,6 +17,7 @@ import { CompliancePanel } from "@/components/studio/compliance-panel";
 import { GeneratePanel } from "@/components/studio/generate-panel";
 import { LineageGraph } from "@/components/studio/lineage-graph";
 import { ListingPanel } from "@/components/studio/listing-panel";
+import { OrchestrationTrace } from "@/components/studio/orchestration-trace";
 import { SkuSettings } from "@/components/studio/sku-settings";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { PageToolbar } from "@/components/workbench/page-toolbar";
@@ -263,6 +264,11 @@ export default function SkuWorkspace() {
               onSelect={setActive}
             />
           )}
+
+          {/* The run as an orchestration — provider + modality per step — once it has finished.
+              Answers "Use of Genblaze" at a glance: which providers, which modalities, in one
+              pipeline. Stays mounted after completion so it's there to read (and screenshot). */}
+          {job && !busyJob && <OrchestrationTrace job={job} />}
 
           {assets && assets.length > 1 && (
             <FadeIn>
