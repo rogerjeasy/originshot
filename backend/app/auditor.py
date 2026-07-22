@@ -155,6 +155,11 @@ def run_audit(*, sample_size: int | None = None) -> dict:
     if rows:
         new_checkpoint = transparency.publish_checkpoint()
 
+    # 3b. Upgrade the latest checkpoint's Bitcoin anchor. Stamping only yields a calendar
+    # commitment; the Bitcoin attestation confirms hours later — this periodic pass is exactly
+    # the cadence to fetch the finished proof. Best-effort, and reflected in the checkpoint.
+    transparency.upgrade_latest_witness()
+
     report = {
         "audit_id": audit_id,
         "started_at": started,
