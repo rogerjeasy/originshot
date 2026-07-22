@@ -199,6 +199,55 @@ class AssetOut(BaseModel):
     created_at: datetime
 
 
+# ── Catalog Intelligence: search + integrity (app/catalog_intel.py) ───
+class SimilarAssetOut(AssetOut):
+    """A library asset that visually resembles a query asset, with its pHash bit-distance."""
+    phash_distance: int
+
+
+class CatalogSearchHit(BaseModel):
+    sku_id: str
+    title: str | None = None
+    category: str | None = None
+    score: float  # cosine similarity of the SKU's text embedding to the query
+
+
+class CatalogSearchOut(BaseModel):
+    """Semantic search over the catalog. `available` is False when it's off (no OpenAI key) —
+    a distinct state from "ran and found nothing", so the UI never implies an empty catalog."""
+    available: bool
+    indexed: int          # SKUs that carry an embedding (0 ⇒ run a reindex)
+    hits: list[CatalogSearchHit]
+
+
+class ReusedOriginalFinding(BaseModel):
+    """One authentic original (pre-AI photo) anchoring more than one distinct SKU."""
+    parent_sha256: str
+    sku_ids: list[str]
+    sku_count: int
+
+
+class NearDuplicateFinding(BaseModel):
+    """SKUs whose authentic source photos are perceptually near-identical across products."""
+    sku_ids: list[str]
+    sku_count: int
+
+
+class IntegrityOut(BaseModel):
+    """Cross-catalog integrity signals — flags for a human, never accusations of fraud."""
+    reused_originals: list[ReusedOriginalFinding]
+    near_duplicate_sources: list[NearDuplicateFinding]
+    skus_analyzed: int
+    generated_at: str
+
+
+class ReindexOut(BaseModel):
+    available: bool
+    embedded: int
+    skipped: int
+    total: int
+
+
 # ── Jobs ──────────────────────────────────────────────────────────────
 class BrandKit(BaseModel):
     vibe: str | None = Field(default=None, max_length=120)       # e.g. "warm, minimal, premium"
@@ -431,6 +480,22 @@ class VerifyResult(BaseModel):
     perceptual: PerceptualMatch | None = None
 
 
+class CheckResult(BaseModel):
+    """A "Verify Anywhere" result — the buyer-facing wrapper around a `VerifyResult`.
+
+    `POST /api/check` is the public buyer surface: paste a listing/image link or drop a photo,
+    and it runs the *same* verification core as `/verify`. This wrapper only records where the
+    checked image came from, so the UI can say "we scanned the photo on that page" honestly.
+    The verdict itself lives entirely in `result`; nothing here weakens or restates it.
+    """
+    # How the checked image was obtained: a dropped/pasted file, a direct image URL, or an
+    # image extracted from an HTML listing page.
+    source: str                          # "upload" | "url_image" | "listing_page"
+    source_url: str | None = None        # the link the caller supplied, echoed back
+    images_scanned: int = 1              # >1 only for a listing page with several photos
+    result: VerifyResult
+
+
 # ── Signing ───────────────────────────────────────────────────────────
 class SignatureRecord(BaseModel):
     """A detached Ed25519 signature over an artefact's content hash. See app/signing.py.
@@ -456,6 +521,25 @@ class LedgerEntryRow(BaseModel):
     entry_hash: str
 
 
+class CheckpointWitness(BaseModel):
+    """An independent, operator-uncontrollable timestamp for a checkpoint (see app/witness.py).
+
+    Object Lock (our bucket, our config) and the Ed25519 signature (our key) both rest on
+    infrastructure the operator controls. This anchors the checkpoint hash into **Bitcoin** via
+    OpenTimestamps — a party the operator does not control — so "this head existed by time T and
+    was not rewritten" becomes checkable against Bitcoin, needing nothing from us.
+    """
+    type: str = "opentimestamps"
+    proof_key: str | None = None            # where the .ots proof lives on B2
+    # Calendars that accepted the hash, before Bitcoin confirmation. The proof is a verifiable
+    # calendar commitment immediately; the Auditor upgrades it to a Bitcoin attestation later.
+    pending_calendars: list[str] = Field(default_factory=list)
+    # Set once the proof is anchored in a Bitcoin block — the honest bound on "existed no later
+    # than". Absent (None) while the anchor is still a calendar commitment, never overstated.
+    bitcoin_block_height: int | None = None
+    complete: bool = False                  # True iff a Bitcoin attestation is present
+
+
 class LedgerCheckpointOut(BaseModel):
     """A published commitment to the log up to `size` entries."""
     log_id: str
@@ -471,6 +555,9 @@ class LedgerCheckpointOut(BaseModel):
     # Ed25519 signature over `checkpoint_hash` — attests THIS instance issued this head,
     # verifiable offline against the repo-published public key. Absent when signing is off.
     signature: SignatureRecord | None = None
+    # Independent Bitcoin timestamp (OpenTimestamps). Absent when witnessing is off or the
+    # calendars were unreachable — never a claim of an anchor that isn't there.
+    witness: CheckpointWitness | None = None
 
 
 class LedgerStatusOut(BaseModel):
