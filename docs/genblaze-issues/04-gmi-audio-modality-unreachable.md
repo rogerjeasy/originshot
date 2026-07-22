@@ -4,6 +4,18 @@
 (the GitHub v0.5.0 release). Python 3.12, Windows.
 **Provider:** GMI Cloud, audio models, via the request-queue API.
 
+> **How OriginShot resolved this (2026-07-22), without a fix to `genblaze-gmicloud`.** The GMI
+> defect below is real and unchanged, but it no longer costs us the audio modality. The
+> voiceover feature now renders on **OpenAI TTS** (`genblaze_openai.OpenAITTSProvider`, POST
+> `/v1/audio/speech`) through Genblaze's unified provider API — a straight provider swap, the
+> same portability that lets our image path fall from GMI to OpenAI on a 402. Live-verified:
+> `tts-1` → 262 KB MP3 in 3.7s, `gpt-4o-mini-tts` → 250 KB MP3 in 7.0s, both complete valid
+> MPEG audio; the manifest embeds into the MP3 (ID3, via genblaze-core's `Mp3Handler` +
+> `mutagen`) and verifies. This report stays filed because the GMI bug is worth fixing on its
+> own merits — a whole modality is unreachable on that provider — and because the *fix we'd
+> suggest* (a `param_aliases` map) would make GMI audio a drop-in second provider for exactly
+> this feature. See `originshot_pipelines/voiceover.py`.
+
 ## Summary
 
 No GMI Cloud audio model can be invoked through `genblaze-gmicloud` 0.3.3. Every TTS model
