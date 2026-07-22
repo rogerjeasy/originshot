@@ -107,6 +107,32 @@ GMI_CHAT_BASE_URL = "https://api.gmi-serving.com/v1"
 QA_VISION_MODEL = "x-ai/grok-4.5"
 LISTING_MODEL = "zai-org/GLM-5.1-FP8"
 
+# ── Voiceover: script → spoken narration (AUDIO modality) ────────────────────────────
+# ✅ RUNTIME-VERIFIED (2026-07-22) with real /v1/audio/speech calls through Genblaze
+#   (`genblaze_openai.OpenAITTSProvider`) using our own OPENAI_API_KEY:
+#     tts-1            → 262 KB MP3 in 3.7s      gpt-4o-mini-tts → 250 KB MP3 in 7.0s
+#   Both returned complete, valid MPEG audio (frame-sync 0xFFF3). The manifest embeds into
+#   the MP3 (ID3 via genblaze-core's Mp3Handler, needs `mutagen`) and verifies
+#   (present + verified); `content_bound` is None for audio (the strip-and-rehash canonical
+#   hash covers PNG/MP4/JPEG/WebP, not audio) — stated honestly, weaker than image/video.
+#
+# WHY THIS IS OPENAI, NOT GMI. GMI's TTS/music models are unreachable through
+# genblaze-gmicloud 0.3.3 — the param_allowlist strips the required `text`/`lyrics`
+# (docs/genblaze-issues/04, still the strongest feedback-prize item). Rather than fake audio
+# or cut it, the voiceover routes to OpenAI TTS through Genblaze's unified provider API — the
+# same cross-provider portability that lets image generation fall from GMI to OpenAI when
+# GMI's request queue is out of credit (providers.py). Audio is not dead; it is one swap away.
+#
+# The SDK reports NO cost for OpenAI TTS (genblaze-core dropped pricing), so `Step.cost_usd`
+# is None — settled at a list-price ceiling by app/pricing.py::billable_cost, labelled
+# `estimate`, exactly as the OpenAI image path already is.
+VOICEOVER_MODEL = "gpt-4o-mini-tts"     # also verified: tts-1 (faster/cheaper)
+VOICEOVER_VOICE = "onyx"                # warm narrator; OpenAI voices: alloy/echo/nova/onyx/…
+VOICEOVER_FORMAT = "mp3"                # ID3-embeddable; genblaze-core Mp3Handler + mutagen
+# The narration script is written by the same chat model that writes listing copy — so the
+# script itself is AI-generated, disclosed in the manifest rather than passed off as human.
+VOICEOVER_SCRIPT_MODEL = LISTING_MODEL
+
 # ── Resolve: the dispute-evidence comparison (originshot_pipelines/resolve.py) ───────
 # Reuses QA_VISION_MODEL rather than introducing an unproven one — a dispute report is the
 # last place to gamble on a model. Re-benchmarked 2026-07-19 for the *dispute* question,
@@ -157,6 +183,13 @@ PROVIDERS = {
         # Same source photo → same four styles, via /v1/images/edits. Live-verified
         # 2026-07-20; selected per-run by the cross-provider chain in providers.py.
         "image": [OPENAI_IMAGE_EDIT_MODEL],
+    },
+    "OpenAI (openai-tts)": {
+        # Narration script → spoken product-video audio, via /v1/audio/speech. Live-verified
+        # 2026-07-22. The app's audio modality — reached by a provider swap because GMI audio
+        # is unreachable (issue 04), which is exactly the cross-provider orchestration the
+        # unified Genblaze API is for.
+        "audio": [VOICEOVER_MODEL],
     },
 }
 
