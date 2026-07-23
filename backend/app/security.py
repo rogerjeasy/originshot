@@ -46,6 +46,23 @@ limiter = Limiter(
 _ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
 
 
+# The site-wide policy locks everything down. Swagger UI / ReDoc, however, load their
+# bundle from jsdelivr and run an inline init script, so under the strict policy the docs
+# pages render blank. Scope a looser CSP to just those dev-doc routes; every other
+# response keeps `default-src 'none'`.
+_STRICT_CSP = "default-src 'none'; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'"
+_DOCS_CSP = (
+    "default-src 'none'; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "img-src 'self' data: https:; "
+    "connect-src 'self'; "
+    "worker-src blob:; "
+    "frame-ancestors 'none'"
+)
+_DOCS_PATHS = {"/docs", "/redoc", "/docs/oauth2-redirect"}
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -53,10 +70,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-        response.headers.setdefault(
-            "Content-Security-Policy",
-            "default-src 'none'; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'",
-        )
+        csp = _DOCS_CSP if request.url.path in _DOCS_PATHS else _STRICT_CSP
+        response.headers.setdefault("Content-Security-Policy", csp)
         if not get_settings().is_dev:
             response.headers.setdefault(
                 "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
