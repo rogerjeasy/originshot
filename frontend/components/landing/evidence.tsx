@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Fingerprint, GitBranch, ScanLine, ShieldCheck } from "lucide-react";
 
 import { DEMO_ASSETS } from "@/lib/demo-assets";
+import { providerLabel } from "@/lib/pack";
 import { Reveal, SectionHead } from "./section";
 
 const CLAIMS = [
@@ -116,9 +117,9 @@ export function Evidence() {
                 {[
                   ["sha256", sample.sha],
                   ["style", sample.style],
-                  ["provider", "genblaze · gmicloud"],
-                  ["model", "gemini-3-pro-image-preview"],
-                  ["dimensions", `${sample.width}×${sample.height}`],
+                  ["provider", `genblaze · ${providerLabel(sample.provider)}`],
+                  ["model", sample.model],
+                  ["dimensions", `${sample.sourceWidth}×${sample.sourceHeight}`],
                   ["content_bound", "true"],
                   ["disclosure", "AI-generated"],
                 ].map(([k, v]) => (
