@@ -205,6 +205,13 @@ class Settings(BaseSettings):
     # delivery tone; tts-1 is faster/cheaper. Either is live-verified working (2026-07-22).
     voiceover_model: str = "gpt-4o-mini-tts"
     voiceover_voice: str = "onyx"
+    # Narrated-video mux: the ffmpeg compositor holds the hero video, the looped copy and the
+    # muxed output while it works. On the 512 MB free-tier instance that was observed killing
+    # the whole process mid-job (2026-08-01) — and because generation runs inline, an OOM kill
+    # takes the API with it and strands the job. Below this floor the mux is skipped and the
+    # standalone narration audio still ships, which is the degradation the mux path was always
+    # written to allow. 0 disables the guard. See generation._mux_narrated_video.
+    narrated_video_min_memory_mb: int = 900
 
     # ── Mock generation: TESTS ONLY ───────────────────────────────────
     # The mock fabricates assets by copying the uploaded original and labelling them
