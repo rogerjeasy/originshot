@@ -142,6 +142,38 @@ export default function AdminPage() {
 
   const { overview, health, users, jobs, ledger } = data;
 
+  // Reliability reads from the trailing window, because "is this reliable" is a question about
+  // now — a provider balance that ran out months ago and was fixed shouldn't still be setting
+  // the headline. The lifetime tally is shown underneath rather than dropped: the failures
+  // happened, and the honest move is to date them, not to hide them.
+  const windowRate = overview.success_rate_window_pct;
+  const hasWindow = windowRate !== null && windowRate !== undefined;
+  const lifetime =
+    `${overview.jobs_succeeded} ok · ${overview.jobs_partial} partial · ` +
+    `${overview.jobs_failed} failed all time`;
+  const jobSuccess = hasWindow
+    ? {
+        label: "Job success",
+        value: windowRate,
+        decimals: 1,
+        suffix: "%",
+        tone: windowRate >= 95 ? ("verified" as const) : ("warning" as const),
+        hint:
+          `${overview.jobs_succeeded_window} ok · ${overview.jobs_partial_window} partial · ` +
+          `${overview.jobs_failed_window} failed · last ${overview.reliability_window_days}d`,
+        subhint: lifetime,
+      }
+    : {
+        // Nothing resolved in the window. Showing 0% would be a lie about idleness, so the
+        // lifetime figure carries the tile and says that it is the lifetime figure.
+        label: "Job success",
+        value: overview.success_rate_pct,
+        decimals: 1,
+        suffix: "%",
+        tone: overview.success_rate_pct >= 95 ? ("verified" as const) : ("warning" as const),
+        hint: `${lifetime} · no jobs in the last ${overview.reliability_window_days}d`,
+      };
+
   const platform = [
     {
       label: "Users",
@@ -154,14 +186,7 @@ export default function AdminPage() {
       value: overview.assets_total,
       hint: `${overview.generated_24h} generated in 24h`,
     },
-    {
-      label: "Job success",
-      value: overview.success_rate_pct,
-      decimals: 1,
-      suffix: "%",
-      tone: overview.success_rate_pct >= 95 ? ("verified" as const) : ("warning" as const),
-      hint: `${overview.jobs_succeeded} ok · ${overview.jobs_partial} partial · ${overview.jobs_failed} failed`,
-    },
+    jobSuccess,
   ];
 
   const money = [
