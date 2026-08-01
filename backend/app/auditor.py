@@ -160,6 +160,19 @@ def run_audit(*, sample_size: int | None = None) -> dict:
     # the cadence to fetch the finished proof. Best-effort, and reflected in the checkpoint.
     transparency.upgrade_latest_witness()
 
+    # 3c. Release jobs abandoned by a dead worker. The read path reaps a job when someone
+    # looks at it (app/reaper.py); this sweep catches the ones nobody is watching, so a
+    # crashed run's credit hold is refunded on the audit cadence rather than waiting for its
+    # owner to open the page. Best-effort, like every other step here — a reaper failure
+    # must not cost us the integrity report.
+    jobs_reaped = 0
+    try:
+        from . import reaper
+
+        jobs_reaped = reaper.reap_all()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("audit job reap failed: %s", exc)
+
     report = {
         "audit_id": audit_id,
         "started_at": started,
@@ -173,6 +186,9 @@ def run_audit(*, sample_size: int | None = None) -> dict:
         "chain_consistent": chain_consistent,
         "checkpoint_reproduced": checkpoint_reproduced,
         "checkpoint": new_checkpoint,
+        # Abandoned jobs failed and refunded in this pass. Reported because a non-zero count
+        # is an operational signal (the instance is dying mid-run), not just housekeeping.
+        "jobs_reaped": jobs_reaped,
         "caveat": CAVEAT,
     }
 
