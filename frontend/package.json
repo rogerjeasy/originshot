@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run validate",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "validate": "node scripts/validate-demo-assets.js && node scripts/validate-contrast.js",
+    "validate:assets": "node scripts/validate-demo-assets.js",
+    "validate:contrast": "node scripts/validate-contrast.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.19",
