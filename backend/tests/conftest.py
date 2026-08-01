@@ -33,9 +33,6 @@ for _k in (
     "B2_BUCKET",
     "GMI_API_KEY",
     "OPENAI_API_KEY",
-    "GEMINI_API_KEY",
-    "LUMA_API_KEY",
-    "ELEVENLABS_API_KEY",
     # Keep signing OFF by default so the suite never uses the real key; signing tests opt in
     # with their own throwaway key.
     "SIGNING_PRIVATE_KEY",
