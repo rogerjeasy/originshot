@@ -6,6 +6,11 @@ venv/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+
+# B2 download cache for scripts/sync-demo-assets.py — full-size masters pulled
+# from the bucket before they're re-encoded into frontend/public/demo. Purely a
+# local speed-up; the bucket is the source of truth.
+.cache/
 backend/.devdata/
 
 # Env / secrets — never commit
