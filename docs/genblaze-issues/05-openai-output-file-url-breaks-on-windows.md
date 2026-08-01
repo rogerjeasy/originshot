@@ -4,6 +4,13 @@
 Python 3.12, Windows 11.
 **Provider:** OpenAI images (`openai-dalle` / `DalleProvider`).
 
+**Relation to #132 / #164 (both closed):** those fixed the *consumer* side — `genblaze-core`'s
+`transfer._read_local_file`, which used to mishandle a well-formed `file:///C:/...`. #164's
+write-up already noted in passing that connectors emit `f"file://{quote(...)}"`, but the fix
+landed in the sink only. This issue is the *producer* half that survived: `genblaze-openai`
+0.3.2 still constructs that malformed URL, so the hardened sink now correctly refuses it and
+the asset still never uploads. Different package, different call sites, still broken today.
+
 ## Summary
 
 Every image `DalleProvider` produces is handed back with a `file://` URL constructed as
@@ -58,16 +65,24 @@ for Linux/macOS deployments (e.g. Cloud Run, Render) and only repairs Windows.
 
 ## Suggested fix
 
-In `DalleProvider._persist_image_bytes`, replace
+Two call sites in `genblaze-openai` 0.3.2 build the URL this way, and both need the same
+one-line substitution — the second is on the Sora video path, so this is not images-only:
+
+| File | Line | Context |
+|---|---|---|
+| `genblaze_openai/dalle.py` | 540 | `DalleProvider._persist_image_bytes` — every generated/edited image |
+| `genblaze_openai/provider.py` | 386 | Sora video output (`.mp4` temp file) |
+
+Replace
 
 ```python
-return (f"file://{quote(str(out_path.resolve()))}", sha256_hex, size)
+f"file://{quote(str(out_path.resolve()))}"
 ```
 
 with
 
 ```python
-return (out_path.resolve().as_uri(), sha256_hex, size)
+out_path.resolve().as_uri()
 ```
 
 The same substitution is needed in the edit-input temp-file handling (issue 06).
@@ -75,6 +90,8 @@ The same substitution is needed in the edit-input temp-file handling (issue 06).
 ## Impact
 
 Local development and any Windows-hosted deployment cannot use `DalleProvider` with
-`ObjectStorageSink` or in a multi-step chain at all. We worked around it downstream by
-subclassing `DalleProvider` to override `_persist_image_bytes` with `Path.as_uri()`, but the
-one-line change above fixes it for everyone at the source.
+`ObjectStorageSink` or in a multi-step chain at all — and because the sink was hardened by
+\#132/#164, the failure is now a clean refusal rather than a silent misplace, which makes it
+completely blocking. We worked around it downstream by subclassing `DalleProvider` to override
+`_persist_image_bytes` with `Path.as_uri()`, but the one-line change above fixes it for
+everyone at the source.

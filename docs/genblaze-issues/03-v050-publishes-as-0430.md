@@ -1,23 +1,32 @@
-# Release announced as v0.5.0 publishes to PyPI as `genblaze` 0.4.3 — `pip install genblaze==0.5.0` fails
+# GitHub release tags (v0.5.0, v0.6.0, v0.7.0) have no matching PyPI version — `pip install genblaze==0.7.0` fails
 
-**Context:** the hackathon announcement email ("genblaze v0.5.0", 2026-07-17) and the
-GitHub release tagged `v0.5.0`.
+**Context:** the hackathon announcement email ("genblaze v0.5.0", 2026-07-17) and every
+GitHub release tagged since.
 
 ## Summary
 
-The GitHub release is tagged **v0.5.0** (published 2026-07-17T16:15:52Z), but the umbrella
-package on PyPI is **0.4.3** (uploaded 2026-07-17T16:19:13Z, ~3 minutes later). There is no
-`genblaze` 0.5.0 on PyPI:
+No GitHub release tag from `v0.5.0` onward exists as an installable `genblaze` version. As of
+2026-08-01 the two sequences have diverged completely:
+
+| GitHub release | Published | Matching PyPI `genblaze` |
+|---|---|---|
+| `v0.5.0` | 2026-07-17 | none (PyPI got 0.4.3, ~3 min later) |
+| `v0.6.0` | 2026-07-22 | none |
+| `v0.7.0` | 2026-07-28 (latest) | none |
+
+PyPI's full history is `0.2.3, 0.3.0, 0.3.1, 0.3.2, 0.4.0, 0.4.1, 0.4.3, 0.4.4, 0.4.5` — it
+has never published a 0.5.x, 0.6.x or 0.7.x at all.
 
 ```
 $ pip install "genblaze[gmicloud,video,parquet]>=0.5,<0.6"
 ERROR: Could not find a version that satisfies the requirement genblaze<0.6,>=0.5
-       (from versions: 0.2.3, 0.3.0, 0.3.1, 0.3.2, 0.4.0, 0.4.1, 0.4.3)
+       (from versions: 0.2.3, 0.3.0, 0.3.1, 0.3.2, 0.4.0, 0.4.1, 0.4.3, 0.4.4, 0.4.5)
 ```
 
 The announcement's own upgrade instructions (`pip install genblaze[all]`) do work, because
 they don't name a version — but anyone who pins the announced version, or who checks that
-they're on "0.5.0" before reporting a bug, hits a wall.
+they're on "0.5.0" before reporting a bug, hits a wall. This was reported to us as a one-off
+at v0.5.0; three releases later it looks systemic, which is why it seems worth raising.
 
 ## Why it's worth fixing beyond the version string
 
@@ -38,10 +47,11 @@ this.
 
 ## Suggestion
 
-Publish the umbrella as `0.5.0` (or retag the GitHub release to `v0.4.3`) so the announced
-version, the tag, and the installable artifact agree. It would also help to state the
-resolved sub-package versions in the release notes, since those are where the changes
-actually live.
+Make the tag and the installable artifact agree in one direction or the other — either publish
+the umbrella under the released version number, or tag releases with the version that actually
+ships. It would also help to state the resolved sub-package versions in the release notes,
+since those are where the changes actually live and they are currently unrecoverable from the
+tag alone.
 
 ## Also
 
