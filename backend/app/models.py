@@ -762,11 +762,21 @@ class AdminOverviewOut(BaseModel):
     skus_total: int
     assets_total: int
     jobs_total: int
-    # Reliability — the numbers that say whether this is production-ready
+    # Reliability — the numbers that say whether this is production-ready.
+    # Lifetime totals: every job this instance has ever resolved. Kept because a failure that
+    # really happened should stay countable, and never quietly dropped from the response.
     jobs_succeeded: int
     jobs_partial: int
     jobs_failed: int
     success_rate_pct: float
+    # The same tally over a trailing window — what the platform is doing *now*, which is what
+    # "is it reliable" actually asks. `success_rate_window_pct` is None when no job resolved
+    # inside the window: a distinct state from 0%, and the UI must not render it as one.
+    reliability_window_days: int
+    jobs_succeeded_window: int
+    jobs_partial_window: int
+    jobs_failed_window: int
+    success_rate_window_pct: float | None = None
     p50_duration_ms: int | None = None
     p95_duration_ms: int | None = None
     # Money
@@ -778,7 +788,12 @@ class AdminOverviewOut(BaseModel):
     videos: int
     provider_mix: dict[str, int]
     dedup_savings_pct: float
+    # Share of GENERATED assets carrying an embedded manifest. Authentic originals are excluded
+    # from the denominator — they are the seller's own photograph and never carry one — so this
+    # measures the pipeline, not the mix. Counts ship with it so the ratio is legible.
     embedded_pct: float
+    embedded_count: int
+    embeddable_count: int
     # B2
     b2: dict
     generated_24h: int
