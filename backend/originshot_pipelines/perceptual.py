@@ -30,6 +30,11 @@ because a perceptual match must never be dressed up as a cryptographic one:
   * **It says nothing about tampering.** pHash is designed to ignore small edits, so it
     cannot detect the very thing content-binding exists to catch. The two tiers answer
     different questions and are reported separately.
+  * **It discards colour.** Step 1 collapses to luminance, so two colourways of one product in
+    one pose are nearly indistinguishable to it. That is not an edge case here — it is the
+    house style of a product catalog — so a match must clear both a distance threshold and an
+    ambiguity margin before it is reported at all. See :data:`MATCH_MARGIN` and
+    :func:`ambiguous`.
 """
 from __future__ import annotations
 
@@ -107,16 +112,60 @@ def hamming(a: str, b: str) -> int | None:
 
 
 # ── Match thresholds ──────────────────────────────────────────────────
-# Distances over 64 bits. Calibrated on real re-encodes (tests/test_perceptual.py runs the
-# actual Etsy-style transform — resize + JPEG q75 — against a live generated asset):
-#   a genuine re-encode of the SAME image lands in the low single digits;
-#   a DIFFERENT product (even the same mug in another colour) sits far higher.
-# The gap is wide, so the exact cut is not delicate — but it is deliberately conservative:
-# a false "this is that asset" is worse here than a missed match, because the whole feature
-# is a trust signal.
-MATCH_STRONG = 6    # ≤ this: report as a confident perceptual match
-MATCH_WEAK = 10     # ≤ this: report as a possible match, explicitly hedged
+# Distances over 64 bits, calibrated by measuring BOTH sides of the decision on the real
+# shipped catalog (`tests/test_perceptual.py` re-runs this measurement, so the numbers below
+# cannot silently rot):
+#
+#   true positives  — every asset in frontend/public/demo through five marketplace-style
+#                     re-encodes (2000/q75, 1600/q85, 1200/q80, 800/q60, 400/q50):
+#                     **0 bits in 54 of 55 cases, worst case 2** (one lifestyle frame at the
+#                     extreme 400px/q50 downscale, far past anything a marketplace applies).
+#   false positives — the closest pair of genuinely DIFFERENT assets in that same catalog:
+#                     **4 bits** (studio-01 vs variant-03; studio-02 vs studio-03).
+#
+# ⚠️ The earlier calibration here claimed "a DIFFERENT product (even the same mug in another
+# colour) sits far higher" and set 6/10. That was measured against *synthetic* checker /
+# gradient / circle fixtures — structures chosen to be maximally unlike each other, which is
+# the opposite of this app's domain. Re-measured against real output the claim is false, and
+# the old thresholds sat ABOVE the false-positive floor: distinct assets 4 and 6 bits apart
+# were both being reported as confident matches, naming the wrong asset's provider, model and
+# lineage. The gap is genuinely narrow (2 vs 4) because pHash reduces to 32×32 **luminance**
+# before the DCT — colour is precisely the information it discards, and colourways of one
+# object on a white background are precisely what this app generates.
+#
+# So the cut IS delicate, and it is drawn hard against the measured floor rather than
+# comfortably above it. A false "this is that asset" is far worse than a missed match: the
+# whole feature is a trust signal, and it is the only surface here that can name a provenance
+# it did not cryptographically verify.
+MATCH_STRONG = 2    # ≤ this: report as a confident perceptual match
+MATCH_WEAK = 4      # ≤ this: report as a possible match, explicitly hedged
 # > MATCH_WEAK: not reported as a match at all.
+
+# Distance alone is not sufficient in a catalog of near-identical products: being 4 bits from
+# the winner means little if the runner-up is 5 bits away. A match must also be *unambiguous*
+# — the winner has to beat the next-best candidate by this many bits. Set to 3 because the
+# worst true positive (2) still clears every measured non-self neighbour (≥4 away, and ≥12 for
+# every asset whose own hash is indexed), while the ambiguous pre-backfill collisions this
+# guards against sat 2 bits apart. See `ambiguous()`.
+MATCH_MARGIN = 3
+
+
+def ambiguous(distance: int, runner_up: int | None) -> bool:
+    """True when the nearest asset is not clearly nearer than the second-nearest.
+
+    A perceptual hit names a specific asset — its provider, model and authentic-original
+    lineage. In a catalog of colourways of one object, several assets legitimately sit within
+    a few bits of each other, so "closest" can be a coin flip between neighbours that are
+    indistinguishable to this hash. Reporting one of them would attach a real, checkable
+    provenance record to the wrong file, which is the exact failure this project exists to
+    prevent — so an ambiguous result is reported as *no match* rather than as a guess.
+
+    `runner_up` is None when there was no second candidate at all (a one-asset index, or the
+    only near neighbour): nothing to be ambiguous against, so the match stands on distance.
+    """
+    if runner_up is None:
+        return False
+    return (runner_up - distance) < MATCH_MARGIN
 
 
 def confidence(distance: int) -> float:
