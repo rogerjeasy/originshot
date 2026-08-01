@@ -18,7 +18,7 @@ const PILLARS = [
       ["Authentic originals", "hashed on arrival, stored as the anchor for the whole pack"],
       ["Masters + renditions", "one master per frame, resized per marketplace preset"],
       ["Provenance manifests", "the record each /verify lookup resolves against"],
-      ["Ledger checkpoints", "the transparency log's published heads"],
+      ["Ledger checkpoints", "written under Object Lock — unrewritable, even by us"],
     ],
     foot: "assets/<sha[:2]>/<sha[2:4]>/<sha><ext> — content-addressable, so identical bytes dedup on their own. Private bucket, short-lived presigned reads.",
   },
@@ -26,12 +26,14 @@ const PILLARS = [
     name: "Genblaze",
     role: "Every model call, in one shape",
     rows: [
-      ["gemini-3-pro-image-preview", "source photo → studio, lifestyle, on-model, variants"],
+      ["gemini-3-pro-image-preview", "source photo → studio, lifestyle, on-model, variants (GMI)"],
+      ["gpt-image-1", "the same steps on OpenAI when GMI can't serve them — a real failover"],
       ["Kling-Image2Video-V2.1-Master", "studio frame → 5s product video, with i2v fallbacks"],
       ["x-ai/grok-4.5", "vision QA — catches a frame that drifted off the real product"],
-      ["zai-org/GLM-5.1-FP8", "listing copy per sales channel"],
+      ["zai-org/GLM-5.1-FP8", "listing copy, and the script the voiceover reads"],
+      ["gpt-4o-mini-tts", "that script → narration audio, muxed onto the hero video"],
     ],
-    foot: "One Pipeline API across providers: each step reports its real cost back, which is what the credit ledger debits — never an estimate dressed up as a bill.",
+    foot: "One Pipeline API across two providers and four modalities — text, image, video, audio. Each step reports its real cost back, which is what the credit ledger debits, never an estimate dressed up as a bill.",
   },
 ];
 
