@@ -350,13 +350,29 @@ def extract_and_verify(local_path: Path, mime_type: str) -> bool:
     return bool(res["present"] and res["verified"])
 
 
+# Medium noun for the disclosure sentence. Mirrors app/util.py's mapping deliberately: both
+# render the same compliance claim, and they are pinned to each other by a shared test so the
+# two cannot drift again — this copy had gone on asserting "image" for every asset long after
+# the app grew video and audio modalities.
+_MEDIUM = {"image": "image", "video": "video", "audio": "audio"}
+
+
 def disclosure_text(*, is_authentic: bool, model: str | None = None,
-                    provider: str | None = None, parent_sha256: str | None = None) -> str:
+                    provider: str | None = None, parent_sha256: str | None = None,
+                    modality: str | None = None) -> str:
+    """AI-disclosure / authenticity sentence for an asset.
+
+    `modality` names the medium. It is optional because an unknown medium must degrade to the
+    neutral "media" rather than to a guess: this sentence is what a marketplace or an EU AI
+    Act disclosure carries, so a wrong noun here is a false compliance statement, and "image"
+    was exactly that for every video and audio asset the app produces.
+    """
     if is_authentic:
         return "Authentic photo — unedited original. Verifiable via OriginShot manifest."
     parent = (parent_sha256 or "")[:12]
+    medium = _MEDIUM.get(str(modality or "").lower(), "media")
     return (
-        f"AI-generated image. Model: {model or 'unknown'} ({provider or 'provider'}). "
+        f"AI-generated {medium}. Model: {model or 'unknown'} ({provider or 'provider'}). "
         f"Derived from authentic source {parent}. "
         "Provenance verifiable via OriginShot (SHA-256 manifest embedded)."
     )
