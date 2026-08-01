@@ -7,7 +7,7 @@ import { ArrowUpRight, Check, ChevronLeft, ChevronRight, Copy, X } from "lucide-
 
 import { cn } from "@/lib/utils";
 import type { DemoAsset } from "@/lib/demo-assets";
-import { PACK_GROUPS, allFrames, framesFor, modelFor, type PackGroup } from "@/lib/pack";
+import { PACK_GROUPS, allFrames, framesFor, modelFor, providerLabel, type PackGroup } from "@/lib/pack";
 
 /**
  * The contact sheet. Every frame the demo run produced, at a size you can
@@ -130,8 +130,9 @@ function Inspector({
   const rows: [string, React.ReactNode][] = [
     ["style", <span key="s" className="t-verify font-mono">{asset.style}</span>],
     ["destination", group.goes],
-    ["dimensions", `${asset.width} × ${asset.height}`],
-    ["model", <span key="m" className="font-mono text-[12.5px]">{modelFor(asset.style)}</span>],
+    ["dimensions", `${asset.sourceWidth} × ${asset.sourceHeight}`],
+    ["model", <span key="m" className="font-mono text-[12.5px]">{modelFor(asset)}</span>],
+    ["provider", <span key="p" className="font-mono text-[12.5px]">{providerLabel(asset.provider)}</span>],
   ];
 
   return (
