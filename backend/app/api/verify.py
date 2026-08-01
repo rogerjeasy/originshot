@@ -12,7 +12,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from originshot_pipelines import perceptual, provenance
 
-from .. import transparency
+from .. import recovery, transparency
 from ..config import get_settings
 from ..models import PerceptualMatch, VerifyResult
 from ..repo import get_repo
@@ -52,7 +52,14 @@ def verify_bytes(data: bytes) -> VerifyResult:
 
     repo = get_repo()
     asset = repo.find_asset_by_sha(sha)
-    found = bool(asset)
+    # The asset table is mutable and the transparency log is not, so a deleted SKU leaves a
+    # chain entry whose row is gone. That entry still commits to the manifest's B2 key, so the
+    # record is recoverable from object storage (app/recovery.py). Tried before the perceptual
+    # tier below because an exact hash present in the log is a far stronger signal than a
+    # visual likeness — and because reporting "no record" here would contradict our own ledger.
+    recovered = recovery.recover_from_ledger(sha) if asset is None else None
+    record = asset if asset is not None else recovered
+    found = record is not None
 
     # ── Verify in the Wild ─────────────────────────────────────────────
     # Only when BOTH cryptographic tiers came up empty: no embedded manifest AND no exact-hash
@@ -83,14 +90,20 @@ def verify_bytes(data: bytes) -> VerifyResult:
 
     if extracted["present"]:
         verified = extracted["verified"]                       # integrity proven from bytes
-    elif found:
+    elif asset is not None:
         mv = asset.get("manifest_verified")                    # fall back to stored result
         verified = True if mv is None else bool(mv)
+    elif recovered is not None:
+        # Not a stored verdict: the recovered manifest recomputed its own canonical hash.
+        verified = bool(recovered["manifest_verified"])
     else:
         verified = False
 
-    # Content-binding: do the bytes match the hash the manifest signed over? A byte-exact
-    # match to a stored asset (found via SHA-256) is itself definitive content integrity.
+    # Content-binding: do the bytes match the hash the manifest signed over? A byte-exact match
+    # to a stored asset (found via SHA-256) is itself definitive content integrity — and so is a
+    # byte-exact match to a *recovered* record, where these bytes hash to precisely the subject
+    # the signed, checkpointed chain committed to. Only the hash-only `GET /verify/{sha}` route
+    # has no bytes to compare and must leave this unset.
     content_bound = extracted["content_bound"]
     if content_bound is None and found:
         content_bound = True
@@ -101,8 +114,10 @@ def verify_bytes(data: bytes) -> VerifyResult:
             "⚠ Tampered: this file carries an OriginShot manifest, but the media content has "
             "been altered and no longer matches the signed hash."
         )
-    elif found:
+    elif asset is not None:
         disclosure_text = disclosure(asset)
+    elif recovered is not None:
+        disclosure_text = recovery.disclosure(recovered)
     elif extracted["present"]:
         disclosure_text = (
             "This file carries a "
@@ -132,15 +147,16 @@ def verify_bytes(data: bytes) -> VerifyResult:
         sha256=sha,
         found=found,
         verified=verified,
-        is_authentic=bool(asset.get("is_authentic")) if found else False,
+        is_authentic=bool(record.get("is_authentic")) if found else False,
+        resolved_from=recovered["resolved_from"] if recovered is not None else "record",
         embedded=extracted["present"],
         content_bound=content_bound,
-        modality=asset.get("modality") if found else None,
-        style=asset.get("style") if found else None,
-        provider=asset.get("provider") if found else None,
-        model=asset.get("model") if found else None,
-        parent_sha256=asset.get("parent_sha256") if found else None,
-        created_at=asset.get("created_at") if found else None,
+        modality=record.get("modality") if found else None,
+        style=record.get("style") if found else None,
+        provider=record.get("provider") if found else None,
+        model=record.get("model") if found else None,
+        parent_sha256=record.get("parent_sha256") if found else None,
+        created_at=record.get("created_at") if found else None,
         disclosure=disclosure_text,
         ledger=transparency.position_for(sha),
         perceptual=perceptual_match,
@@ -151,9 +167,30 @@ def verify_bytes(data: bytes) -> VerifyResult:
 def verify(sha256: str):
     asset = get_repo().find_asset_by_sha(sha256)
     if not asset:
+        # The row is gone, but an append-only log entry may still commit to the manifest's B2
+        # key. Recovering it is what stops this endpoint contradicting our own ledger; see
+        # app/recovery.py for exactly what that does and does not prove.
+        rec = recovery.recover_from_ledger(sha256)
+        if rec is None:
+            return VerifyResult(
+                sha256=sha256, found=False, verified=False, is_authentic=False,
+                disclosure="No record found for this hash.",
+            )
         return VerifyResult(
-            sha256=sha256, found=False, verified=False, is_authentic=False,
-            disclosure="No record found for this hash.",
+            sha256=sha256,
+            found=True,
+            verified=bool(rec["manifest_verified"]),
+            is_authentic=False,
+            resolved_from=rec["resolved_from"],
+            embedded=False,
+            modality=rec.get("modality"),
+            style=rec.get("style"),
+            provider=rec.get("provider"),
+            model=rec.get("model"),
+            parent_sha256=rec.get("parent_sha256"),
+            created_at=rec.get("created_at"),
+            disclosure=recovery.disclosure(rec),
+            ledger=transparency.position_for(sha256),
         )
     # Authentic originals have no manifest; generated assets carry manifest.verify() result.
     mv = asset.get("manifest_verified")
@@ -179,7 +216,24 @@ def verify(sha256: str):
 def manifest(sha256: str):
     asset = get_repo().find_asset_by_sha(sha256)
     if not asset:
-        raise HTTPException(404, "Not found")
+        # Same recovery as /verify: a 404 here for a hash our own signed log commits to would
+        # be the same contradiction in a different endpoint.
+        rec = recovery.recover_from_ledger(sha256)
+        if rec is None:
+            raise HTTPException(404, "Not found")
+        return {
+            "sha256": sha256,
+            "resolved_from": rec["resolved_from"],
+            "modality": rec.get("modality"),
+            "style": rec.get("style"),
+            "is_authentic": False,
+            "provider": rec.get("provider"),
+            "model": rec.get("model"),
+            "parent_sha256": rec.get("parent_sha256"),
+            "canonical_hash": rec.get("manifest_key"),
+            "embedded": False,
+            "created_at": rec.get("created_at"),
+        }
     # Minimal, non-sensitive manifest view (prompts/params redacted per EmbedPolicy).
     return {
         "sha256": asset["sha256"],
