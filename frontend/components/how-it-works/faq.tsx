@@ -22,7 +22,7 @@ const FAQ = [
   },
   {
     q: "Which models does it actually use?",
-    a: "Images — studio, lifestyle, on-model and variants — all run on gemini-3-pro-image-preview, orchestrated by Genblaze through GMI Cloud. Video runs on Kling-Image2Video-V2.1-Master, falling back to pixverse-v5.6-i2v and then wan2.6-r2v. The model that produced a given file is recorded in its manifest, so you never have to take this page's word for it.",
+    a: "Images — studio, lifestyle, on-model and variants — run on gemini-3-pro-image-preview through GMI Cloud, with gpt-image-1 on OpenAI as a cross-provider fallback when GMI can't serve the step. Video runs on Kling-Image2Video-V2.1-Master, falling back to pixverse-v5.6-i2v and then wan2.6-r2v. Listing copy and the voiceover script come from zai-org/GLM-5.1-FP8, and the narration itself from OpenAI gpt-4o-mini-tts. All of it is orchestrated by Genblaze. The model that produced a given file is recorded in its manifest, so you never have to take this page's word for it.",
   },
   {
     q: "What happens to the photo I upload?",
