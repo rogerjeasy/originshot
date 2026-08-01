@@ -116,7 +116,29 @@ def fetch_all(client, api: str, *, expected: int | None = None) -> list[dict]:
             return entries[:expected]
 
 
+def _use_utf8_stdout() -> None:
+    """Make this script's output survive a legacy Windows console.
+
+    The report uses →, ·, ✓ and friends. A Python on Windows whose stdout is still cp1252
+    renders every one of them as `?`/mojibake — and on some configurations raises
+    UnicodeEncodeError mid-report, so the verifier appears to crash. That is a poor first
+    impression for the one artefact in this project whose entire job is to be run by a
+    sceptic on their own machine.
+
+    `errors="replace"` rather than strict: a console that genuinely cannot render a glyph
+    should print a placeholder, never take down a verification run over a bullet character.
+    Guarded because `reconfigure` needs a real text stream — under a pipe wrapper or a
+    captured stdout it may be absent, and the report is worth more than the typography.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):  # not a reconfigurable text stream
+            pass
+
+
 def main() -> int:
+    _use_utf8_stdout()
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--api", default="https://originshot-api.onrender.com",
