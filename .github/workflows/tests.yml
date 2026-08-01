@@ -1,0 +1,52 @@
+# The backend test suite, on every push and pull request.
+#
+# The suite is hermetic by construction: tests/conftest.py blanks every external credential
+# before the app config is imported, so this job needs NO secrets and can never touch real
+# Firebase, B2, or a generation provider — a CI run costs nothing and cannot spend provider
+# credit. That is also why it is safe to run on pull requests from forks.
+#
+# tests/test_sdk_integration.py checks our model IDs and step kwargs against the *installed*
+# Genblaze SDK, so a catalog drift or a breaking SDK release fails here rather than in
+# production. Ruff runs in the same job: a lint failure should be as visible as a test failure,
+# and splitting them across jobs would double a 30-second pipeline's setup cost for nothing.
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      # Keyed on the lockfile so a dependency change busts it and an ordinary code change
+      # doesn't — the install is by far the slowest step here.
+      - uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: ${{ runner.os }}-poetry-${{ hashFiles('backend/poetry.lock') }}
+
+      - name: Install dependencies
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+      - name: Lint
+        run: poetry run ruff check .
+
+      - name: Test
+        run: poetry run pytest -q
