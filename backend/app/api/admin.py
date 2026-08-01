@@ -92,22 +92,52 @@ def overview(user: CurrentUser = Depends(require_admin)):
                 continue
         return count
 
-    succeeded = sum(1 for j in jobs if j.get("status") == JobStatus.done.value)
-    partial = sum(1 for j in jobs if j.get("status") == JobStatus.partial.value)
-    failed = sum(1 for j in jobs if j.get("status") == JobStatus.failed.value)
-    # A job still queued/running hasn't succeeded or failed yet — excluding it keeps the
-    # rate from dipping every time a job is merely in flight.
-    resolved = succeeded + partial + failed
-    # Partial counts as a success: the user got a usable pack, just not every style.
-    success_rate = ((succeeded + partial) / resolved * 100) if resolved else 100.0
+    def _tally(rows: list[dict]) -> tuple[int, int, int, float | None]:
+        """(succeeded, partial, failed, rate) over `rows`. Rate is None when nothing resolved.
+
+        A job still queued/running hasn't succeeded or failed yet — excluding it keeps the rate
+        from dipping every time a job is merely in flight. Partial counts as a success: the user
+        got a usable pack, just not every style.
+        """
+        ok = sum(1 for j in rows if j.get("status") == JobStatus.done.value)
+        part = sum(1 for j in rows if j.get("status") == JobStatus.partial.value)
+        bad = sum(1 for j in rows if j.get("status") == JobStatus.failed.value)
+        resolved = ok + part + bad
+        return ok, part, bad, ((ok + part) / resolved * 100) if resolved else None
+
+    succeeded, partial, failed, lifetime_rate = _tally(jobs)
+    success_rate = lifetime_rate if lifetime_rate is not None else 100.0
+
+    # Reliability is a *current* property, and the lifetime figure stops being one. This
+    # instance's five oldest failures are an exhausted provider balance and a job stranded by a
+    # worker the free tier killed — both since fixed (app/reaper.py, cross-provider fallback) —
+    # yet they held the headline at 73.7% indefinitely, describing a system that no longer
+    # exists. A trailing window says what the platform is doing *now*; the lifetime counts stay
+    # in the response beside it, because dating a failure is honest and hiding one is not.
+    window_days = get_settings().admin_reliability_window_days
+    window_start = now - timedelta(days=window_days)
+    recent_jobs = []
+    for j in jobs:
+        ts = j.get("finished_at") or j.get("created_at")
+        try:
+            if ts and ts > window_start:
+                recent_jobs.append(j)
+        except TypeError:
+            continue
+    win_ok, win_part, win_bad, win_rate = _tally(recent_jobs)
 
     durations = [d for j in jobs if (d := _duration_ms(j)) is not None]
 
     total_assets = len(assets)
     unique = len({a.get("sha256") for a in assets if a.get("sha256")})
     dedup = (1 - unique / total_assets) * 100 if total_assets else 0.0
-    embedded = sum(1 for a in assets if a.get("embedded"))
     generated = [a for a in assets if not a.get("is_authentic")]
+    # Measured against GENERATED assets, not every asset. An authentic original is a seller's
+    # own photograph and has no manifest by design, so counting originals in the denominator
+    # made a fully-embedded catalog report ~52% and read as half the pipeline being broken.
+    # The denominator ships alongside the percentage so the figure can't be misread again.
+    embedded = sum(1 for a in generated if a.get("embedded"))
+    embeddable = len(generated)
 
     provider_mix: dict[str, int] = {}
     for a in assets:
@@ -133,6 +163,11 @@ def overview(user: CurrentUser = Depends(require_admin)):
         jobs_partial=partial,
         jobs_failed=failed,
         success_rate_pct=round(success_rate, 1),
+        reliability_window_days=window_days,
+        jobs_succeeded_window=win_ok,
+        jobs_partial_window=win_part,
+        jobs_failed_window=win_bad,
+        success_rate_window_pct=round(win_rate, 1) if win_rate is not None else None,
         p50_duration_ms=_percentile(durations, 50),
         p95_duration_ms=_percentile(durations, 95),
         spend_total_usd=spend,
@@ -142,7 +177,9 @@ def overview(user: CurrentUser = Depends(require_admin)):
         videos=sum(1 for a in assets if a.get("modality") == Modality.video.value),
         provider_mix=provider_mix,
         dedup_savings_pct=round(dedup, 1),
-        embedded_pct=round(embedded / total_assets * 100, 1) if total_assets else 0.0,
+        embedded_pct=round(embedded / embeddable * 100, 1) if embeddable else 0.0,
+        embedded_count=embedded,
+        embeddable_count=embeddable,
         b2=_b2_stats(),
         generated_24h=_recent(generated, "created_at", day_ago),
         provider_budget=_provider_budget(),
@@ -363,12 +400,14 @@ def health(user: CurrentUser = Depends(require_admin)):
         generation_mode=generation_mode(),
         # Configured ≠ funded — same caveat as health.check_generation. These booleans say
         # a key is present, not that the account behind it has credit.
+        #
+        # Only providers that can actually serve a step appear here. This panel previously also
+        # listed gemini / luma / elevenlabs, which no code path has ever called — an ops
+        # dashboard naming integrations the app doesn't have is the same failure as marketing
+        # copy doing it. If a provider is added, it lands in registry.py first and here second.
         providers={
             "gmi": bool(settings.gmi_api_key),
             "openai": bool(settings.openai_api_key),
-            "gemini": bool(settings.gemini_api_key),
-            "luma": bool(settings.luma_api_key),
-            "elevenlabs": bool(settings.elevenlabs_api_key),
         },
         manifest_embed_mode=settings.manifest_embed_mode,
         uptime_seconds=int(time.time() - _STARTED_AT),
