@@ -456,6 +456,11 @@ class VerifyResult(BaseModel):
     found: bool
     verified: bool
     is_authentic: bool
+    # Where this answer came from — "record" is this instance's own database; "b2-manifest"
+    # means the row is gone and provenance was rebuilt from the manifest published on B2 at the
+    # key the transparency-log entry commits to (app/recovery.py). A result should always be
+    # able to say what it is standing on, and the two are not equally strong.
+    resolved_from: str = "record"
     embedded: bool = False  # True when verification came from a manifest embedded in the bytes
     # True/False when the bytes were checked against the manifest's signed content hash;
     # None when binding couldn't be determined (unsupported format, no record, pointer).
