@@ -54,8 +54,10 @@ const PRINCIPLES = [
 const BUILD = [
   ["Backblaze B2", "Every byte the product owns — originals, masters, renditions, manifests, and the transparency log's published checkpoints."],
   ["Genblaze", "One Pipeline API across providers. Each step reports its real cost back, which is what the credit ledger debits."],
-  ["gemini-3-pro-image-preview", "Source photo → studio, lifestyle, on-model and variant frames."],
+  ["gemini-3-pro-image-preview", "Source photo → studio, lifestyle, on-model and variant frames, on GMI Cloud."],
+  ["gpt-image-1", "The same image steps on OpenAI, when GMI Cloud can't serve them."],
   ["Kling-Image2Video-V2.1-Master", "Studio frame → a five-second product video, with i2v fallbacks behind it."],
+  ["gpt-4o-mini-tts", "A GLM-written script → narration audio, muxed onto the hero video."],
 ];
 
 export default function AboutPage() {
