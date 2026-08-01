@@ -244,6 +244,35 @@ def test_modality_for_audio():
     assert _modality_for(Style.studio, "image/png") == Modality.image
 
 
+def test_narrated_video_is_a_video_not_audio():
+    """The muxed MP4 is produced under the `voiceover` style but is a video.
+
+    Filed as `audio` it vanished from the Library's Video filter and its AI-disclosure
+    sentence read "AI-generated image" — a false statement about the medium in the exact
+    string a marketplace or the EU AI Act would rely on.
+    """
+    from app.generation import _modality_for
+    from app.models import Modality, Style
+    from app.util import disclosure
+
+    assert _modality_for(Style.voiceover, "video/mp4") == Modality.video
+
+    asset = {"modality": "video", "model": "ffmpeg-mux", "provider": "ffmpeg-compositor",
+             "parent_sha256": "4b2b705dbcdd" + "0" * 52}
+    assert disclosure(asset).startswith("AI-generated video.")
+
+
+def test_disclosure_names_the_medium():
+    from app.util import disclosure
+
+    base = {"model": "m", "provider": "p", "parent_sha256": "a" * 64}
+    assert disclosure({**base, "modality": "image"}).startswith("AI-generated image.")
+    assert disclosure({**base, "modality": "audio"}).startswith("AI-generated audio.")
+    # An asset with no modality recorded must not be *called* an image.
+    assert disclosure(base).startswith("AI-generated media.")
+    assert disclosure({**base, "is_authentic": True}).startswith("Authentic original")
+
+
 def test_ext_for_audio():
     from app.generation import _ext_for
 
