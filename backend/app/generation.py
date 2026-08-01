@@ -302,6 +302,15 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
              and a.get("modality") == Modality.video.value and a.get("b2_key")),
             None,
         )
+        # Fall back to a hero video this SKU already has. Without this, the narrated video is
+        # reachable *only* by asking for `video` and `voiceover` in the same job — so a seller
+        # who generated their pack yesterday and wants narration today would have to pay for a
+        # second ~4-minute video generation to get it, and the app's one talking-product asset
+        # would be invisible on every SKU whose video predates the narration. Provenance is
+        # unaffected: the muxed MP4 records `muxed_from` for both inputs by hash either way,
+        # and both were already stored, embedded and ledger-anchored in their own right.
+        if hero_video is None:
+            hero_video = _stored_hero_video(sku)
         if hero_video:
             try:
                 narrated = await _mux_narrated_video(
@@ -666,6 +675,79 @@ def _map(sku, result, style: Style, parent: str, storage) -> dict:
     return out
 
 
+def _stored_hero_video(sku: dict) -> dict | None:
+    """The SKU's most recent stored hero video, or None.
+
+    Read through the repo rather than passed in, because the voiceover runner only sees what
+    the *current* job produced. Scoped by the SKU's own `owner_uid` — the repo's per-user
+    isolation is the boundary that keeps one seller's media out of another's pack, so this
+    read goes through it exactly like every other, never around it. Newest first so a
+    re-generated hero replaces an older one, and filtered on `b2_key` because the mux needs
+    bytes it can presign — an asset without one has nothing to fetch.
+    """
+    from .repo import get_repo
+
+    owner = sku.get("owner_uid")
+    if not owner:
+        return None
+    try:
+        assets = get_repo().list_assets(owner, sku["id"])
+    except Exception as exc:  # noqa: BLE001 — a bonus asset must never fail the style
+        log.warning("hero video lookup failed for sku %s: %s", sku.get("id"), exc)
+        return None
+    videos = [
+        a for a in assets
+        if a.get("style") == Style.video.value
+        and a.get("modality") == Modality.video.value
+        and a.get("b2_key")
+    ]
+    if not videos:
+        return None
+    return max(videos, key=lambda a: str(a.get("created_at") or ""))
+
+
+def _container_memory_limit_mb() -> int | None:
+    """The container's memory ceiling in MB, or None when it can't be determined.
+
+    Reads the cgroup limit rather than total host RAM: on a shared platform like Render the
+    host reports far more memory than the instance is allowed to touch, and it is the cgroup
+    limit that the OOM killer enforces. cgroup v2 first (`memory.max`, which reads "max" when
+    unlimited), then v1. Returns None on any non-Linux host or unreadable file, which the
+    caller treats as "no guard" — refusing to run on a machine we merely failed to measure
+    would break local development on Windows and macOS.
+    """
+    from pathlib import Path
+
+    for path, in_bytes in (("/sys/fs/cgroup/memory.max", True),
+                           ("/sys/fs/cgroup/memory/memory.limit_in_bytes", True)):
+        try:
+            raw = Path(path).read_text().strip()
+        except OSError:
+            continue
+        if raw == "max":
+            return None
+        try:
+            value = int(raw)
+        except ValueError:
+            continue
+        # cgroup v1 reports a sentinel near 2^63 for "unlimited".
+        if in_bytes and value >= 1 << 62:
+            return None
+        return value // (1024 * 1024)
+    return None
+
+
+def _memory_shortfall_mb() -> int | None:
+    """The instance's memory limit when it is below the narrated-video floor, else None."""
+    floor = get_settings().narrated_video_min_memory_mb
+    if floor <= 0:
+        return None
+    limit = _container_memory_limit_mb()
+    if limit is None or limit >= floor:
+        return None
+    return limit
+
+
 async def _mux_narrated_video(sku, audio_asset, video_asset, parent, storage, sink) -> dict | None:
     """Mux the narration onto the hero video → a narrated, content-bound MP4 asset (or None).
 
@@ -688,6 +770,22 @@ async def _mux_narrated_video(sku, audio_asset, video_asset, parent, storage, si
     ffmpeg = vo.ffmpeg_binary()
     if not ffmpeg:
         log.info("narrated video skipped: no ffmpeg (system or bundled) available")
+        return None
+
+    # Refuse the mux on an instance too small to survive it. Generation runs inline, so an
+    # ffmpeg OOM does not fail *this step* — it kills the API process, which strands the job
+    # in `running` with its credit still held (that is exactly what happened on the free tier,
+    # 2026-08-01). Skipping is the honest outcome: the narration audio is already generated,
+    # stored and provenance-tracked, and this path's contract has always been that a missing
+    # mux degrades rather than fails.
+    shortfall = _memory_shortfall_mb()
+    if shortfall is not None:
+        log.warning(
+            "narrated video skipped: instance memory limit is %d MB, below the %d MB floor "
+            "for the ffmpeg mux. Shipping the standalone narration audio. Raise the instance "
+            "size or lower NARRATED_VIDEO_MIN_MEMORY_MB to enable it.",
+            shortfall, get_settings().narrated_video_min_memory_mb,
+        )
         return None
 
     def _url(a: dict) -> str | None:
@@ -721,16 +819,31 @@ async def _mux_narrated_video(sku, audio_asset, video_asset, parent, storage, si
 
 
 def _modality_for(style: Style, mime_type: str | None) -> Modality:
-    """Modality from the produced media type, with the style as a fallback.
+    """The asset's modality, from the produced media type where that is meaningful.
 
-    Media-type first so an asset is classified by what it actually *is* (a provider that
-    returns audio/mpeg is audio regardless of style bookkeeping); style covers the case where
-    the SDK didn't report a media type.
+    A declared ``audio/*`` or ``video/*`` type is authoritative: nothing in this app reports
+    one unless it genuinely produced that medium, so it carries information the style does
+    not. ``image/*`` is **not** authoritative — it is the generic default a provider (and the
+    test double) reports when it isn't being specific, so letting it win would reclassify a
+    video step that merely under-reported its type.
+
+    That distinction is what the `voiceover` style needs, because it is the one style that
+    produces two modalities: the narration MP3, and the narrated MP4 muxed from that MP3 and
+    the hero video. Deriving both from the style filed the talking product video under
+    `audio`, which is not cosmetic — modality drives the Library's media filter (so the app's
+    one talking asset was invisible to anyone filtering "Video") and the AI-disclosure
+    sentence, which read "AI-generated image" for an MP4. A disclosure line that misstates the
+    medium is the one string here that has to be right.
     """
     mt = (mime_type or "").lower()
-    if style is Style.voiceover or mt.startswith("audio/"):
+    if mt.startswith("audio/"):
         return Modality.audio
-    if style is Style.video or mt.startswith("video/"):
+    if mt.startswith("video/"):
+        return Modality.video
+    # No decisive media type — fall back to what the style is known to produce.
+    if style is Style.voiceover:
+        return Modality.audio
+    if style is Style.video:
         return Modality.video
     return Modality.image
 
