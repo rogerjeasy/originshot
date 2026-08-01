@@ -25,6 +25,12 @@ def with_presigned_url(asset: dict) -> dict:
     return a
 
 
+# The disclosure sentence names the medium, so it has to be read off the asset rather than
+# assumed. This string is what a marketplace or an EU AI Act disclosure would carry; calling a
+# narrated MP4 an "image" is a false statement in the one place this app cannot afford one.
+_MEDIUM = {"image": "image", "video": "video", "audio": "audio"}
+
+
 def disclosure(asset: dict) -> str:
     """Human-readable AI-disclosure / authenticity statement for an asset."""
     if asset.get("is_authentic"):
@@ -32,7 +38,8 @@ def disclosure(asset: dict) -> str:
     model = asset.get("model") or "an AI model"
     provider = asset.get("provider") or "provider"
     parent = (asset.get("parent_sha256") or "")[:12]
+    medium = _MEDIUM.get(str(asset.get("modality") or "").lower(), "media")
     return (
-        f"AI-generated image. Model: {model} ({provider}). "
+        f"AI-generated {medium}. Model: {model} ({provider}). "
         f"Derived from authentic source {parent}. Provenance verifiable via OriginShot."
     )
