@@ -551,6 +551,13 @@ export interface AdminOverview {
   jobs_partial: number;
   jobs_failed: number;
   success_rate_pct: number;
+  /** Trailing-window reliability — what the platform is doing now. Null rate = nothing resolved
+   *  in the window, which is NOT the same as 0% and must not render as one. */
+  reliability_window_days: number;
+  jobs_succeeded_window: number;
+  jobs_partial_window: number;
+  jobs_failed_window: number;
+  success_rate_window_pct?: number | null;
   p50_duration_ms?: number | null;
   p95_duration_ms?: number | null;
   spend_total_usd: number;
@@ -560,7 +567,11 @@ export interface AdminOverview {
   videos: number;
   provider_mix: Record<string, number>;
   dedup_savings_pct: number;
+  /** Share of GENERATED assets carrying an embedded manifest — originals are excluded from the
+   *  denominator, since they never carry one. Counts included so the ratio can be shown. */
   embedded_pct: number;
+  embedded_count: number;
+  embeddable_count: number;
   b2: B2Stats;
   generated_24h: number;
   provider_budget?: ProviderBudget | null;

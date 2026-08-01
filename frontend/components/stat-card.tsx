@@ -18,6 +18,7 @@ export function StatCard({
   suffix = "",
   tone = "default",
   hint,
+  subhint,
   className,
 }: {
   label: string;
@@ -28,6 +29,9 @@ export function StatCard({
   /** `verified` for figures that are good news (savings); keep it rare. */
   tone?: "default" | "verified" | "warning";
   hint?: string;
+  /** A second, quieter line — for context that qualifies the figure without competing with
+   *  it (e.g. the lifetime tally beneath a trailing-window rate). */
+  subhint?: string;
   className?: string;
 }) {
   return (
@@ -43,6 +47,7 @@ export function StatCard({
         <CountUp value={value} decimals={decimals} prefix={prefix} suffix={suffix} />
       </p>
       {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+      {subhint && <p className="text-xs text-muted-foreground/70">{subhint}</p>}
     </div>
   );
 }

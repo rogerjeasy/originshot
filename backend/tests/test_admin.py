@@ -93,6 +93,80 @@ def test_success_rate_ignores_in_flight_jobs(client, repo):
     assert body["success_rate_pct"] == pytest.approx(100.0)
 
 
+def test_reliability_window_excludes_old_failures_but_still_counts_them(client, repo):
+    """The headline is a trailing window; the lifetime tally stays in the response.
+
+    An outage that was fixed months ago is not a statement about the platform today, but it did
+    happen — so it must not vanish either. Both numbers are returned and they are allowed to
+    disagree; that disagreement is the point.
+    """
+    from datetime import timedelta
+
+    from app.models import utcnow
+
+    old = utcnow() - timedelta(days=120)
+    stale = repo.create_job(UID, {"sku_id": "s1", "requested_styles": ["studio"]})
+    repo.update_job(UID, stale["id"], {"status": "failed", "finished_at": old,
+                                       "created_at": old})
+    fresh = repo.create_job(UID, {"sku_id": "s2", "requested_styles": ["studio"]})
+    repo.update_job(UID, fresh["id"], {"status": "done", "finished_at": utcnow()})
+    _make_admin(repo)
+
+    body = client.get("/api/admin/overview").json()
+
+    # Lifetime: one of each, so 50%. The failure is still counted and still visible.
+    assert body["jobs_failed"] == 1
+    assert body["jobs_succeeded"] == 1
+    assert body["success_rate_pct"] == pytest.approx(50.0)
+
+    # Window: only the recent job, which succeeded.
+    assert body["reliability_window_days"] == 30
+    assert body["jobs_failed_window"] == 0
+    assert body["jobs_succeeded_window"] == 1
+    assert body["success_rate_window_pct"] == pytest.approx(100.0)
+
+
+def test_reliability_window_is_null_when_nothing_resolved_in_it(client, repo):
+    """No jobs in the window is NOT 0% — the UI must be able to tell those apart."""
+    from datetime import timedelta
+
+    from app.models import utcnow
+
+    old = utcnow() - timedelta(days=120)
+    job = repo.create_job(UID, {"sku_id": "s1", "requested_styles": ["studio"]})
+    repo.update_job(UID, job["id"], {"status": "done", "finished_at": old, "created_at": old})
+    _make_admin(repo)
+
+    body = client.get("/api/admin/overview").json()
+    assert body["success_rate_window_pct"] is None
+    assert body["success_rate_pct"] == pytest.approx(100.0)
+
+
+def test_embedded_pct_measures_generated_assets_not_originals(client, repo, png_bytes):
+    """Authentic originals never carry a manifest, so counting them understates the pipeline.
+
+    With originals in the denominator a fully-embedded catalog reported ~52% and read as half
+    the provenance pipeline being broken. The counts are returned so the ratio is checkable.
+    """
+    sku = client.post("/api/skus", json={"title": "Mug"}).json()
+    client.post(f"/api/skus/{sku['id']}/upload",
+                files={"file": ("p.png", png_bytes(), "image/png")})
+    client.post(f"/api/skus/{sku['id']}/generate", json={"styles": ["studio"]})
+    _make_admin(repo)
+
+    body = client.get("/api/admin/overview").json()
+    assets = repo.list_assets_for_user(UID)
+    generated = [a for a in assets if not a.get("is_authentic")]
+
+    # The denominator is generated assets only — strictly fewer than every asset, because at
+    # least one authentic original was uploaded above.
+    assert body["embeddable_count"] == len(generated)
+    assert body["embeddable_count"] < body["assets_total"]
+    assert body["embedded_count"] == sum(1 for a in generated if a.get("embedded"))
+    expected = body["embedded_count"] / body["embeddable_count"] * 100
+    assert body["embedded_pct"] == pytest.approx(round(expected, 1))
+
+
 def test_admin_can_grant_credits_and_it_is_attributed(client, repo):
     client.get("/api/credits")
     _make_admin(repo)
