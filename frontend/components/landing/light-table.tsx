@@ -13,25 +13,25 @@ import { DEMO_ASSETS } from "@/lib/demo-assets";
  * time, in the order the pipeline actually produces them.
  *
  * Everything here is real. The six frames are genuine OriginShot output served
- * from Backblaze B2, the model named against each one is the model that made it
- * (see backend/originshot_pipelines/registry.py), and the hash under each frame
- * is that object's true SHA-256 — click it and /verify resolves it against the
- * ledger. A visitor can check the page's central claim before signing up, which
- * is a stronger opening than any diagram of the claim would be.
+ * from Backblaze B2, the model named against each one is read from that frame's
+ * own stored record rather than assumed, and the hash under each frame is that
+ * object's true SHA-256 — click it and /verify resolves it. A visitor can check
+ * the page's central claim before signing up, which is a stronger opening than
+ * any diagram of the claim would be.
  */
 
 // Every frame here is the same ceramic mug, because the strip's caption claims
-// exactly that. `variant-01` is deliberately NOT in this list: it is a green
-// bottle — the "wrong item shipped" fixture from the resolve benchmark — and
-// putting it under a "one source photo" claim would make the page's central
-// argument false at a glance.
+// exactly that. The five stills all derive from the one anchored original
+// (05993b99f9af) and all are present in the transparency log; the closing video
+// derives from a second photograph of the same mug, which is why the caption
+// below scopes "one source photo" to the stills instead of to the strip.
 const SEQUENCE = [
-  { slot: "studio-01", step: "studio", model: "gemini-3-pro-image-preview" },
-  { slot: "lifestyle-02", step: "lifestyle", model: "gemini-3-pro-image-preview" },
-  { slot: "scene-02", step: "in context", model: "gemini-3-pro-image-preview" },
-  { slot: "lifestyle-05", step: "kitchen scene", model: "gemini-3-pro-image-preview" },
-  { slot: "onmodel-01", step: "on-model", model: "gemini-3-pro-image-preview" },
-  { slot: "video-01", step: "product video", model: "Kling-Image2Video-V2.1-Master" },
+  { slot: "studio-01", step: "studio" },
+  { slot: "lifestyle-02", step: "lifestyle" },
+  { slot: "lifestyle-01", step: "in context" },
+  { slot: "variant-01", step: "colour variant" },
+  { slot: "onmodel-01", step: "on-model" },
+  { slot: "video-01", step: "product video" },
 ] as const;
 
 const FRAME_MS = 900;
@@ -70,8 +70,8 @@ export function LightTable({ className }: { className?: string }) {
         style={{ backgroundColor: "var(--ink-2)" }}
       >
         {/* Rebate strip. The right-hand readout is the job log: it names the
-            step being written and the model writing it, so the mechanism is
-            legible rather than magic. */}
+            step currently being written, so the mechanism is legible rather
+            than magic. The model behind each frame is on the frame itself. */}
         <div className="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
           <span className="kicker on-ink-mute truncate">Pack 001 · ceramic mug</span>
           <span className="kicker flex shrink-0 items-center gap-1.5">
@@ -218,8 +218,9 @@ export function LightTable({ className }: { className?: string }) {
       </div>
 
       <figcaption className="on-ink-mute mt-3 text-[13px] leading-relaxed">
-        Six real frames from one source photo, served from Backblaze B2. Open any frame to check
-        its hash against the ledger.
+        Five real frames from one source photo, plus a video from a second shot of the same mug —
+        all served from Backblaze B2. Open any frame to check its hash: every still here is
+        recorded in the transparency log.
       </figcaption>
     </figure>
   );
