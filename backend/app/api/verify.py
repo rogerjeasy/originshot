@@ -69,6 +69,7 @@ def verify_bytes(data: bytes) -> VerifyResult:
     # unmodified OriginShot file never reaches here, so this costs a pHash scan only on files
     # that would otherwise get a flat "unknown".
     perceptual_match: PerceptualMatch | None = None
+    perceptual_ambiguous = False
     if not extracted["present"] and not found:
         query = perceptual.phash(data)
         if query is not None:
@@ -76,17 +77,25 @@ def verify_bytes(data: bytes) -> VerifyResult:
             if near is not None:
                 dist = near["phash_distance"]
                 matched_sha = near["sha256"]
-                perceptual_match = PerceptualMatch(
-                    matched_sha256=matched_sha,
-                    distance=dist,
-                    confidence=perceptual.confidence(dist),
-                    strong=dist <= perceptual.MATCH_STRONG,
-                    style=near.get("style"),
-                    provider=near.get("provider"),
-                    model=near.get("model"),
-                    parent_sha256=near.get("parent_sha256"),
-                    matched_in_ledger=transparency.position_for(matched_sha) is not None,
-                )
+                # Close enough is not the same as clearly closest. Colourways of one product
+                # sit within a few bits of each other, so a winner that barely beats its
+                # runner-up is a coin flip — and naming an asset here attaches a real provider,
+                # model and lineage to the buyer's file. An ambiguous hit is reported as no
+                # match at all, with the reason said out loud rather than silently dropped.
+                if perceptual.ambiguous(dist, near.get("phash_runner_up")):
+                    perceptual_ambiguous = True
+                else:
+                    perceptual_match = PerceptualMatch(
+                        matched_sha256=matched_sha,
+                        distance=dist,
+                        confidence=perceptual.confidence(dist),
+                        strong=dist <= perceptual.MATCH_STRONG,
+                        style=near.get("style"),
+                        provider=near.get("provider"),
+                        model=near.get("model"),
+                        parent_sha256=near.get("parent_sha256"),
+                        matched_in_ledger=transparency.position_for(matched_sha) is not None,
+                    )
 
     if extracted["present"]:
         verified = extracted["verified"]                       # integrity proven from bytes
@@ -139,6 +148,17 @@ def verify_bytes(data: bytes) -> VerifyResult:
             f"({perceptual_match.matched_sha256[:12]}…, perceptual distance "
             f"{perceptual_match.distance}/64).{lineage} This is a visual-similarity match — "
             f"evidence, not a cryptographic guarantee."
+        )
+    elif perceptual_ambiguous:
+        # Say what happened. "No match" and "several equally-close candidates" are different
+        # facts, and the second one is the more useful thing for a buyer to know: it means the
+        # image does resemble this catalog, just not distinguishably enough to name a file.
+        disclosure_text = (
+            "No provenance manifest survives in this file, and its appearance is close to "
+            "several different OriginShot assets rather than to any one of them — which is "
+            "expected for colour variants of a single product. No specific asset can be named "
+            "on visual similarity alone. Upload the original downloaded file to verify it "
+            "cryptographically."
         )
     else:
         disclosure_text = "No embedded manifest and no record found for this file."
