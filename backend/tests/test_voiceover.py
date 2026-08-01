@@ -273,6 +273,29 @@ def test_disclosure_names_the_medium():
     assert disclosure({**base, "is_authentic": True}).startswith("Authentic original")
 
 
+@pytest.mark.parametrize("modality,medium", [
+    ("image", "image"), ("video", "video"), ("audio", "audio"), (None, "media"),
+])
+def test_both_disclosure_implementations_name_the_same_medium(modality, medium):
+    """`provenance.disclosure_text` renders the same compliance claim as `util.disclosure`.
+
+    Two copies of one compliance string is how they drift, and they did: the pipelines copy
+    went on hardcoding "image" for every asset long after video and audio shipped. Pinning
+    them to each other here is what makes the duplication safe to keep.
+    """
+    from originshot_pipelines.provenance import disclosure_text
+
+    from app.util import disclosure
+
+    asset = {"model": "m", "provider": "p", "parent_sha256": "a" * 64, "modality": modality}
+    pipeline_side = disclosure_text(
+        is_authentic=False, model="m", provider="p", parent_sha256="a" * 64, modality=modality,
+    )
+
+    assert pipeline_side.startswith(f"AI-generated {medium}.")
+    assert disclosure(asset).startswith(f"AI-generated {medium}.")
+
+
 def test_ext_for_audio():
     from app.generation import _ext_for
 
