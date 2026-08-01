@@ -5,7 +5,7 @@ Dev runs the job inline via BackgroundTasks (no Redis needed). For production, s
 """
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
-from .. import credits, pricing
+from .. import credits, pricing, reaper
 from ..auth import CurrentUser, get_current_user
 from ..generation import generation_mode, missing_generation_requirements
 from ..models import GenerateRequest, JobOut, StepStatus, Style
@@ -157,7 +157,11 @@ async def replay(
 
 @router.get("/jobs/{job_id}", response_model=JobOut)
 def get_job(job_id: str, user: CurrentUser = Depends(get_current_user)):
-    job = get_repo().get_job(user.uid, job_id)
+    # Reaped on read: generation runs inline, so a job whose process died has nobody left to
+    # write its terminal status. This is where the user is already waiting, so it is where an
+    # abandoned run turns into an honest `failed` + refund instead of a permanent spinner.
+    # See app/reaper.py.
+    job = reaper.reap_one(user.uid, get_repo().get_job(user.uid, job_id))
     if not job:
         raise HTTPException(404, "Not found")
     return job
@@ -243,7 +247,11 @@ async def stream_job(job_id: str, user: CurrentUser = Depends(get_current_user))
     """
     from fastapi.responses import StreamingResponse
 
-    if not get_repo().get_job(user.uid, job_id):
+    # Same reap-on-read as GET /jobs/{id}: a stream opened against an abandoned job would
+    # otherwise hold the connection for the full _STREAM_MAX_SECONDS emitting keepalives for a
+    # run that ended when its process died. Reaping first makes the snapshot terminal, so the
+    # stream sends it and closes immediately.
+    if not reaper.reap_one(user.uid, get_repo().get_job(user.uid, job_id)):
         raise HTTPException(404, "Not found")
 
     return StreamingResponse(
