@@ -83,9 +83,11 @@ class Settings(BaseSettings):
     # configured refuses rather than quietly serving a different one, because provenance
     # records which provider ran and that record has to be true.
     image_provider: str = "auto"
-    gemini_api_key: str | None = None
-    luma_api_key: str | None = None
-    elevenlabs_api_key: str | None = None
+    # NOTE: GEMINI_API_KEY / LUMA_API_KEY / ELEVENLABS_API_KEY used to be declared here and
+    # surfaced on the admin health panel as "Providers". Nothing read them — no pipeline, no
+    # registry entry, no code path — so the dashboard advertised three integrations this app
+    # does not have. The single source of truth for what can actually serve a step is
+    # originshot_pipelines/registry.py; anything named as a provider has to appear there first.
 
     # Limits & quotas
     max_upload_mb: int = 25
@@ -164,8 +166,15 @@ class Settings(BaseSettings):
     catalog_embed_model: str = "text-embedding-3-small"
     catalog_embed_dim: int = 256           # OpenAI dimension-reduction: small, cheap, plenty here
     catalog_embed_timeout_seconds: int = 15
-    catalog_similar_max_distance: int = 12  # pHash Hamming for "looks like" (looser than a match)
-    catalog_duplicate_max_distance: int = 6  # pHash Hamming for "near-duplicate source" (strict)
+    # "Looks like this" — a ranked browse list that always shows the distance and claims no
+    # identity, so it can afford to be loose and surface neighbours worth a human glance.
+    catalog_similar_max_distance: int = 12
+    # "Near-duplicate source" is a FRAUD signal, so it is cut at the measured false-positive
+    # floor instead: 4 bits is the closest that two genuinely different assets in the real
+    # catalog come (see perceptual.MATCH_WEAK for the measurement). It was 6, which sat above
+    # that floor and would flag a seller listing colour variants of one item as separate SKUs —
+    # the legitimate case this signal must not accuse.
+    catalog_duplicate_max_distance: int = 4
 
     # ── The Auditor: scheduled integrity agent (app/auditor.py) ────────
     # POST /api/ledger/audit runs one audit pass: re-verify a sample of stored assets
@@ -178,6 +187,11 @@ class Settings(BaseSettings):
     # cost of a scheduled run; a small random sample every few hours covers the library
     # over time without ever making the audit itself expensive.
     audit_sample_size: int = 25
+
+    # Trailing window for the admin dashboard's headline reliability figure. Long enough to be
+    # a meaningful sample on a low-traffic instance, short enough that a fixed fault stops
+    # being reported as a current one. The lifetime tally is always returned beside it.
+    admin_reliability_window_days: int = 30
 
     # Catalog Mode: how many SKUs generate at once within one batch. Generation is I/O-bound
     # on the provider so parallelism buys wall-clock cheaply, but each in-flight job also
@@ -294,9 +308,6 @@ class Settings(BaseSettings):
 _ENV_MIRROR = {
     "GMI_API_KEY": "gmi_api_key",
     "OPENAI_API_KEY": "openai_api_key",
-    "GEMINI_API_KEY": "gemini_api_key",
-    "LUMA_API_KEY": "luma_api_key",
-    "ELEVENLABS_API_KEY": "elevenlabs_api_key",
     "B2_KEY_ID": "b2_key_id",
     "B2_APP_KEY": "b2_app_key",
     "B2_BUCKET": "b2_bucket",
