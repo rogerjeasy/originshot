@@ -4,6 +4,7 @@
 
 ### *"Every AI product photo answers 'does this look good?' None of them answer 'is this the actual product?'"*
 
+[![tests](https://github.com/rogerjeasy/originshot/actions/workflows/tests.yml/badge.svg)](https://github.com/rogerjeasy/originshot/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Backblaze Generative Media Hackathon](https://img.shields.io/badge/Backblaze-Generative%20Media%20Hackathon-E21E29)](https://backblaze-genblaze.devpost.com)
 [![Storage: Backblaze B2](https://img.shields.io/badge/Storage-Backblaze%20B2-E21E29)](https://www.backblaze.com/cloud-storage)
@@ -48,10 +49,10 @@ curl -s https://originshot-api.onrender.com/api/verify/f021cd558fed75cd80c3c69fb
 That hash is a real generated asset. The response names the provider and model that made it, the **authentic original it descends from**, its position in the transparency log, and an EU-AI-Act-ready disclosure string — and tells you honestly whether the latest published checkpoint covers it yet:
 
 ```json
-{ "found": true, "verified": true, "embedded": true,
+{ "found": true, "verified": true, "embedded": true, "resolved_from": "record",
   "provider": "gmicloud-image", "model": "gemini-3-pro-image-preview",
   "parent_sha256": "05993b99f9affecea0db9cb1fbc840ec5cad1a24d018b8bdfea9744ddceeb475",
-  "ledger": { "seq": 26, "log_size": 27, "checkpoint_covers_entry": false } }
+  "ledger": { "seq": 26, "checkpoint_covers_entry": true } }
 ```
 
 To see the *stronger* check — `content_bound`, recomputed from the pixels rather than looked up — download that file from the app and POST the bytes to `/api/verify`. That is the one a forged manifest cannot pass.
@@ -213,6 +214,34 @@ A transparency checkpoint kept only in our own database is worthless — the par
 | **Private bucket + short-TTL presigned GET** | All media served only via 15-min presigned URLs; no public objects. |
 | **Least-privilege bucket-scoped keys** | `S3StorageBackend.for_backblaze(...)`; the ledger key adds only `writeFileRetentions`. |
 | **Genblaze `ObjectStorageSink` + `ParquetSink`** | The generation write path and analytics export — one backend for media, provenance and metadata. |
+| **Provenance that outlives our database** | Every log entry commits to its manifest's B2 key, so `/verify` rebuilds the record from object storage when the row is gone. |
+
+### The database is not the source of truth
+
+The claim above is testable, because the situation arose on its own: the transparency log is
+append-only and the asset table is not, so deleting a product left **6 of 30** production
+entries describing files the database no longer knew about. `/verify` answered `found: false`
+— contradicting the instance's own signed, checkpointed log.
+
+It doesn't need the database. `manifest_hash` is one of the fields an entry's hash is taken
+over, so the chain already commits to *where the manifest lives on B2*:
+
+```
+Bitcoin (OpenTimestamps) ─┐
+Ed25519 signature ────────┴─▶ checkpoint ─▶ head ─▶ entry_hash ─▶ manifest_hash (B2 key)
+```
+
+[`app/recovery.py`](backend/app/recovery.py) follows that pointer, re-reads the manifest from
+B2, and re-verifies it — recovering provider, model, lineage and timestamp with **no database
+row involved**. All five recoverable entries now resolve, each passing its own integrity check
+and tracing back to the same anchored original. The answer says where it stands:
+`"resolved_from": "b2-manifest"`.
+
+Stated as carefully as the rest: the chain commits to the manifest's *location*, not a hash of
+its bytes — sidecar manifests aren't under Object Lock, so this catches corruption and a lost
+database, not a determined operator re-issuing the object. And a hash alone can never set
+`content_bound`; only posting the file can. The sixth entry has no manifest pointer at all, and
+is reported as exactly that rather than papered over.
 
 **What lives on B2:** authentic originals, generated + embedded media, sidecar manifests, `ledger/checkpoints/` (+ `.ots` Bitcoin proofs), `ledger/audits/`, `embeddings/<uid>.json` (semantic index), and the Parquet analytics export. The [Library](https://originshot.vercel.app/library) and [Catalog Intelligence](https://originshot.vercel.app/catalog) search all of it by style, hash prefix, meaning, or visual similarity.
 
@@ -247,7 +276,7 @@ poetry run uvicorn app.main:app --reload      # http://localhost:8000/docs
 
 cd ../frontend && npm install && npm run dev   # http://localhost:3000
 
-cd ../backend && poetry run python -m pytest -q   # 380 passing
+cd ../backend && poetry run python -m pytest -q   # 412 passing
 ```
 
 The backend runs **fully offline** — without B2 + a GMI key it uses an in-memory repo, local disk, and a generation mock, so the whole UX works with no cloud accounts. **Auth is always enforced** (no production bypass); signing in locally requires real Firebase web credentials in `.env`, and the sign-in page names any missing keys. Full env list with defaults in [`.env.example`](.env.example).
