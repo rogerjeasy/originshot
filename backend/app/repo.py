@@ -58,7 +58,9 @@ class Repo(Protocol):
     def list_assets_for_user(self, uid: str) -> list[dict]: ...  # cross-SKU library view
     def find_asset_by_sha(self, sha256: str) -> dict | None: ...  # public verify (global)
     # Verify in the Wild: nearest generated asset by perceptual hash, or None. Global, for the
-    # public verifier — a buyer checking a re-encoded listing photo has no account.
+    # public verifier — a buyer checking a re-encoded listing photo has no account. The hit
+    # carries `phash_distance` and `phash_runner_up` (distance to the second-nearest, or None
+    # when there is no second candidate) so the caller can reject an ambiguous winner.
     def find_similar_by_phash(self, phash: str, max_distance: int) -> dict | None: ...
 
     def create_job(self, uid: str, job: dict) -> dict: ...
@@ -210,13 +212,22 @@ class InMemoryRepo:
 
         best: dict | None = None
         best_dist = max_distance + 1
+        runner_up: int | None = None
         for a in self._assets.values():
             d = hamming(phash, a.get("phash"))
-            if d is not None and d < best_dist:
+            if d is None:
+                continue
+            if d < best_dist:
+                # The old winner becomes the runner-up — the caller needs it to tell a clear
+                # match from a coin flip between neighbours. See perceptual.ambiguous().
+                if best is not None:
+                    runner_up = best_dist
                 best, best_dist = a, d
+            elif runner_up is None or d < runner_up:
+                runner_up = d
         if best is None:
             return None
-        return {**best, "phash_distance": best_dist}
+        return {**best, "phash_distance": best_dist, "phash_runner_up": runner_up}
 
     def create_job(self, uid: str, job: dict) -> dict:
         doc = {"id": _new_id(), "owner_uid": uid, "status": JobStatus.queued.value,
@@ -553,6 +564,10 @@ class FirestoreRepo:
     def find_similar_by_phash(self, phash: str, max_distance: int) -> dict | None:
         """Nearest generated asset within `max_distance` bits, or None.
 
+        Also reports `phash_runner_up` — the distance to the second-nearest asset — because in
+        a catalog of colourways of one object the winner is frequently not a clear winner, and
+        the caller has to be able to tell those apart. See `perceptual.ambiguous()`.
+
         This is a linear scan over the pHash index, deliberately. Sub-linear perceptual
         nearest-neighbour (a BK-tree, or multi-index hashing over hash bands) is real and
         well-understood, but it earns its complexity at millions of hashes; at this app's
@@ -564,16 +579,23 @@ class FirestoreRepo:
 
         best: dict | None = None
         best_dist = max_distance + 1
+        runner_up: int | None = None
         for row in self._phash_index():
             d = hamming(phash, row.get("phash"))
-            if d is not None and d < best_dist:
+            if d is None:
+                continue
+            if d < best_dist:
+                if best is not None:
+                    runner_up = best_dist
                 best, best_dist = row, d
+            elif runner_up is None or d < runner_up:
+                runner_up = d
         if best is None:
             return None
         asset = self.find_asset_by_sha(best["sha256"])
         if not asset:
             return None
-        return {**asset, "phash_distance": best_dist}
+        return {**asset, "phash_distance": best_dist, "phash_runner_up": runner_up}
 
     def create_job(self, uid: str, job: dict) -> dict:
         ref = self._seller(uid).collection("jobs").document()
