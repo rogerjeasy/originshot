@@ -134,6 +134,74 @@ def test_repo_phash_search_picks_the_nearest(client):
     assert "phash_distance" in hit
 
 
+def test_repo_phash_search_reports_the_runner_up(client):
+    """The caller needs the second-nearest distance to tell a clear win from a coin flip."""
+    from app.repo import get_repo
+
+    near = _structured_png(seed=1)
+    _seed_asset(near, sha="n" * 64, parent="p" * 64)
+    _seed_asset(_structured_png(seed=500), sha="f" * 64, parent="p" * 64)
+
+    hit = get_repo().find_similar_by_phash(perceptual.phash(_reencode(near)), 64)
+    assert hit is not None
+    assert hit["phash_distance"] == 0            # the re-encode of its own bytes
+    # The unrelated asset is far away, so this is an unambiguous win.
+    assert hit["phash_runner_up"] is not None
+    assert hit["phash_runner_up"] > hit["phash_distance"]
+    assert perceptual.ambiguous(hit["phash_distance"], hit["phash_runner_up"]) is False
+
+
+def test_a_single_indexed_asset_has_no_runner_up(client):
+    """One candidate can't be ambiguous — `phash_runner_up` is None and the match stands."""
+    from app.repo import get_repo
+
+    only = _structured_png(seed=1)
+    _seed_asset(only, sha="n" * 64, parent="p" * 64)
+
+    hit = get_repo().find_similar_by_phash(perceptual.phash(_reencode(only)), perceptual.MATCH_WEAK)
+    assert hit is not None
+    assert hit["phash_runner_up"] is None
+    assert perceptual.ambiguous(hit["phash_distance"], hit["phash_runner_up"]) is False
+
+
+def test_an_ambiguous_winner_is_not_reported_as_a_match(client, monkeypatch):
+    """Two indistinguishable neighbours must yield *no named asset*, and say why.
+
+    This is the production failure in miniature: colour variants of one product sit a few bits
+    apart, so the "nearest" asset was a coin flip — and /verify was handing the buyer the
+    winner's provider, model and authentic-original lineage as if it had identified the file.
+
+    The near-tie is forced through the repo rather than by hunting for two fixtures at exactly
+    the right distance, so the test pins the *decision* (ambiguity suppresses the match) instead
+    of the incidental bit-distance between two generated images.
+    """
+    from app import repo as repo_module
+
+    png = _structured_png(seed=1)
+    _seed_asset(png, sha="a" * 64, parent="p" * 64)
+
+    real = repo_module.get_repo().find_similar_by_phash
+
+    def near_tie(phash, max_distance):
+        hit = real(phash, max_distance)
+        if hit is not None:
+            # Winner at 0, runner-up 2 bits behind — inside MATCH_MARGIN, so indistinguishable.
+            hit = {**hit, "phash_runner_up": hit["phash_distance"] + 2}
+        return hit
+
+    monkeypatch.setattr(repo_module.get_repo(), "find_similar_by_phash", near_tie)
+
+    r = client.post("/api/verify", files={"file": ("listing.jpg", _reencode(png), "image/jpeg")})
+    body = r.json()
+
+    assert body["perceptual"] is None            # no asset named on a coin flip
+    assert body["found"] is False
+    # The reason is stated, not silently swallowed — "no match" and "too many close matches"
+    # are different facts and the second is the more useful one.
+    assert "several different originshot assets" in body["disclosure"].lower()
+    assert "no specific asset can be named" in body["disclosure"].lower()
+
+
 def test_repo_phash_search_returns_none_when_nothing_is_close(client):
     from app.repo import get_repo
 
