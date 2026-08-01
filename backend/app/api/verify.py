@@ -98,7 +98,7 @@ def verify_bytes(data: bytes) -> VerifyResult:
     if content_bound is False:
         # Manifest is intact but the media bytes don't match its signed content hash.
         disclosure_text = (
-            "⚠ Tampered: this file carries a OriginShot manifest, but the media content has "
+            "⚠ Tampered: this file carries an OriginShot manifest, but the media content has "
             "been altered and no longer matches the signed hash."
         )
     elif found:
