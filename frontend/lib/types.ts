@@ -179,6 +179,12 @@ export interface VerifyResult {
   found: boolean;
   verified: boolean;
   is_authentic: boolean;
+  /**
+   * Where the answer came from. "record" is this instance's own database; "b2-manifest" means
+   * the row is gone and provenance was rebuilt from the manifest published on B2 at the key
+   * the transparency-log entry commits to. See app/recovery.py.
+   */
+  resolved_from?: "record" | "b2-manifest";
   embedded?: boolean;
   content_bound?: boolean | null;
   modality?: Modality | null;

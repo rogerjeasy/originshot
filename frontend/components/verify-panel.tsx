@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   Check,
   Copy,
+  Database,
   FileCheck2,
   Fingerprint,
   Search,
@@ -90,6 +91,11 @@ export function VerifyPanel({ result }: { result: VerifyResult }) {
   }
 
   if (!result.found && !result.embedded) {
+    // Never assert the ledger is empty of this hash without looking. An entry can outlive the
+    // record it described (the log is append-only, the asset table is not), and if the manifest
+    // it points at can't be re-read from B2 either, the honest answer is "we can't resolve it",
+    // not "it wasn't produced by OriginShot" — which the ledger itself would contradict.
+    const inLedger = result.ledger != null;
     return (
       <Card>
         <CardContent className="flex items-start gap-3 p-5">
@@ -97,10 +103,24 @@ export function VerifyPanel({ result }: { result: VerifyResult }) {
             <Search className="size-4" />
           </span>
           <div className="min-w-0">
-            <p className="font-semibold tracking-tight">No record for this hash</p>
+            <p className="font-semibold tracking-tight">
+              {inLedger ? "Recorded, but the details can't be resolved" : "No record for this hash"}
+            </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Nothing in the ledger matches it, and the file carries no embedded manifest. It
-              wasn&apos;t produced by OriginShot — or it was re-encoded, which breaks the binding.
+              {inLedger ? (
+                <>
+                  This hash <strong className="font-medium text-foreground">is</strong> in the
+                  transparency log, at entry {result.ledger?.seq}, so it was produced here. Its
+                  manifest could not be read back from B2, so the provenance details can&apos;t be
+                  shown right now — the log entry itself still stands.
+                </>
+              ) : (
+                <>
+                  Nothing in the ledger matches it, and the file carries no embedded manifest. It
+                  wasn&apos;t produced by OriginShot — or it was re-encoded, which breaks the
+                  binding.
+                </>
+              )}
             </p>
             <p className="mt-3 break-all font-mono text-xs text-muted-foreground">
               {result.sha256}
@@ -165,6 +185,14 @@ export function VerifyPanel({ result }: { result: VerifyResult }) {
         {result.embedded && (
           <Badge variant="outline" size="sm">
             <FileCheck2 /> Manifest embedded
+          </Badge>
+        )}
+        {/* This instance no longer holds the row — the answer was rebuilt from object storage.
+            Surfaced rather than hidden: a result should say what it is standing on, and
+            "recovered from B2" is a materially different footing from a database read. */}
+        {result.resolved_from === "b2-manifest" && (
+          <Badge variant="outline" size="sm">
+            <Database /> Recovered from B2
           </Badge>
         )}
         {result.modality && (
