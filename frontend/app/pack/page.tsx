@@ -54,7 +54,7 @@ export default function PackPage() {
   const sheetCount = allFrames().length;
 
   const DOCKET: [string, string][] = [
-    ["source", "1 photo"],
+    ["stills from", "1 photo"],
     ["on this sheet", `${sheetCount} frames`],
     ["one pack", `${PACK_OUTPUTS} assets`],
     ["cost", "$0.74 est."],
@@ -77,9 +77,10 @@ export default function PackPage() {
                   <span className="on-ink-mute">Everything else on this page.</span>
                 </h1>
                 <p className="on-ink-mute mt-6 text-pretty text-[17px] leading-relaxed">
-                  These are not renders of what OriginShot might produce. Every frame below came
-                  out of one run, from one phone photo, and still sits in the Backblaze B2 bucket
-                  it was written to. Open any of them and you get the hash — paste it into{" "}
+                  These are not renders of what OriginShot might produce. Every still below came
+                  from one phone photo of one mug — the hero video from a second shot of the same
+                  cup — and each still sits in the Backblaze B2 bucket it was written to. Open any
+                  of them and you get the hash — paste it into{" "}
                   <span className="font-mono">/verify</span> and the record answers.
                 </p>
 
@@ -165,9 +166,12 @@ export default function PackPage() {
                       ×{row.outputs}
                     </span>
                     <dd className="on-ink-mute min-w-0 text-[15px] leading-relaxed">{row.use}</dd>
-                    <span className="on-ink-mute min-w-0 truncate font-mono text-[12px] lg:text-right">
-                      {row.model}
-                    </span>
+                    <div className="min-w-0 font-mono text-[12px] lg:text-right">
+                      <span className="on-ink-mute block truncate">{row.model}</span>
+                      <span className="on-ink-mute block truncate opacity-65">
+                        ↳ {row.fallback}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </dl>
@@ -175,11 +179,13 @@ export default function PackPage() {
 
             <Reveal delay={0.1}>
               <p className="on-ink-mute mt-6 max-w-2xl text-[13.5px] leading-relaxed">
-                The demo mug ships in a single finish, so its run had no colour sweep to do and
-                the variant slots came back empty — which is why the sheet above holds{" "}
-                {sheetCount} frames rather than a neat multiple of {PACK_OUTPUTS}. Costs are
-                estimated from provider list prices; what you are actually debited is the figure
-                the provider bills, and the difference is refunded.
+                The sheet above holds {sheetCount} frames rather than a neat multiple of{" "}
+                {PACK_OUTPUTS} because it collects more than one run of the same product. The
+                model column is the configured primary; this particular sheet was served by the
+                cross-provider fallback, and each frame credits the provider that actually
+                answered — open one to see it. Costs are estimated from provider list prices;
+                what you are actually debited is the figure the provider bills, and the
+                difference is refunded.
               </p>
             </Reveal>
           </div>
