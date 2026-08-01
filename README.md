@@ -251,13 +251,20 @@ is reported as exactly that rather than papered over.
 
 Single source of truth: [`registry.py`](backend/originshot_pipelines/registry.py) — **only what the app actually calls today**, runtime-verified against our GMI account.
 
-| Step | Provider | Model |
+| Step | Provider (preferred → failover) | Model |
 |---|---|---|
-| Studio · Lifestyle · On-model · Variants | GMI Cloud (`gmicloud-image`) | `gemini-3-pro-image-preview` |
+| Studio · Lifestyle · On-model · Variants | GMI Cloud (`gmicloud-image`) → **OpenAI** (`openai-dalle`) | `gemini-3-pro-image-preview` → `gpt-image-1` |
 | Hero video (image → video) | GMI Cloud | `Kling-Image2Video-V2.1-Master` (fallbacks `pixverse-v5.6-i2v`, `wan2.6-r2v`) |
 | QA evaluator (vision) | GMI Cloud (chat) | `x-ai/grok-4.5` |
 | Listing copy + voiceover script | GMI Cloud (chat) | `zai-org/GLM-5.1-FP8` |
 | Voiceover audio (text → speech) | **OpenAI** (`openai-tts`) | `gpt-4o-mini-tts` |
+
+The image row lists a chain, not a single vendor, and the failover is not hypothetical: the
+pack on the landing page was served **entirely by `gpt-image-1`**, because GMI's image queue
+was out of credit when it ran. Each frame's provenance card credits whichever provider actually
+answered — which is why the site says OpenAI there while GMI leads the preference order here.
+Live provider mix across all production assets: **34 `gmicloud-image` · 12 `openai-dalle` ·
+2 `gmicloud` (video) · 2 `openai-tts` · 1 `ffmpeg-compositor`**.
 
 Chat models were chosen by **live probes on real product images**, not catalog presence — several catalog models 404, 429, or silently accept images they can't see. The QA evaluator was benchmarked (same mug diff shot 9/10, hue-rotated 3/10, different object 0/10, identical 10/10) before wiring. Nothing hard-depends on chat: QA falls back to a deterministic tier, listing copy returns an honest retry.
 
@@ -276,7 +283,7 @@ poetry run uvicorn app.main:app --reload      # http://localhost:8000/docs
 
 cd ../frontend && npm install && npm run dev   # http://localhost:3000
 
-cd ../backend && poetry run python -m pytest -q   # 412 passing
+cd ../backend && poetry run python -m pytest -q   # 431 passing
 ```
 
 The backend runs **fully offline** — without B2 + a GMI key it uses an in-memory repo, local disk, and a generation mock, so the whole UX works with no cloud accounts. **Auth is always enforced** (no production bypass); signing in locally requires real Firebase web credentials in `.env`, and the sign-in page names any missing keys. Full env list with defaults in [`.env.example`](.env.example).
@@ -304,6 +311,7 @@ Stated plainly, because a submission that hides these is worse than one that nam
 - **Render free tier** sleeps after ~15 min; first request cold-starts ~50s.
 - **No image-model fallback** — the SDK's advertised `seededit`/`reve-*` models 404 against our account's request-queue API (the `validate_model` probe wrongly reports them fine), so the chain is wired-and-empty rather than fake.
 - **Marketplace renditions drop the embedded manifest** (re-encoding to exact dimensions) — which is why `verified/` ships the untouched masters alongside.
+- **The perceptual tier is colour-blind, so it declines ties.** pHash reduces to 32×32 luminance before the DCT, which is what lets it survive a re-encode (a true re-encode measures **0 bits** across the whole demo catalog) — but it also means two colourways of one product in one pose sit only **4 bits** apart. Thresholds are cut at the measured false-positive floor (`MATCH_STRONG=2`, `MATCH_WEAK=4`) and a winner must beat its runner-up by 3 bits or the result is reported as *"resembles several assets, none nameable"* rather than guessing one. Naming the wrong file's provenance would be worse than naming none.
 - **Standalone audio has no `content_bound`** — the strip-and-rehash hash covers PNG/MP4/JPEG/WebP, not raw audio, so the narration clip is *present + verified*; the narrated MP4 closes the gap by being an MP4.
 - **Cost figures are dual-sourced** — the provider-billed total (settled through the ledger) plus a labeled list-price estimate for runs predating billing data. See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 - **Provider credit is exhaustible** — GMI returns `402 Insufficient credits` and generation fails cleanly. Top up before a demo.
