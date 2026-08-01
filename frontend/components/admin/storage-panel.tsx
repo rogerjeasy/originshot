@@ -95,12 +95,21 @@ export function StoragePanel({
               {dedupSaved.toFixed(1)}%
             </span>
           </div>
+          {/* Denominator named on the label: this counts generated assets only, because an
+              authentic original is the seller's own photo and never carries a manifest.
+              Reported against every asset it read as ~52% — a broken pipeline, not a mix. */}
           <div className="flex items-baseline justify-between gap-3 pt-1.5">
-            <span className="text-sm text-muted-foreground">Assets with embedded C2PA</span>
+            <span className="text-sm text-muted-foreground">
+              Generated assets with embedded provenance
+            </span>
             <span className="tabular font-mono text-sm font-semibold">
               {overview.embedded_pct.toFixed(1)}%
             </span>
           </div>
+          <p className="pt-0.5 text-xs text-muted-foreground/70">
+            {overview.embedded_count} of {overview.embeddable_count} generated · originals carry
+            no manifest by design
+          </p>
         </div>
 
         {b2.truncated && (

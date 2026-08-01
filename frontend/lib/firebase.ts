@@ -25,9 +25,24 @@ export function getFirebaseAuth(): Auth | null {
   return auth;
 }
 
-/** Current user's ID token, or null when signed out / not configured. */
+/**
+ * Current user's ID token, or null when signed out / not configured.
+ *
+ * Waits for `authStateReady()` before reading `currentUser`. Firebase restores a persisted
+ * session asynchronously, so on a cold page load — someone opening /admin or /library
+ * directly, rather than navigating there from inside the app — `currentUser` is still null
+ * for the first few hundred milliseconds. Reading it immediately sent the page's opening
+ * requests out with no Authorization header, and a signed-in user got "Couldn't load the
+ * dashboard" from a server that would happily have answered a moment later.
+ *
+ * `authStateReady()` resolves as soon as the initial state is known (immediately, on every
+ * call after the first), so this costs a microtask in the common case and only actually waits
+ * during that first-load window. Fixing it here rather than in each caller means every
+ * authenticated fetch in the app is covered, not just the one where the race was noticed.
+ */
 export async function getIdToken(): Promise<string | null> {
   const a = getFirebaseAuth();
-  const user = a?.currentUser;
-  return user ? user.getIdToken() : null;
+  if (!a) return null;
+  await a.authStateReady();
+  return a.currentUser ? a.currentUser.getIdToken() : null;
 }
