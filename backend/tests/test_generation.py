@@ -194,6 +194,53 @@ async def test_brand_kit_and_marketplace_applied(fake_sdk):
     assert "earthy neutrals" in fake_sdk["variant"]["brand_suffix"]
 
 
+async def test_generation_does_not_block_the_event_loop(fake_sdk, monkeypatch):
+    """A step's blocking work must not freeze the instance it is running on.
+
+    Generation runs inline via BackgroundTasks (JOB_QUEUE=inline in production), so it shares
+    an event loop with every request the API serves. Downloads, uploads and QA scoring done
+    synchronously on that loop stop the whole service for as long as the step runs — which is
+    what made `POST /generate` look like it ignored the first click (the user then clicked
+    again and submitted a second job holding a second estimate), and what stalled each job's
+    own progress stream behind its own generation.
+
+    The provider call itself is safe: genblaze-core's `Pipeline.arun` offloads its blocking
+    work to threads. This guards the code on *our* side of that seam.
+    """
+    import asyncio
+    import time
+
+    def blocking_fetch(url: str) -> bytes:
+        time.sleep(0.4)          # stands in for the real httpx download / B2 upload / VLM call
+        return b"\x89PNG-fake-bytes"
+
+    monkeypatch.setattr(generation, "_fetch_bytes", blocking_fetch)
+
+    ticks = 0
+
+    async def heartbeat():
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.01)
+            ticks += 1
+
+    beat = asyncio.create_task(heartbeat())
+    try:
+        assets, errors = await generation.generate_assets(
+            "uid", {"id": "sku1", "title": "Mug", "description": "a blue mug"},
+            {"sha256": "origsha", "b2_key": "assets/orig.png"},
+            ["studio"], storage=FakeStorage(),
+        )
+    finally:
+        beat.cancel()
+
+    assert errors == []
+    assert len(assets) == 1
+    # ~40 ticks are available across the 0.4s of blocking work. Single digits means the loop
+    # was held rather than yielded, and every other request on the instance waited with it.
+    assert ticks >= 15, f"event loop was blocked during generation (only {ticks} ticks)"
+
+
 async def test_video_without_studio_is_a_partial_error(fake_sdk):
     sku = {"id": "s", "title": "X", "description": None}
     original = {"sha256": "orig", "b2_key": "assets/o.png"}

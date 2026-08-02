@@ -138,18 +138,18 @@ def test_default_adapter_needs_no_credentials(monkeypatch):
 
 
 # ── Source staging (genblaze issue 06 workaround) ─────────────────────
-def test_staging_is_skipped_when_the_provider_reads_urls_directly():
+async def test_staging_is_skipped_when_the_provider_reads_urls_directly():
     """GMI takes the presigned URL as-is — staging it would be a pointless download."""
-    with providers._stage_source(_req(), providers.GMICloudAdapter()) as staged:
+    async with providers._stage_source(_req(), providers.GMICloudAdapter()) as staged:
         assert staged.source_uri == _req().source_uri
 
 
-def test_staging_is_skipped_for_a_source_that_is_already_local():
-    with providers._stage_source(_local_req(), providers.OpenAIAdapter()) as staged:
+async def test_staging_is_skipped_for_a_source_that_is_already_local():
+    async with providers._stage_source(_local_req(), providers.OpenAIAdapter()) as staged:
         assert staged.source_uri == "file:///tmp/x.png"
 
 
-def test_staging_gives_openai_a_file_url_with_a_truthful_extension(monkeypatch, tmp_path):
+async def test_staging_gives_openai_a_file_url_with_a_truthful_extension(monkeypatch, tmp_path):
     """The whole point: `.img` makes OpenAI see application/octet-stream and 400.
 
     Also asserts the URL is `file:///…` with an EMPTY netloc — the SDK's own
@@ -175,7 +175,7 @@ def test_staging_gives_openai_a_file_url_with_a_truthful_extension(monkeypatch, 
 
     monkeypatch.setattr(httpx, "stream", lambda *a, **k: _Resp())
 
-    with providers._stage_source(_req(), providers.OpenAIAdapter()) as staged:
+    async with providers._stage_source(_req(), providers.OpenAIAdapter()) as staged:
         parsed = urlparse(staged.source_uri)
         assert parsed.scheme == "file"
         assert parsed.netloc == ""                 # issue 05
@@ -185,7 +185,7 @@ def test_staging_gives_openai_a_file_url_with_a_truthful_extension(monkeypatch, 
         assert Path(url2pathname(parsed.path)).read_bytes().startswith(b"\x89PNG")
 
 
-def test_staged_file_is_removed_even_when_the_provider_raises(monkeypatch):
+async def test_staged_file_is_removed_even_when_the_provider_raises(monkeypatch):
     """A failed generation must not leave the seller's product photo in a temp dir."""
     from urllib.parse import urlparse
     from urllib.request import url2pathname
@@ -209,7 +209,7 @@ def test_staged_file_is_removed_even_when_the_provider_raises(monkeypatch):
 
     captured: dict = {}
     with pytest.raises(RuntimeError, match="boom"):
-        with providers._stage_source(_req(), providers.OpenAIAdapter()) as staged:
+        async with providers._stage_source(_req(), providers.OpenAIAdapter()) as staged:
             captured["path"] = Path(url2pathname(urlparse(staged.source_uri).path))
             assert captured["path"].exists()
             raise RuntimeError("boom")
