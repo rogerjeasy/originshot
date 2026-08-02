@@ -19,6 +19,8 @@ widens the thresholds again, `test_distinct_real_assets_stay_outside_the_match_w
 from __future__ import annotations
 
 import io
+import logging
+import sys
 from pathlib import Path
 
 import pytest
@@ -186,6 +188,24 @@ def test_ambiguous_rejects_a_winner_that_barely_beats_the_runner_up():
 def test_phash_returns_none_on_undecodable_bytes():
     """Best-effort: a non-image must not raise — it degrades to 'no pHash'."""
     assert perceptual.phash(b"not an image at all") is None
+
+
+def test_missing_numpy_is_logged_loudly_not_swallowed(monkeypatch, caplog):
+    """A missing dependency must not look like an undecodable file.
+
+    `phash` catches everything so a bad byte-stream can never fail a generation. That same
+    handler also silently ate the ImportError from an undeclared numpy, so the in-the-wild
+    verify tier ran dark — every asset hashing to None, no signal anywhere. It still returns
+    None (best-effort is still the contract), but now it says so.
+    """
+    # `None` in sys.modules makes `import numpy` raise ImportError, exactly as an absent
+    # install does, without touching the real module.
+    monkeypatch.setitem(sys.modules, "numpy", None)
+
+    with caplog.at_level(logging.ERROR, logger="originshot.perceptual"):
+        assert perceptual.phash(_img("gradient")) is None
+
+    assert any("in-the-wild verify is DARK" in r.message for r in caplog.records)
 
 
 def test_hamming_edges():

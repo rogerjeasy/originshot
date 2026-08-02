@@ -39,6 +39,9 @@ because a perceptual match must never be dressed up as a cryptographic one:
 from __future__ import annotations
 
 import io
+import logging
+
+log = logging.getLogger("originshot.perceptual")
 
 # 64-bit hash → 16 hex chars. The block side is 8 (8×8 = 64 coefficients kept).
 _HASH_BITS = 64
@@ -93,6 +96,13 @@ def phash(image_bytes: bytes) -> str | None:
         for bit in bits:
             value = (value << 1) | int(bit)
         return f"{value:0{_HASH_BITS // 4}x}"
+    except ImportError:
+        # NOT a decode failure — numpy or Pillow is missing from the deployment, so *every*
+        # image hashes to None and the whole in-the-wild tier is dark. That is invisible in
+        # the blanket handler below (a None reads exactly like an undecodable file), which is
+        # how an undeclared numpy survived for as long as it did. Loud, and still non-fatal.
+        log.exception("phash unavailable: numpy/Pillow missing — in-the-wild verify is DARK")
+        return None
     except Exception:  # noqa: BLE001 — best-effort; see docstring
         return None
 

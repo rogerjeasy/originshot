@@ -17,6 +17,14 @@ dependencies = [
     "python-multipart>=0.0.9",
     "slowapi>=0.1.9",
     "pillow>=10.3",
+    # Perceptual hashing (originshot_pipelines/perceptual.py — the "Verify in the Wild" tier)
+    # does the DCT itself on numpy arrays rather than pulling in a hashing library. It was
+    # never declared here directly and only worked by accident: it rode in transitively via
+    # optional extras (genblaze[video] -> decart -> opencv-python; analytics -> pandas), so a
+    # plain `poetry install` with no extras — exactly what CI runs — leaves it missing, and
+    # phash() degrades SILENTLY to `None` on every image (it catches every exception, by
+    # design, so a decode failure can never fail the generation that produced the asset).
+    "numpy>=1.26",
     "boto3>=1.34",
     "httpx>=0.27",
     "fpdf2>=2.7",

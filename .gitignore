@@ -6,6 +6,11 @@ venv/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+# Throwaway clean-install venv + wheel cache used to reproduce a CI-only dependency
+# failure locally (`poetry install` with no extras). Machine-specific and ~17 MB;
+# `.venv/` above does not match `.venv-repro/`, which is how they surfaced untracked.
+.venv-repro/
+.poetry-cache/
 
 # B2 download cache for scripts/sync-demo-assets.py — full-size masters pulled
 # from the bucket before they're re-encoded into frontend/public/demo. Purely a

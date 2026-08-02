@@ -2342,10 +2342,10 @@ files = [
 name = "numpy"
 version = "2.4.6"
 description = "Fundamental package for array computing in Python"
-optional = true
+optional = false
 python-versions = ">=3.11"
 groups = ["main"]
-markers = "python_version < \"3.13\" and (extra == \"analytics\" or extra == \"genblaze\")"
+markers = "python_version < \"3.13\""
 files = [
     {file = "numpy-2.4.6-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:0280e0356c0829a18d9de1cb7eee50ec22ca639878d7240307ca0943d73cd2c4"},
     {file = "numpy-2.4.6-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:110f8b71aacb688ec69062bb7f6938a0f8acb01b7c1c4beb453c65b6d234584d"},
@@ -2425,10 +2425,10 @@ files = [
 name = "numpy"
 version = "2.5.0"
 description = "Fundamental package for array computing in Python"
-optional = true
+optional = false
 python-versions = ">=3.12"
 groups = ["main"]
-markers = "python_version == \"3.13\" and (extra == \"analytics\" or extra == \"genblaze\")"
+markers = "python_version == \"3.13\""
 files = [
     {file = "numpy-2.5.0-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:489780423903667933b4ed6197b6ec3b75ea5dd17d1d8f0f38d798feb6921561"},
     {file = "numpy-2.5.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:ece55976ced6bca95a03ae2839e2e5ccffe8eb6a3e7022415645eb154a81e4e6"},
@@ -4024,4 +4024,4 @@ worker = ["arq", "redis"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "259ffa65c601309920a5e2053c02c252c2cecb6640dc9b0c400a2837e8bc3b68"
+content-hash = "31c22e3aa5032513e6d32f6dbd2bb30219c29437238785acef0fb9b358d791cb"
