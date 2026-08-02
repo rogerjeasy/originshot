@@ -81,7 +81,7 @@ def concurrency_for(count: int) -> int:
 
 async def process_batch(uid: str, batch_id: str) -> None:
     """Run every SKU in the batch, at most `concurrency` at a time."""
-    from .api.generate import submit_generation
+    from .api.generate import find_live_job, submit_generation
     from .credits import InsufficientCredit
     from .worker import process_generation
 
@@ -118,6 +118,16 @@ async def process_batch(uid: str, batch_id: str) -> None:
             if repo.count_generations_today(uid) >= settings.daily_generation_quota:
                 await board.set(index, status=BatchItemStatus.blocked.value,
                                 error="daily generation quota reached")
+                return
+
+            # Same one-live-job-per-SKU rule the single-SKU endpoint enforces. A batch reaches
+            # `submit_generation` directly, so without this an item whose SKU is already
+            # generating (started from the studio, or listed twice in one catalog) would hold
+            # a second estimate against the same balance. `blocked`, not `failed`: nothing is
+            # broken, this item just can't start yet.
+            if find_live_job(uid, sku_id) is not None:
+                await board.set(index, status=BatchItemStatus.blocked.value,
+                                error="this product is already generating")
                 return
 
             try:
