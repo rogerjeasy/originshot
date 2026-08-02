@@ -26,10 +26,9 @@ def test_presets():
 
 def test_studio_builder_with_injected_provider():
     pytest.importorskip("genblaze_core")  # skips cleanly if SDK not installed
+    from genblaze import MockProvider  # SDK stand-in; step() rejects non-BaseProvider (0.3.8+)
+
     from originshot_pipelines.studio import build_studio_pipeline
 
-    class FakeProvider:  # minimal stand-in
-        pass
-
-    pipeline = build_studio_pipeline("https://example/img.png", "blue mug", provider=FakeProvider())
+    pipeline = build_studio_pipeline("https://example/img.png", "blue mug", provider=MockProvider())
     assert pipeline is not None

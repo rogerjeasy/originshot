@@ -173,11 +173,13 @@ def test_fix_file_uri_ignores_non_file_and_missing(tmp_path):
 # ── Pipeline construction ─────────────────────────────────────────────
 def test_build_pipeline_with_injected_provider():
     pytest.importorskip("genblaze_core")
+    # The SDK's own no-network stand-in, not a local `class Fake: pass`. genblaze-core 0.3.8
+    # made Pipeline.step() reject anything that is not a BaseProvider, so an empty duck type
+    # now fails the very wiring this test exists to check — and passed before only because
+    # nothing validated it.
+    from genblaze import MockProvider
 
-    class FakeProvider:  # minimal stand-in — no network, no key
-        pass
-
-    pipe = vo.build_voiceover_pipeline("narration text", provider=FakeProvider())
+    pipe = vo.build_voiceover_pipeline("narration text", provider=MockProvider())
     assert pipe is not None
 
 

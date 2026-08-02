@@ -64,6 +64,15 @@ analytics = ["duckdb>=1.0", "pandas>=2.2", "pyarrow>=16.0"]
 # the standalone narration audio still ships.
 genblaze = [
     "genblaze[gmicloud,openai,video,parquet]>=0.4.3,<0.5",
+    # Our own floor for a transitive package, because upstream under-declared its own.
+    # genblaze-openai 0.3.3 calls `genblaze_core._utils.local_file_url`, which first exists in
+    # genblaze-core 0.3.7 — but 0.3.3 declares only `genblaze-core>=0.3.4`. That makes
+    # (openai 0.3.3 + core 0.3.6) a resolution the solver considers valid and that dies at
+    # import time with `cannot import name 'local_file_url'`, taking the whole test session
+    # down at collection. Exactly what the lock had frozen. Upstream fixed the floor in
+    # openai 0.3.4 (`>=0.3.8`), so this line is belt-and-braces: it keeps the broken pair
+    # unreachable even if a future re-lock picks an older openai.
+    "genblaze-core>=0.3.7",
     "mutagen>=1.47",
     "imageio-ffmpeg>=0.5",
 ]

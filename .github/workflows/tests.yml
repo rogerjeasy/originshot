@@ -40,10 +40,17 @@ jobs:
           path: backend/.venv
           key: ${{ runner.os }}-poetry-${{ hashFiles('backend/poetry.lock') }}
 
+      # The extras list MUST mirror infra/Dockerfile.backend — CI is only worth anything if it
+      # installs what production installs. A bare `poetry install` takes no extras, so
+      # genblaze_core was absent and every /check, /verify, /resolve and recovery test 500'd on
+      # `No module named 'genblaze_core'` (29 failures), while test_sdk_integration.py — the
+      # whole point of which is to catch catalog drift against the INSTALLED SDK — quietly
+      # importorskip'd itself out of existence. None of that was visible until an unrelated
+      # collection error stopped aborting the run.
       - name: Install dependencies
         run: |
           poetry config virtualenvs.in-project true
-          poetry install --no-interaction
+          poetry install --no-interaction --extras "firebase worker analytics genblaze"
 
       - name: Lint
         run: poetry run ruff check .

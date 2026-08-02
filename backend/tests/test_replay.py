@@ -61,13 +61,12 @@ def test_parse_refuses_with_the_reason_stated():
 
 def test_build_replay_pipeline_with_injected_provider():
     pytest.importorskip("genblaze_core")
+    from genblaze import MockProvider  # SDK stand-in; step() rejects non-BaseProvider (0.3.8+)
+
     from originshot_pipelines.replay import build_replay_pipeline
 
-    class FakeProvider:
-        pass
-
     spec = parse_manifest_step(make_manifest())
-    assert build_replay_pipeline(spec, "https://fresh/presign", provider=FakeProvider()) is not None
+    assert build_replay_pipeline(spec, "https://fresh/presign", provider=MockProvider()) is not None
 
 
 # ── Fakes mirroring the real Genblaze result shape (same as test_generation) ──
