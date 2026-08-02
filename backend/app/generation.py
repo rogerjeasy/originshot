@@ -7,6 +7,7 @@ rather than a total failure.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 
@@ -15,6 +16,26 @@ from .models import Modality, Style
 from .storage import key_from_url
 
 log = logging.getLogger("originshot.generation")
+
+
+async def _offload(fn, *args, **kwargs):
+    """Run blocking work on a worker thread instead of the event loop.
+
+    Generation runs **inline** (JOB_QUEUE=inline — see app/queue.py), so it executes on the
+    very event loop that serves every request. `Pipeline.arun` is properly async and offloads
+    its own blocking work, but the code around it on our side is not: media downloads
+    (`_fetch_bytes` uses sync httpx), B2 uploads (boto3), Pillow decoding and the QA VLM call
+    (a 60-second synchronous HTTP request) are all blocking, and each one run directly on the
+    loop stops the whole instance for its duration.
+
+    That is not a background inefficiency — it is user-visible. A frozen loop cannot accept
+    the next `POST /generate` (the click appears to do nothing, so the user clicks again and
+    submits a duplicate job with a duplicate credit hold), cannot serve the job's own SSE
+    progress stream, and cannot answer a health check.
+
+    Every blocking call on the generation path goes through here.
+    """
+    return await asyncio.to_thread(fn, *args, **kwargs)
 
 # Order is also execution order: studio must precede video (which consumes its hero frame),
 # and voiceover runs last so it can, in a later step, be muxed onto that hero video. The
@@ -233,7 +254,7 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
             source_sha256=parent, source_media_type=src_mime, feedback=feedback,
         )
         res, _adapter = await providers.run_image_edit(req, sink=sink, timeout=img_t)
-        asset = _map(sku, res, Style.studio, parent, storage)
+        asset = await _offload(_map, sku, res, Style.studio, parent, storage)
         # The hero image feeds the image-to-video step. After embedding we store the
         # studio image under our own key, so presign that; else use the sink URL.
         hero_url = (
@@ -247,7 +268,8 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
             source_uri, desc, sink, brand_suffix=brand_full, timeout=img_t,
             source_sha256=parent, feedback=feedback,
         )
-        return [_map(sku, r, Style.lifestyle, parent, storage) for r, _ in results]
+        return [await _offload(_map, sku, r, Style.lifestyle, parent, storage)
+                for r, _ in results]
 
     async def _onmodel(feedback: str | None = None) -> list[dict]:
         req = onmodel.onmodel_request(
@@ -255,20 +277,21 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
             source_sha256=parent, source_media_type=src_mime, feedback=feedback,
         )
         res, _adapter = await providers.run_image_edit(req, sink=sink, timeout=img_t)
-        return [_map(sku, res, Style.onmodel, parent, storage)]
+        return [await _offload(_map, sku, res, Style.onmodel, parent, storage)]
 
     async def _variant(feedback: str | None = None) -> list[dict]:
         results = await variants.run_variants(
             source_uri, desc, sink, colors=VARIANT_COLORS, angles=VARIANT_ANGLES,
             brand_suffix=brand_full, timeout=img_t, source_sha256=parent, feedback=feedback,
         )
-        return [_map(sku, r, Style.variant, parent, storage) for r, _ in results]
+        return [await _offload(_map, sku, r, Style.variant, parent, storage)
+                for r, _ in results]
 
     async def _video() -> list[dict]:
         res = await video.build_hero_video(
             hero_url, desc, brand_suffix=brand_tone
         ).arun(sink=sink, timeout=vid_t)
-        return [_map(sku, res, Style.video, parent, storage)]
+        return [await _offload(_map, sku, res, Style.video, parent, storage)]
 
     async def _voiceover() -> list[dict]:
         # Two Genblaze hops, two providers, two modalities: the listing/chat model (GMI GLM)
@@ -279,7 +302,8 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
         # failing the style — the same rule the QA and listing tiers follow.
         from originshot_pipelines import voiceover as vo
 
-        script, script_prov = vo.narration_script(
+        script, script_prov = await _offload(
+            vo.narration_script,
             sku, brand, api_key=settings.gmi_api_key, timeout=settings.qa_vlm_timeout_seconds,
         )
         res = await vo.run_voiceover(
@@ -287,7 +311,7 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
             api_key=settings.openai_api_key, model=settings.voiceover_model,
             voice=settings.voiceover_voice,
         )
-        audio_asset = _map(sku, res, Style.voiceover, parent, storage)
+        audio_asset = await _offload(_map, sku, res, Style.voiceover, parent, storage)
         audio_asset["script"] = script
         audio_asset["script_source"] = script_prov.get("source")
         audio_asset["script_model"] = script_prov.get("model")
@@ -335,7 +359,7 @@ async def _run_genblaze(sku, original, wanted, storage, brand, marketplaces, rep
     ref_bytes: bytes | None = None
     if settings.qa_enabled and vlm_call is not None:
         try:
-            ref_bytes = _fetch_bytes(source_uri)
+            ref_bytes = await _offload(_fetch_bytes, source_uri)
         except Exception as e:  # noqa: BLE001 — QA degrades, generation proceeds
             log.warning("QA reference fetch failed (%s); VLM tier disabled for this run", e)
 
@@ -417,7 +441,9 @@ async def replay_asset(uid, sku, source_asset, original, *, storage,
 
     reporter.start(style)
     try:
-        manifest = _load_manifest_json(source_asset.get("manifest_key"), storage)
+        manifest = await _offload(
+            _load_manifest_json, source_asset.get("manifest_key"), storage
+        )
         spec = replay_mod.parse_manifest_step(manifest)
 
         from originshot_pipelines import storage as sink_module
@@ -426,7 +452,7 @@ async def replay_asset(uid, sku, source_asset, original, *, storage,
         res = await replay_mod.build_replay_pipeline(spec, source_uri).arun(
             sink=sink_module.make_sink(), timeout=settings.image_timeout_seconds
         )
-        asset = _map(sku, res, style, original["sha256"], storage)
+        asset = await _offload(_map, sku, res, style, original["sha256"], storage)
         asset["replay_of"] = source_asset["sha256"]
 
         # Score once, no retry: a fresh generation retries because its promise is "produce
@@ -437,11 +463,11 @@ async def replay_asset(uid, sku, source_asset, original, *, storage,
             ref_bytes = None
             if vlm_call is not None:
                 try:
-                    ref_bytes = _fetch_bytes(source_uri)
+                    ref_bytes = await _offload(_fetch_bytes, source_uri)
                 except Exception as e:  # noqa: BLE001 — QA degrades, replay proceeds
                     log.warning("QA reference fetch failed (%s); VLM tier disabled", e)
-            _score_batch(style, [asset], storage,
-                         reference=ref_bytes, vlm_call=vlm_call, attempt=1)
+            await _offload(_score_batch, style, [asset], storage,
+                           reference=ref_bytes, vlm_call=vlm_call, attempt=1)
 
         reporter.finish(style, [asset])
         return [asset], []
@@ -576,8 +602,10 @@ async def _qa_and_maybe_retry(style: Style, runner, produced: list[dict], storag
     a no-better retry doesn't churn the delivered assets). The losing batch's media stays on B2
     (content-addressed, negligible) but is never registered as an asset document.
     """
-    ok1 = _score_batch(style, produced, storage,
-                       reference=reference, vlm_call=vlm_call, attempt=1)
+    # Scoring is the heaviest blocking work in a run: a download plus a Pillow decode per
+    # asset, and a VLM call whose timeout is 60s. Off the loop it goes.
+    ok1 = await _offload(_score_batch, style, produced, storage,
+                         reference=reference, vlm_call=vlm_call, attempt=1)
     if ok1 == len(produced) or not retry:
         return produced
 
@@ -589,8 +617,8 @@ async def _qa_and_maybe_retry(style: Style, runner, produced: list[dict], storag
     except Exception as e:  # noqa: BLE001 — keep the flagged first batch over a hard fail
         log.warning("QA retry for %s failed to run: %s", style.value, e)
         return produced
-    ok2 = _score_batch(style, second, storage,
-                       reference=reference, vlm_call=vlm_call, attempt=2)
+    ok2 = await _offload(_score_batch, style, second, storage,
+                         reference=reference, vlm_call=vlm_call, attempt=2)
     winner = second if ok2 > ok1 else produced
     for asset in winner:
         if asset.get("qa") is not None:
@@ -798,10 +826,17 @@ async def _mux_narrated_video(sku, audio_asset, video_asset, parent, storage, si
 
     with tempfile.TemporaryDirectory() as tmp:
         tmpd = Path(tmp)
-        (tmpd / "hero.mp4").write_bytes(_fetch_bytes(v_url))
-        (tmpd / "narration.mp3").write_bytes(_fetch_bytes(a_url))
-        looped = tmpd / "hero_looped.mp4"
-        vo.loop_video_to_ceiling(tmpd / "hero.mp4", looped, ffmpeg=ffmpeg)
+
+        def _prepare_inputs() -> Path:
+            """Fetch both inputs and pre-loop the video — two downloads and an ffmpeg
+            subprocess, none of which may run on the event loop."""
+            (tmpd / "hero.mp4").write_bytes(_fetch_bytes(v_url))
+            (tmpd / "narration.mp3").write_bytes(_fetch_bytes(a_url))
+            out = tmpd / "hero_looped.mp4"
+            vo.loop_video_to_ceiling(tmpd / "hero.mp4", out, ffmpeg=ffmpeg)
+            return out
+
+        looped = await _offload(_prepare_inputs)
         pipe = vo.build_narrated_pipeline(
             looped.resolve().as_uri(),
             (tmpd / "narration.mp3").resolve().as_uri(),
@@ -812,7 +847,7 @@ async def _mux_narrated_video(sku, audio_asset, video_asset, parent, storage, si
         )
         res = await pipe.arun(sink=sink, timeout=get_settings().video_timeout_seconds)
 
-    asset = _map(sku, res, Style.voiceover, parent, storage)
+    asset = await _offload(_map, sku, res, Style.voiceover, parent, storage)
     # Lineage: the narrated video is derived from two individually provenance-tracked assets.
     asset["muxed_from"] = [video_asset.get("sha256"), audio_asset.get("sha256")]
     return asset
