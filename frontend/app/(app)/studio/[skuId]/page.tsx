@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { apiDownload, apiFetch } from "@/lib/api";
+import { ApiError, apiDownload, apiFetch } from "@/lib/api";
 import { streamJob } from "@/lib/stream-job";
 import { useApiData } from "@/lib/use-api";
 import { useSession } from "@/lib/use-session";
@@ -44,12 +44,42 @@ export default function SkuWorkspace() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [active, setActive] = useState<Asset | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // True from the moment Generate is clicked until the POST returns a job id. Without it the
+  // button stays enabled and unchanged for the whole round-trip — which reads as "the click
+  // did nothing", so the user clicks again and submits a *second* job with a second credit
+  // hold. The request can take a while: generation runs inline, so an in-flight job's
+  // blocking work delays every other request on the instance.
+  const [submitting, setSubmitting] = useState(false);
   const doneStepsRef = useRef(0);
   const { refreshCredits } = useSession();
 
   const original = assets?.find((a) => a.is_authentic) ?? null;
   const generated = assets?.filter((a) => !a.is_authentic) ?? [];
   const busyJob = jobId !== null;
+  // What the *controls* key off: a submit in flight is as busy as a job in flight, even
+  // though no job id exists yet.
+  const busy = submitting || busyJob;
+
+  // Re-attach to a run this browser session didn't start. The job id lived in component state
+  // only, so a refresh mid-generation left the page showing no progress for a SKU that was
+  // very much still generating — and the server now refuses a second submit while that run is
+  // live, so without this the user would be told a job is running with no way to watch it.
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<Job | null>(`/api/skus/${skuId}/job`)
+      .then((live) => {
+        if (cancelled || !live) return;
+        setJob(live);
+        setJobId(live.id);
+        doneStepsRef.current = live.steps?.filter((s) => s.status === "done").length ?? 0;
+      })
+      .catch(() => {
+        /* best-effort: failing to find an existing run must not break the page */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [skuId]);
 
   // Styles whose step is queued or running, so the workbench can hold a slot
   // open for each frame that's still on its way.
@@ -74,6 +104,11 @@ export default function SkuWorkspace() {
   }
 
   async function generate() {
+    // A second submit while the first is in flight would create a second job holding a
+    // second estimate against the same balance. The button is disabled for the same
+    // reason; this is the guard that holds when the click lands anyway.
+    if (busy) return;
+    setSubmitting(true);
     setError(null);
     doneStepsRef.current = 0;
     try {
@@ -87,13 +122,17 @@ export default function SkuWorkspace() {
       void refreshCredits();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   // Replay re-runs one asset from its stored manifest — an ordinary job on the backend,
   // so it reuses the exact polling/progress machinery a generation does.
   async function replayAsset(a: Asset) {
+    if (busy) return;   // same single-submit rule as generate() — a replay is an ordinary job
     setActive(null);
+    setSubmitting(true);
     setError(null);
     doneStepsRef.current = 0;
     try {
@@ -105,14 +144,19 @@ export default function SkuWorkspace() {
       void refreshCredits();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Replay failed");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   // Watch the job while it runs — pushed via SSE, not polled. Keyed on the job *id* so the
-  // watcher isn't torn down and rebuilt on every status update it itself causes. If the
-  // stream can't be established (a proxy that buffers it, an older backend), it falls back to
-  // the original 1.2s poll, so progress is never lost — the stream is an optimisation, not a
-  // dependency.
+  // watcher isn't torn down and rebuilt on every status update it itself causes.
+  //
+  // The stream is an optimisation over the 1.2s poll, never a dependency, and the poll is the
+  // floor beneath it: whenever the stream stops — failed to establish, dropped, or simply
+  // ended — polling takes over and runs until the job reaches a terminal status. The one rule
+  // this watcher must never break is that it always resolves the UI, because the studio's
+  // spinner and the server's stale-job reaper both depend on someone still reading the job.
   useEffect(() => {
     if (!jobId) return;
     let stopped = false;
@@ -138,12 +182,32 @@ export default function SkuWorkspace() {
       }
     }
 
+    /** Give up watching, but never silently: leave the user a resolved UI and a reason. */
+    function abandon(reason: string) {
+      stopped = true;
+      setJobId(null);
+      setError(reason);
+      void reloadAssets();
+    }
+
     async function poll() {
+      let failures = 0;
       while (!stopped) {
         try {
           handle(await apiFetch<Job>(`/api/jobs/${jobId}`));
-        } catch {
-          return;
+          failures = 0;
+        } catch (e) {
+          // A cold-starting or briefly-restarted instance must not kill the watcher —
+          // giving up on the first hiccup is how a job ends up spinning forever with
+          // nobody left to read (and therefore nobody left to reap) it.
+          if (e instanceof ApiError && e.status === 404) {
+            return abandon("This job no longer exists. Reload to see the SKU's assets.");
+          }
+          if (++failures >= 10) {
+            return abandon(
+              "Lost contact with the generation service. Reload to see this job's final state.",
+            );
+          }
         }
         if (stopped) return;
         await new Promise((r) => setTimeout(r, 1200));
@@ -154,8 +218,17 @@ export default function SkuWorkspace() {
       try {
         await streamJob(jobId!, handle, controller.signal);
       } catch {
-        if (!stopped) await poll();   // stream unavailable → fall back to polling
+        /* stream unavailable: a buffering proxy, an older backend, a dropped connection */
       }
+      // A stream can also end *cleanly* without ever carrying a terminal status — the server
+      // caps one connection at _STREAM_MAX_SECONDS (api/generate.py) and any proxy in front
+      // of it may close earlier. So "the stream ended" never means "the job finished", and
+      // resolving must be treated exactly like throwing: keep watching by poll.
+      //
+      // Without this the watcher died silently on every job that outlived the stream cap:
+      // the spinner ran forever, and because reaping happens on read (app/reaper.py), the
+      // job was never failed and its credit hold was never refunded either.
+      if (!stopped) await poll();
     }
 
     void run();
@@ -201,7 +274,7 @@ export default function SkuWorkspace() {
             : undefined
         }
         action={
-          sku && !busyJob ? (
+          sku && !busy ? (
             <SkuSettings
               sku={sku}
               assetCount={generated.length}
@@ -211,7 +284,7 @@ export default function SkuWorkspace() {
           ) : undefined
         }
         meta={
-          busyJob ? (
+          busy ? (
             <RegistrationLabel state="working">Generating</RegistrationLabel>
           ) : generated.length > 0 ? (
             <RegistrationLabel state="verified">Pack ready</RegistrationLabel>
@@ -268,7 +341,7 @@ export default function SkuWorkspace() {
           {/* The run as an orchestration — provider + modality per step — once it has finished.
               Answers "Use of Genblaze" at a glance: which providers, which modalities, in one
               pipeline. Stays mounted after completion so it's there to read (and screenshot). */}
-          {job && !busyJob && <OrchestrationTrace job={job} />}
+          {job && !busy && <OrchestrationTrace job={job} />}
 
           {assets && assets.length > 1 && (
             <FadeIn>
@@ -290,14 +363,14 @@ export default function SkuWorkspace() {
             marketplaces={marketplaces}
             onMarketplacesChange={setMarketplaces}
             hasOriginal={Boolean(original)}
-            busy={busyJob}
+            busy={busy}
             onGenerate={generate}
             canExport={generated.length > 0}
             onExport={exportPack}
             exporting={exporting}
             job={job}
           />
-          {original && !busyJob && (
+          {original && !busy && (
             <CompliancePanel skuId={skuId} refreshKey={assets?.length ?? 0} />
           )}
         </FadeIn>
@@ -307,7 +380,7 @@ export default function SkuWorkspace() {
         asset={active}
         onClose={() => setActive(null)}
         onReplay={replayAsset}
-        replayDisabled={busyJob}
+        replayDisabled={busy}
       />
     </Stack>
   );
