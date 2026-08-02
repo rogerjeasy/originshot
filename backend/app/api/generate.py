@@ -8,12 +8,15 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from .. import credits, pricing, reaper
 from ..auth import CurrentUser, get_current_user
 from ..generation import generation_mode, missing_generation_requirements
-from ..models import GenerateRequest, JobOut, StepStatus, Style
+from ..models import GenerateRequest, JobOut, JobStatus, StepStatus, Style
 from ..repo import get_repo
 from ..queue import enqueue_generation, enqueue_replay
 from ..security import enforce_generation_quota
 
 router = APIRouter(tags=["generate"])
+
+# Statuses that still claim to be in progress. Mirrors reaper._LIVE.
+_LIVE_STATUSES = {JobStatus.queued.value, JobStatus.running.value}
 
 
 def assert_generation_available() -> None:
@@ -28,6 +31,46 @@ def assert_generation_available() -> None:
             503,
             "Image generation is currently unavailable — the service is missing: "
             + ", ".join(missing),
+        )
+
+
+def find_live_job(uid: str, sku_id: str) -> dict | None:
+    """This SKU's in-flight generation, or None. The one definition of "already running".
+
+    Reaps as it reads, exactly like `GET /jobs/{id}` does: generation runs inline, so a job
+    whose process died has nobody left to write its terminal status, and counting such a job
+    as live would bar its SKU from ever generating again — one crash turning into a
+    permanently unusable product. So a job only counts as live if it is still inside its own
+    budget (app/reaper.py).
+    """
+    repo = get_repo()
+    for job in repo.list_jobs(uid):
+        if job.get("sku_id") != sku_id or str(job.get("status")) not in _LIVE_STATUSES:
+            continue
+        live = reaper.reap_one(uid, job) or job
+        if str(live.get("status")) in _LIVE_STATUSES:
+            return live
+    return None
+
+
+def assert_no_live_job(uid: str, sku_id: str) -> None:
+    """409 when this SKU already has a generation in flight.
+
+    Every submit creates a job and holds its own estimate, so a *duplicate* submit is a
+    duplicate charge against the same balance. The studio disables its button on the first
+    click, but a stale tab, a retried request or a second browser can all still arrive here,
+    and only the server can see across them.
+
+    This also bounds concurrency where it actually hurts: generation runs inline (JOB_QUEUE=
+    inline), so two packs for one SKU are two runs competing for one small instance's memory —
+    the condition that killed the process and stranded every outstanding hold.
+    """
+    live = find_live_job(uid, sku_id)
+    if live is not None:
+        raise HTTPException(
+            409,
+            f"This product already has a generation running (job {live['id']}). "
+            "Wait for it to finish before starting another.",
         )
 
 
@@ -88,6 +131,7 @@ async def generate(
         raise HTTPException(400, "Upload a product photo before generating")
 
     assert_generation_available()
+    assert_no_live_job(user.uid, sku_id)   # one live run per SKU — no duplicate holds
     enforce_generation_quota(user.uid)  # denial-of-wallet protection: caps request volume
 
     # A user's first authenticated call isn't necessarily /me — generating straight after
@@ -142,6 +186,7 @@ async def replay(
         )
 
     assert_generation_available()
+    assert_no_live_job(user.uid, sku_id)   # a replay is an ordinary job holding ordinary credit
     enforce_generation_quota(user.uid)
     credits.ensure_signup_grant(user.uid)
 
@@ -153,6 +198,21 @@ async def replay(
     })
     await enqueue_replay(background, user.uid, job["id"], sku_id, asset_id)
     return repo.get_job(user.uid, job["id"]) or job
+
+
+@router.get("/skus/{sku_id}/job", response_model=JobOut | None)
+def live_job(sku_id: str, user: CurrentUser = Depends(get_current_user)):
+    """This SKU's in-flight generation, or `null` if nothing is running.
+
+    Reloading the studio mid-run used to lose the run: the page held the job id in component
+    state only, so a refresh left a generating SKU showing no progress at all, and — since
+    reaping happens on read — with nobody left to resolve it either. This is how the page
+    re-attaches to a run it did not start in this browser session.
+    """
+    repo = get_repo()
+    if not repo.get_sku(user.uid, sku_id):
+        raise HTTPException(404, "Not found")
+    return find_live_job(user.uid, sku_id)
 
 
 @router.get("/jobs/{job_id}", response_model=JobOut)
