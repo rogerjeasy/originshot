@@ -43,6 +43,7 @@ a provider whose whole account is out of credit. See :func:`image_chain`.
 """
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import hashlib
 import logging
@@ -349,8 +350,8 @@ def _make_openai_provider():
 _EXT_BY_MIME = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 
-@contextlib.contextmanager
-def _stage_source(req: ImageEditRequest, adapter: ImageAdapter):
+@contextlib.asynccontextmanager
+async def _stage_source(req: ImageEditRequest, adapter: ImageAdapter):
     """Yield a request whose source the provider can actually read.
 
     **Why this exists.** `genblaze_openai`'s `DalleProvider` downloads an https input to a
@@ -373,27 +374,43 @@ def _stage_source(req: ImageEditRequest, adapter: ImageAdapter):
 
     The staged file is always removed, including when the provider raises — a failed
     generation must not leave the seller's product photo sitting in a temp directory.
+
+    **Asynchronous because the download is not.** `httpx.stream` is the blocking client, and
+    generation runs inline on the API's own event loop (app/queue.py), so downloading the
+    source here directly would stop the whole instance for the length of the transfer — long
+    enough to make the next `POST /generate` look like it was ignored. The transfer is handed
+    to a worker thread; only the staging decision and the cleanup stay on the loop.
     """
     remote = req.source_uri.lower().startswith(("http://", "https://"))
     if not (adapter.needs_local_source and remote):
         yield req
         return
 
-    import httpx
-
     suffix = _EXT_BY_MIME.get(req.source_media_type, ".png")
     fd, tmp = tempfile.mkstemp(prefix="originshot-src-", suffix=suffix)
     path = Path(tmp)
     try:
-        with open(fd, "wb") as fh:
-            with httpx.stream("GET", req.source_uri, timeout=60, follow_redirects=False) as r:
-                r.raise_for_status()
-                for chunk in r.iter_bytes():
-                    fh.write(chunk)
+        await asyncio.to_thread(_download_source, req.source_uri, fd)
         yield replace(req, source_uri=path.resolve().as_uri())
     finally:
         with contextlib.suppress(OSError):
             path.unlink(missing_ok=True)
+
+
+def _download_source(source_uri: str, fd: int) -> None:
+    """Stream `source_uri` into the already-open descriptor `fd`. Blocking; runs in a thread.
+
+    Takes the descriptor rather than a path so the file `_stage_source` created with
+    `mkstemp` is the one written — no second open, and no window where the name exists but
+    the descriptor leaks.
+    """
+    import httpx
+
+    with open(fd, "wb") as fh:
+        with httpx.stream("GET", source_uri, timeout=60, follow_redirects=False) as r:
+            r.raise_for_status()
+            for chunk in r.iter_bytes():
+                fh.write(chunk)
 
 
 def build_image_pipeline(req: ImageEditRequest, adapter: ImageAdapter, *, provider=None):
@@ -431,7 +448,7 @@ async def run_image_edit(req: ImageEditRequest, *, sink, timeout: int,
         try:
             # Staged per attempt, not once up front: only some providers need it, and a
             # provider we never reach should never cost a download.
-            with _stage_source(req, adapter) as staged:
+            async with _stage_source(req, adapter) as staged:
                 pipeline = build_image_pipeline(staged, adapter)
                 result = await pipeline.arun(sink=sink, timeout=timeout)
         except Exception as exc:  # noqa: BLE001 — try the next provider, report if none work
